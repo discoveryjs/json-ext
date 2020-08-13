@@ -1,0 +1,32 @@
+{
+    "name": "json-ext",
+    "version": "0.0.0",
+    "description": "A set of utilities that extend the use of JSON",
+    "keywords": [
+        "json",
+        "utils"
+    ],
+    "author": "Roman Dvornov <rdvornov@gmail.com> (https://github.com/lahmatiy)",
+    "license": "MIT",
+    "repository": "discoveryjs/json-ext",
+    "main": "./index",
+    "scripts": {
+        "test": "mocha --reporter progress",
+        "lint": "eslint src test",
+        "lint-and-test": "npm run lint && npm test",
+        "coverage": "nyc npm test",
+        "travis": "nyc npm run lint-and-test && npm run coveralls",
+        "coveralls": "nyc report --reporter=text-lcov | coveralls"
+    },
+    "dependencies": {},
+    "devDependencies": {
+        "coveralls": "^3.1.0",
+        "eslint": "^7.6.0",
+        "mocha": "^8.1.1",
+        "nyc": "^15.1.0"
+    },
+    "engines": {
+        "node": ">=12.0.0"
+    },
+    "files": []
+}
