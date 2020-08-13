@@ -1,3 +1,4 @@
-module.exports = function(a, b) {
-    return a + b;
+module.exports = {
+    info: require('./info'),
+    stringifyStream: require('./stringify-stream')
 };
