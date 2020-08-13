@@ -1,7 +1,7 @@
 const assert = require('assert');
-const { json: jsonStrinifyInfo } = require('../src');
+const { info: jsonStrinifyInfo } = require('../src');
 
-describe.skip('info()', () => {
+describe('info()', () => {
     describe('basic', () => {
         const tests = [
             null,
@@ -27,6 +27,7 @@ describe.skip('info()', () => {
                     assert.deepEqual(info, {
                         minLength: s.length,
                         circular: [],
+                        duplicate: [],
                         async: []
                     });
                 });
@@ -42,6 +43,7 @@ describe.skip('info()', () => {
                     assert.deepEqual(info, {
                         minLength: s.length,
                         circular: [],
+                        duplicate: [],
                         async: []
                     });
                 });
