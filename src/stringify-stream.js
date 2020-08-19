@@ -1,40 +1,18 @@
-// Fork of https://github.com/Faleij/json-stream-stringify
 const { Readable } = require('stream');
-const PrimitiveType = 1;
-const PromiseType = 2;
-const ArrayType = 3;
-const ObjectType = 4;
-const ReadableStringType = 5;
-const ReadableObjectType = 6;
+const {
+    type: {
+        PRIMITIVE,
+        OBJECT,
+        ARRAY,
+        PROMISE,
+        STRING_STREAM,
+        OBJECT_STREAM
+    },
+    normalizeReplacer,
+    normalizeSpace,
+    getTypeAsync
+} = require('./utils');
 const noop = () => {};
-
-function isReadableStream(value) {
-    return (
-        typeof value.pipe === 'function' &&
-        typeof value._read === 'function' &&
-        typeof value._readableState === 'object'
-    );
-}
-
-function getType(value) {
-    if (value !== null && typeof value === 'object') {
-        if (typeof value.then === 'function') {
-            return PromiseType;
-        }
-
-        if (isReadableStream(value)) {
-            return value._readableState.objectMode ? ReadableObjectType : ReadableStringType;
-        }
-
-        if (Array.isArray(value)) {
-            return ArrayType;
-        }
-
-        return ObjectType;
-    }
-
-    return PrimitiveType;
-}
 
 function quoteString(string) {
     return JSON.stringify(string);
@@ -152,41 +130,6 @@ const processReadableString = createStreamReader(function(data) {
     this.push(data);
 });
 
-function normalizeReplacer(replacer) {
-    if (typeof replacer === 'function') {
-        return replacer;
-    }
-
-    if (Array.isArray(replacer)) {
-        const whitelist = new Set(replacer
-            .map(item => typeof item === 'string' || typeof item === 'number' ? String(item) : null)
-            .filter(item => typeof item === 'string')
-        );
-
-        whitelist.add('');
-
-        return (key, value) => whitelist.has(key) ? value : undefined;
-    }
-
-    return null;
-}
-
-function normalizeSpace(space) {
-    if (typeof space === 'number') {
-        if (!Number.isFinite(space) || space < 1) {
-            return false;
-        }
-
-        return ' '.repeat(Math.min(space, 10));
-    }
-
-    if (typeof space === 'string') {
-        return space.slice(0, 10) || false;
-    }
-
-    return false;
-}
-
 class JsonStringifyStream extends Readable {
     constructor(value, replacer, space) {
         super({});
@@ -227,17 +170,17 @@ class JsonStringifyStream extends Readable {
             value = undefined;
         }
 
-        let type = getType(value);
+        let type = getTypeAsync(value);
 
         switch (type) {
-            case PrimitiveType:
+            case PRIMITIVE:
                 if (callback !== processObjectEntry || value !== undefined) {
                     callback.call(this, key);
                     this.push(primitiveToString(value));
                 }
                 break;
 
-            case PromiseType:
+            case PROMISE:
                 this.pushStack({
                     handler: noop,
                     awaiting: true
@@ -254,7 +197,7 @@ class JsonStringifyStream extends Readable {
                     });
                 break;
 
-            case ObjectType:
+            case OBJECT:
                 callback.call(this, key);
 
                 const keys = Object.keys(value);
@@ -286,7 +229,7 @@ class JsonStringifyStream extends Readable {
                 this._depth++;
                 break;
 
-            case ArrayType:
+            case ARRAY:
                 callback.call(this, key);
 
                 if (value.length === 0) {
@@ -314,8 +257,8 @@ class JsonStringifyStream extends Readable {
                 this._depth++;
                 break;
 
-            case ReadableStringType:
-            case ReadableObjectType:
+            case STRING_STREAM:
+            case OBJECT_STREAM:
                 callback.call(this, key);
 
                 if (value.readableEnded) {
@@ -326,7 +269,7 @@ class JsonStringifyStream extends Readable {
                     return this.abort(new Error('Readable Stream is in flowing mode, data may have been lost. Trying to pause stream.'));
                 }
 
-                if (type === ReadableObjectType) {
+                if (type === OBJECT_STREAM) {
                     this.push('[');
                     this.pushStack({
                         handler: push,
@@ -336,7 +279,7 @@ class JsonStringifyStream extends Readable {
                 }
 
                 const self = this.pushStack({
-                    handler: type === ReadableObjectType ? processReadableObject : processReadableString,
+                    handler: type === OBJECT_STREAM ? processReadableObject : processReadableString,
                     value,
                     index: 0,
                     firstRead: true,

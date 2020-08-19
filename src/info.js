@@ -1,50 +1,17 @@
-const PrimitiveType = 1;
-const PromiseType = 2;
-const ArrayType = 3;
-const ObjectType = 4;
-const ReadableStringType = 5;
-const ReadableObjectType = 6;
-
-function isReadableStream(value) {
-    return (
-        typeof value.pipe === 'function' &&
-        // value.readable !== false &&
-        typeof value._read === 'function' &&
-        typeof value._readableState === 'object'
-    );
-}
-
-function getTypeNative(value) {
-    if (value !== null && typeof value === 'object') {
-        if (Array.isArray(value)) {
-            return ArrayType;
-        }
-
-        return ObjectType;
-    }
-
-    return PrimitiveType;
-}
-
-function getTypeAsync(value) {
-    if (value !== null && typeof value === 'object') {
-        if (typeof value.then === 'function') {
-            return PromiseType;
-        }
-
-        if (isReadableStream(value)) {
-            return value._readableState.objectMode ? ReadableObjectType : ReadableStringType;
-        }
-
-        if (Array.isArray(value)) {
-            return ArrayType;
-        }
-
-        return ObjectType;
-    }
-
-    return PrimitiveType;
-}
+const {
+    type: {
+        PRIMITIVE,
+        OBJECT,
+        ARRAY,
+        PROMISE,
+        STRING_STREAM,
+        OBJECT_STREAM
+    },
+    normalizeReplacer,
+    normalizeSpace,
+    getTypeNative,
+    getTypeAsync
+} = require('./utils');
 
 function stringLength(value) {
     // TODO: calculate escape length
@@ -69,41 +36,6 @@ function primitiveLength(value) {
         default:
             throw new Error(`Unknown type "${typeof value}". Please file an issue!`);
     }
-}
-
-function normalizeReplacer(replacer) {
-    if (typeof replacer === 'function') {
-        return replacer;
-    }
-
-    if (Array.isArray(replacer)) {
-        const whitelist = new Set(replacer
-            .map(item => typeof item === 'string' || typeof item === 'number' ? String(item) : null)
-            .filter(item => typeof item === 'string')
-        );
-
-        whitelist.add('');
-
-        return (key, value) => whitelist.has(key) ? value : undefined;
-    }
-
-    return null;
-}
-
-function normalizeSpace(space) {
-    if (typeof space === 'number') {
-        if (!Number.isFinite(space) || space < 1) {
-            return false;
-        }
-
-        return ' '.repeat(Math.min(space, 10));
-    }
-
-    if (typeof space === 'string') {
-        return space.slice(0, 10) || false;
-    }
-
-    return false;
 }
 
 function spaceLength(space) {
@@ -132,7 +64,7 @@ module.exports = function jsonStrinifyInfo(value, replacer, space, options) {
         let type = getType(value);
 
         // check for circular structure
-        if (type !== PrimitiveType && stack.has(value)) {
+        if (type !== PRIMITIVE && stack.has(value)) {
             circular.add(value);
             length += 4; // treat as null
 
@@ -144,13 +76,15 @@ module.exports = function jsonStrinifyInfo(value, replacer, space, options) {
         }
 
         switch (type) {
-            case PrimitiveType:
+            case PRIMITIVE:
                 if (value !== undefined || Array.isArray(this)) {
                     length += primitiveLength(value);
+                } else if (this === root) {
+                    length += 9; // FIXME: that's the length of undefined, show we normalize behaviour to convert it to null?
                 }
                 break;
 
-            case ObjectType: {
+            case OBJECT: {
                 if (visited.has(value)) {
                     duplicate.add(value);
                     length += visited.get(value);
@@ -193,7 +127,7 @@ module.exports = function jsonStrinifyInfo(value, replacer, space, options) {
                 break;
             }
 
-            case ArrayType: {
+            case ARRAY: {
                 if (visited.has(value)) {
                     duplicate.add(value);
                     length += visited.get(value);
@@ -226,16 +160,13 @@ module.exports = function jsonStrinifyInfo(value, replacer, space, options) {
                 break;
             }
 
-            case PromiseType:
+            case PROMISE:
+            case STRING_STREAM:
                 async.add(value);
                 break;
 
-            case ReadableStringType:
-            case ReadableObjectType:
-                if (type === ReadableObjectType) {
-                    length += 2; // []
-                }
-
+            case OBJECT_STREAM:
+                length += 2; // []
                 async.add(value);
                 break;
         }
@@ -246,15 +177,16 @@ module.exports = function jsonStrinifyInfo(value, replacer, space, options) {
     options = options || {};
 
     const visited = new Map();
-    const duplicate = new Set();
     const stack = new Set();
+    const duplicate = new Set();
     const circular = new Set();
     const async = new Set();
     const getType = options.async ? getTypeAsync : getTypeNative;
+    const root = { '': value };
     let stop = false;
     let length = 0;
 
-    walk.call({ '': value }, '', value);
+    walk.call(root, '', value);
 
     return {
         minLength: isNaN(length) ? Infinity : length,
