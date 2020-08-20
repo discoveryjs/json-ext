@@ -1,5 +1,8 @@
 const { Readable } = require('stream');
 const {
+    normalizeReplacer,
+    normalizeSpace,
+    getTypeAsync,
     type: {
         PRIMITIVE,
         OBJECT,
@@ -7,21 +10,18 @@ const {
         PROMISE,
         STRING_STREAM,
         OBJECT_STREAM
-    },
-    normalizeReplacer,
-    normalizeSpace,
-    getTypeAsync
+    }
 } = require('./utils');
 const noop = () => {};
 
-function quoteString(string) {
+function quoteJSONString(string) {
     return JSON.stringify(string);
 }
 
 function primitiveToString(value) {
     switch (typeof value) {
         case 'string':
-            return quoteString(value);
+            return quoteJSONString(value);
 
         case 'number':
             return Number.isFinite(value) ? String(value) : 'null';
@@ -55,9 +55,9 @@ function processObjectEntry(key) {
     }
 
     if (this.space) {
-        this.push(`\n${this.space.repeat(this._depth)}${quoteString(key)}: `);
+        this.push(`\n${this.space.repeat(this._depth)}${quoteJSONString(key)}: `);
     } else {
-        this.push(`${quoteString(key)}:`);
+        this.push(`${quoteJSONString(key)}:`);
     }
 }
 
@@ -421,6 +421,6 @@ class JsonStringifyStream extends Readable {
     }
 }
 
-module.exports = function createJsonStringifyStream(value, replacer, spaces) {
-    return new JsonStringifyStream(value, replacer, spaces);
+module.exports = function createJsonStringifyStream(value, replacer, space) {
+    return new JsonStringifyStream(value, replacer, space);
 };

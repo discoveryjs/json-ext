@@ -4,6 +4,34 @@ const ArrayType = 3;
 const PromiseType = 4;
 const ReadableStringType = 5;
 const ReadableObjectType = 6;
+const escapableCharRx = /[\u0000-\u001f\u0022\u007f-\u009f\u00ad\u0600-\u0604\u070f\u17b4\u17b5\u200c-\u200f\u2028-\u202f\u2060-\u206f\ufeff\ufff0-\uffff]/g;
+const escapableCharSubstitution = { // table of character substitutions
+    '\b': '\\b',
+    '\t': '\\t',
+    '\n': '\\n',
+    '\f': '\\f',
+    '\r': '\\r',
+    '\"': '\\\"',
+    '\\': '\\\\'
+};
+// https://tc39.es/ecma262/#table-json-single-character-escapes
+const escapableCharCodeSubstitution = { // JSON Single Character Escape Sequences
+    0x08: '\\b',
+    0x09: '\\t',
+    0x0a: '\\n',
+    0x0c: '\\f',
+    0x0d: '\\r',
+    0x22: '\\\"',
+    0x5c: '\\\\'
+};
+
+function isLeadingSurrogate(code) {
+    return code >= 0xD800 && code <= 0xDBFF;
+}
+
+function isTrailingSurrogate(code) {
+    return code >= 0xDC00 && code <= 0xDFFF;
+}
 
 function isReadableStream(value) {
     return (
@@ -81,6 +109,11 @@ function normalizeSpace(space) {
 }
 
 module.exports = {
+    escapableCharRx,
+    escapableCharSubstitution,
+    escapableCharCodeSubstitution,
+    isLeadingSurrogate,
+    isTrailingSurrogate,
     type: {
         PRIMITIVE: PrimitiveType,
         PROMISE: PromiseType,

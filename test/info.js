@@ -1,6 +1,8 @@
 const assert = require('assert');
 const { inspect } = require('util');
 const { info: jsonStringifyInfo } = require('../src');
+const stringEncoder = new TextEncoder();
+const strBytesLength = str => stringEncoder.encode(str).length;
 
 describe('info()', () => {
     describe('basic', () => {
@@ -14,6 +16,14 @@ describe('info()', () => {
             Infinity,
             -Infinity,
             'test',
+            '\b\t\n\f\r"\\', // escapes
+            '漢字',
+            '\u0000\u0010\u001f\u009f', // "\u009f"
+            '\uD800\uDC00',  // surrogate pair
+            '\uDC00\uD800',  // broken surrogate pair
+            '\uD800',  // leading surrogate (broken surrogate pair)
+            '\uDC00',  // trailing surrogate (broken surrogate pair)
+            Array.from({ length: 0x900 }).map((_, i) => String.fromCharCode(i)).join(''), // all chars 0x00..0x8FF
             {},
             { foo: 1 },
             { foo: 1, bar: 2 },
@@ -37,7 +47,7 @@ describe('info()', () => {
                     const info = jsonStringifyInfo(value);
 
                     assert.deepEqual(info, {
-                        minLength: native.length,
+                        minLength: strBytesLength(native),
                         circular: [],
                         duplicate: [],
                         async: []
@@ -53,7 +63,7 @@ describe('info()', () => {
                     const info = jsonStringifyInfo(value, null, 4);
 
                     assert.deepEqual(info, {
-                        minLength: native.length,
+                        minLength: strBytesLength(native),
                         circular: [],
                         duplicate: [],
                         async: []

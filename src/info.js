@@ -1,4 +1,11 @@
 const {
+    normalizeReplacer,
+    normalizeSpace,
+    getTypeNative,
+    getTypeAsync,
+    isLeadingSurrogate,
+    isTrailingSurrogate,
+    escapableCharCodeSubstitution,
     type: {
         PRIMITIVE,
         OBJECT,
@@ -6,16 +13,45 @@ const {
         PROMISE,
         STRING_STREAM,
         OBJECT_STREAM
-    },
-    normalizeReplacer,
-    normalizeSpace,
-    getTypeNative,
-    getTypeAsync
+    }
 } = require('./utils');
+const charLength2048 = Array.from({ length: 2048 }).map((_, code) => {
+    if (escapableCharCodeSubstitution.hasOwnProperty(code)) {
+        return 2; // \X
+    }
 
-function stringLength(value) {
-    // TODO: calculate escape length
-    return value.length + 2;
+    if (code < 0x20) {
+        return 6; // \uXXXX
+    }
+
+    return code < 128 ? 1 : 2; // UTF8 bytes
+});
+
+function stringLength(str) {
+    let len = 0;
+    let prevLeadingSurrogate = false;
+
+    for (let i = 0; i < str.length; i++) {
+        const code = str.charCodeAt(i);
+
+        if (code < 2048) {
+            len += charLength2048[code];
+        } else if (isLeadingSurrogate(code)) {
+            len += 6; // \uXXXX since no pair with trailing surrogate yet
+            prevLeadingSurrogate = true;
+            continue;
+        } else if (isTrailingSurrogate(code)) {
+            len = prevLeadingSurrogate
+                ? len - 2  // surrogate pair (4 bytes), since we calulate prev leading surrogate as 6 bytes, substruct 2 bytes
+                : len + 6; // \uXXXX
+        } else {
+            len += 3; // code >= 2048 is 3 bytes length for UTF8
+        }
+
+        prevLeadingSurrogate = false;
+    }
+
+    return len + 2; // +2 for quotes
 }
 
 function primitiveLength(value) {
