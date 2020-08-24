@@ -143,8 +143,7 @@ class JsonStringifyStream extends Readable {
         this._ended = false;
 
         this._readSize = 0;
-        this._buffer = null;
-        this._bufferOffset = 0;
+        this._buffer = '';
 
         this._stack = null;
         this._visited = new WeakSet();
@@ -356,8 +355,8 @@ class JsonStringifyStream extends Readable {
         if (this._stack === null && !this._ended) {
             this._ended = true;
 
-            if (this._bufferOffset > 0) {
-                super.push(this._buffer.slice(0, this._bufferOffset)); // flush buffer
+            if (this._buffer.length) {
+                super.push(this._buffer); // flush buffer
             }
 
             this.push(null);
@@ -367,31 +366,16 @@ class JsonStringifyStream extends Readable {
 
     push(data) {
         if (data !== null) {
-            const max = this._bufferOffset + this._readSize;
+            this._buffer += data;
 
-            // prevent physical buffer overflow
-            if (data.length > max) {
-                this.pushStack({
-                    handler: push,
-                    value: data.slice(max)
-                });
-                data = data.slice(0, max);
-            }
-
-            // write to buffer
-            this._bufferOffset += typeof data === 'string'
-                ? this._buffer.write(data, this._bufferOffset)
-                : data.copy(this._buffer, this._bufferOffset);
-
-            // check logical buffer overflow
-            if (this._bufferOffset < this._readSize) {
+            // check buffer overflow
+            if (this._buffer.length < this._readSize) {
                 return;
             }
 
             // flush buffer
-            data = Uint8Array.prototype.slice.call(this._buffer, 0, this._readSize);
-            this._buffer.copy(this._buffer, 0, this._readSize, this._bufferOffset);
-            this._bufferOffset -= this._readSize;
+            data = this._buffer;
+            this._buffer = '';
             this._processing = false;
         }
 
@@ -404,17 +388,6 @@ class JsonStringifyStream extends Readable {
         }
 
         this._readSize = size || this.readableHighWaterMark;
-
-        // allocate buffer
-        if (this._buffer === null || this._buffer.length < 2 * this._readSize) {
-            const newBuffer = Buffer.alloc(2 * this._readSize); // allocate x2 since string chars can be encoded as 2 bytes
-
-            if (this._buffer !== null && this._bufferOffset > 0) {
-                this._buffer.copy(newBuffer, 0, 0, this._bufferOffset);
-            }
-
-            this._buffer = newBuffer;
-        }
 
         // start processing
         this.processStack(size);
