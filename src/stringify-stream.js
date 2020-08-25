@@ -13,9 +13,14 @@ const {
     }
 } = require('./utils');
 const noop = () => {};
+const needToEscape = /[\x00-\x1f\uD800-\uffff]/;
 
-function quoteJSONString(string) {
-    return JSON.stringify(string);
+function quoteJSONString(str) {
+    if (needToEscape.test(str)) {
+        return JSON.stringify(str);
+    }
+
+    return '"' + str + '"';
 }
 
 function primitiveToString(value) {
@@ -24,18 +29,17 @@ function primitiveToString(value) {
             return quoteJSONString(value);
 
         case 'number':
-            return Number.isFinite(value) ? String(value) : 'null';
+            return Number.isFinite(value) ? value : 'null';
 
         case 'boolean':
-            return String(value);
+            return value;
 
         case 'undefined':
         case 'object':
             return 'null';
 
         default:
-            // This should never happen, I can't imagine a situation where this executes.
-            // If you find a way, please open a ticket or PR
+            // this should never happen
             throw new Error(`Unknown type "${typeof value}". Please file an issue!`);
     }
 }
@@ -48,8 +52,8 @@ function push() {
 function processObjectEntry(key) {
     const current = this._stack;
 
-    if (current.firstEntry) {
-        current.firstEntry = false;
+    if (!current.first) {
+        current.first = true;
     } else {
         this.push(',');
     }
@@ -57,7 +61,7 @@ function processObjectEntry(key) {
     if (this.space) {
         this.push(`\n${this.space.repeat(this._depth)}${quoteJSONString(key)}: `);
     } else {
-        this.push(`${quoteJSONString(key)}:`);
+        this.push(quoteJSONString(key) + ':');
     }
 }
 
@@ -66,7 +70,7 @@ function processObject() {
 
     // when no keys left, remove obj from stack
     if (current.index === current.keys.length) {
-        if (this.space && !current.firstEntry) {
+        if (this.space && current.first) {
             this.push(`\n${this.space.repeat(this._depth - 1)}}`);
         } else {
             this.push('}');
@@ -83,7 +87,7 @@ function processObject() {
 }
 
 function processArrayItem(index) {
-    if (index !== '0') {
+    if (index !== 0) {
         this.push(',');
     }
 
@@ -106,7 +110,7 @@ function processArray() {
         return;
     }
 
-    this.processValue(String(current.index), current.value[current.index], processArrayItem);
+    this.processValue(current.index, current.value[current.index], processArrayItem);
     current.index++;
 }
 
@@ -116,13 +120,13 @@ function createStreamReader(fn) {
         const data = current.value.read(this._readSize);
 
         if (data !== null) {
-            current.firstRead = false;
+            current.first = false;
             fn.call(this, data, current);
         } else {
-            if (current.firstRead && !current.value._readableState.reading) {
+            if (current.first && !current.value._readableState.reading) {
                 this.popStack();
             } else {
-                current.firstRead = true;
+                current.first = true;
                 current.awaiting = true;
             }
         }
@@ -130,7 +134,7 @@ function createStreamReader(fn) {
 }
 
 const processReadableObject = createStreamReader(function(data, current) {
-    this.processValue(String(current.index), data, processArrayItem);
+    this.processValue(current.index, data, processArrayItem);
     current.index++;
 });
 
@@ -170,7 +174,7 @@ class JsonStringifyStream extends Readable {
         }
 
         if (this.replacer !== null) {
-            value = this.replacer.call(null, key, value);  // FIXME: `this` should be current value
+            value = this.replacer.call(null, String(key), value);  // FIXME: `this` should be current value
         }
 
         if (typeof value === 'function' || typeof value === 'symbol') {
@@ -202,7 +206,7 @@ class JsonStringifyStream extends Readable {
                     handler: processObject,
                     value,
                     index: 0,
-                    firstEntry: true,
+                    first: false,
                     keys: Object.keys(value)
                 });
                 break;
@@ -268,7 +272,7 @@ class JsonStringifyStream extends Readable {
                     handler: type === OBJECT_STREAM ? processReadableObject : processReadableString,
                     value,
                     index: 0,
-                    firstRead: false,
+                    first: false,
                     awaiting: !value.readable || value.readableLength === 0
                 });
                 const continueProcessing = () => {
@@ -303,7 +307,6 @@ class JsonStringifyStream extends Readable {
 
     pushStack(node) {
         node.prev = this._stack;
-        node.depth = this._stack ? this._stack.depth + 1 : 0;
         return this._stack = node;
     }
 

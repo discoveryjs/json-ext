@@ -90,6 +90,13 @@ describe('stringifyStream()', () => {
             '\n', // "\n"
             '漢字',
             '\u009f', // "\u009f"
+            '\b\t\n\f\r"\\', // escapes
+            '\u0000\u0010\u001f\u009f', // "\u009f"
+            '\uD800\uDC00',  // surrogate pair
+            '\uDC00\uD800',  // broken surrogate pair
+            '\uD800',  // leading surrogate (broken surrogate pair)
+            '\uDC00',  // trailing surrogate (broken surrogate pair)
+            Array.from({ length: 0x900 }).map((_, i) => String.fromCharCode(i)).join(''), // all chars 0x00..0x8FF
 
             // object
             {},

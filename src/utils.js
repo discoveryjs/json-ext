@@ -42,35 +42,35 @@ function isReadableStream(value) {
 }
 
 function getTypeNative(value) {
-    if (value !== null && typeof value === 'object') {
-        if (Array.isArray(value)) {
-            return ArrayType;
-        }
-
-        return ObjectType;
+    if (value === null || typeof value !== 'object') {
+        return PrimitiveType;
     }
 
-    return PrimitiveType;
+    if (Array.isArray(value)) {
+        return ArrayType;
+    }
+
+    return ObjectType;
 }
 
 function getTypeAsync(value) {
-    if (value !== null && typeof value === 'object') {
-        if (typeof value.then === 'function') {
-            return PromiseType;
-        }
-
-        if (isReadableStream(value)) {
-            return value._readableState.objectMode ? ReadableObjectType : ReadableStringType;
-        }
-
-        if (Array.isArray(value)) {
-            return ArrayType;
-        }
-
-        return ObjectType;
+    if (value === null || typeof value !== 'object') {
+        return PrimitiveType;
     }
 
-    return PrimitiveType;
+    if (typeof value.then === 'function') {
+        return PromiseType;
+    }
+
+    if (isReadableStream(value)) {
+        return value._readableState.objectMode ? ReadableObjectType : ReadableStringType;
+    }
+
+    if (Array.isArray(value)) {
+        return ArrayType;
+    }
+
+    return ObjectType;
 }
 
 function normalizeReplacer(replacer) {
