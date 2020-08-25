@@ -67,7 +67,9 @@ function processObject() {
     // when no keys left, remove obj from stack
     if (current.index === current.keys.length) {
         if (this.space && !current.firstEntry) {
-            this.push('\n' + this.space.repeat(this._depth - 1));
+            this.push(`\n${this.space.repeat(this._depth - 1)}}`);
+        } else {
+            this.push('}');
         }
 
         this.popStack();
@@ -77,7 +79,7 @@ function processObject() {
     const key = current.keys[current.index];
 
     this.processValue(key, current.value[key], processObjectEntry);
-    current.index += 1;
+    current.index++;
 }
 
 function processArrayItem(index) {
@@ -94,24 +96,30 @@ function processArray() {
     const current = this._stack;
 
     if (current.index === current.value.length) {
+        if (this.space && current.index > 0) {
+            this.push(`\n${this.space.repeat(this._depth - 1)}]`);
+        } else {
+            this.push(']');
+        }
+
         this.popStack();
         return;
     }
 
     this.processValue(String(current.index), current.value[current.index], processArrayItem);
-    current.index += 1;
+    current.index++;
 }
 
 function createStreamReader(fn) {
-    return function(size) {
+    return function() {
         const current = this._stack;
-        const data = current.value.read(size);
+        const data = current.value.read(this._readSize);
 
         if (data !== null) {
             current.firstRead = false;
             fn.call(this, data, current);
         } else {
-            if (current.firstRead) {
+            if (current.firstRead && !current.value._readableState.reading) {
                 this.popStack();
             } else {
                 current.firstRead = true;
@@ -123,7 +131,7 @@ function createStreamReader(fn) {
 
 const processReadableObject = createStreamReader(function(data, current) {
     this.processValue(String(current.index), data, processArrayItem);
-    current.index += 1;
+    current.index++;
 });
 
 const processReadableString = createStreamReader(function(data) {
@@ -179,6 +187,45 @@ class JsonStringifyStream extends Readable {
                 }
                 break;
 
+            case OBJECT:
+                callback.call(this, key);
+
+                // check for circular structure
+                if (this._visited.has(value)) {
+                    return this.abort(new Error('Converting circular structure to JSON'));
+                }
+
+                this._visited.add(value);
+                this._depth++;
+                this.push('{');
+                this.pushStack({
+                    handler: processObject,
+                    value,
+                    index: 0,
+                    firstEntry: true,
+                    keys: Object.keys(value)
+                });
+                break;
+
+            case ARRAY:
+                callback.call(this, key);
+
+                // check for circular structure
+                if (this._visited.has(value)) {
+                    return this.abort(new Error('Converting circular structure to JSON'));
+                }
+
+                this._visited.add(value);
+
+                this.push('[');
+                this.pushStack({
+                    handler: processArray,
+                    value,
+                    index: 0
+                });
+                this._depth++;
+                break;
+
             case PROMISE:
                 this.pushStack({
                     handler: noop,
@@ -194,66 +241,6 @@ class JsonStringifyStream extends Readable {
                     .catch(error => {
                         this.abort(error);
                     });
-                break;
-
-            case OBJECT:
-                callback.call(this, key);
-
-                const keys = Object.keys(value);
-
-                if (keys.length === 0) {
-                    this.push('{}');
-                    return;
-                }
-
-                // check for circular structure
-                if (this._visited.has(value)) {
-                    return this.abort(new Error('Converting circular structure to JSON'));
-                } else {
-                    this._visited.add(value);
-                }
-
-                this.push('{');
-                this.pushStack({
-                    handler: push,
-                    value: '}'
-                });
-                this.pushStack({
-                    handler: processObject,
-                    value,
-                    index: 0,
-                    firstEntry: true,
-                    keys
-                });
-                this._depth++;
-                break;
-
-            case ARRAY:
-                callback.call(this, key);
-
-                if (value.length === 0) {
-                    this.push('[]');
-                    return;
-                }
-
-                // check for circular structure
-                if (this._visited.has(value)) {
-                    return this.abort(new Error('Converting circular structure to JSON'));
-                } else {
-                    this._visited.add(value);
-                }
-
-                this.push('[');
-                this.pushStack({
-                    handler: push,
-                    value: this.space ? '\n' + this.space.repeat(this._depth) + ']' : ']'
-                });
-                this.pushStack({
-                    handler: processArray,
-                    value,
-                    index: 0
-                });
-                this._depth++;
                 break;
 
             case STRING_STREAM:
@@ -281,7 +268,7 @@ class JsonStringifyStream extends Readable {
                     handler: type === OBJECT_STREAM ? processReadableObject : processReadableString,
                     value,
                     index: 0,
-                    firstRead: true,
+                    firstRead: false,
                     awaiting: !value.readable || value.readableLength === 0
                 });
                 const continueProcessing = () => {
@@ -316,6 +303,7 @@ class JsonStringifyStream extends Readable {
 
     pushStack(node) {
         node.prev = this._stack;
+        node.depth = this._stack ? this._stack.depth + 1 : 0;
         return this._stack = node;
     }
 
@@ -324,13 +312,13 @@ class JsonStringifyStream extends Readable {
 
         if (handler === processObject || handler === processArray || handler === processReadableObject) {
             this._visited.delete(value);
-            this._depth -= 1;
+            this._depth--;
         }
 
         this._stack = this._stack.prev;
     }
 
-    processStack(size) {
+    processStack() {
         if (this._processing || this._ended) {
             return;
         }
@@ -339,7 +327,7 @@ class JsonStringifyStream extends Readable {
             this._processing = true;
 
             while (this._stack !== null && !this._stack.awaiting) {
-                this._stack.handler.call(this, size);
+                this._stack.handler.call(this);
 
                 if (!this._processing) {
                     return;
@@ -390,7 +378,7 @@ class JsonStringifyStream extends Readable {
         this._readSize = size || this.readableHighWaterMark;
 
         // start processing
-        this.processStack(size);
+        this.processStack();
     }
 }
 
