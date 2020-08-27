@@ -13,40 +13,43 @@ const {
     }
 } = require('./utils');
 const noop = () => {};
-const needToEscape = /[\x00-\x1f\uD800-\uffff]/;
+const needToEscape = /[^\x20-\uD799]/;
 
 function quoteJSONString(str) {
-    if (needToEscape.test(str)) {
+    if (str.length > 64 || needToEscape.test(str)) {
         return JSON.stringify(str);
     }
 
     return '"' + str + '"';
 }
 
-function primitiveToString(value) {
-    switch (typeof value) {
-        case 'string':
-            return quoteJSONString(value);
-
-        case 'number':
-            return Number.isFinite(value) ? value : 'null';
-
-        case 'boolean':
-            return value;
-
-        case 'undefined':
-        case 'object':
-            return 'null';
-
-        default:
-            // this should never happen
-            throw new Error(`Unknown type "${typeof value}". Please file an issue!`);
-    }
-}
-
 function push() {
     this.push(this._stack.value);
     this.popStack();
+}
+
+function pushPrimitive(value) {
+    switch (typeof value) {
+        case 'string':
+            this.push(quoteJSONString(value));
+            break;
+
+        case 'number':
+            this.push(Number.isFinite(value) ? value : 'null');
+            break;
+
+        case 'boolean':
+            this.push(value ? 'true' : 'false');
+            break;
+
+        case 'undefined':
+        case 'object': // typeof null === 'object'
+            this.push('null');
+            break;
+
+        default:
+            this.destroy(new TypeError(`Do not know how to serialize a ${typeof value}`));
+    }
 }
 
 function processObjectEntry(key) {
@@ -144,7 +147,9 @@ const processReadableString = createStreamReader(function(data) {
 
 class JsonStringifyStream extends Readable {
     constructor(value, replacer, space) {
-        super({});
+        super({
+            autoDestroy: true
+        });
 
         this.replacer = normalizeReplacer(replacer);
         this.space = normalizeSpace(space);
@@ -187,7 +192,7 @@ class JsonStringifyStream extends Readable {
             case PRIMITIVE:
                 if (callback !== processObjectEntry || value !== undefined) {
                     callback.call(this, key);
-                    this.push(primitiveToString(value));
+                    pushPrimitive.call(this, value);
                 }
                 break;
 
@@ -196,7 +201,7 @@ class JsonStringifyStream extends Readable {
 
                 // check for circular structure
                 if (this._visited.has(value)) {
-                    return this.abort(new Error('Converting circular structure to JSON'));
+                    return this.destroy(new TypeError('Converting circular structure to JSON'));
                 }
 
                 this._visited.add(value);
@@ -216,7 +221,7 @@ class JsonStringifyStream extends Readable {
 
                 // check for circular structure
                 if (this._visited.has(value)) {
-                    return this.abort(new Error('Converting circular structure to JSON'));
+                    return this.destroy(new TypeError('Converting circular structure to JSON'));
                 }
 
                 this._visited.add(value);
@@ -243,7 +248,7 @@ class JsonStringifyStream extends Readable {
                         this.processStack();
                     })
                     .catch(error => {
-                        this.abort(error);
+                        this.destroy(error);
                     });
                 break;
 
@@ -252,11 +257,11 @@ class JsonStringifyStream extends Readable {
                 callback.call(this, key);
 
                 if (value.readableEnded) {
-                    return this.abort(new Error('Readable Stream has ended before it was serialized. All stream data have been lost'));
+                    return this.destroy(new Error('Readable Stream has ended before it was serialized. All stream data have been lost'));
                 }
 
                 if (value.readableFlowing) {
-                    return this.abort(new Error('Readable Stream is in flowing mode, data may have been lost. Trying to pause stream.'));
+                    return this.destroy(new Error('Readable Stream is in flowing mode, data may have been lost. Trying to pause stream.'));
                 }
 
                 if (type === OBJECT_STREAM) {
@@ -285,24 +290,11 @@ class JsonStringifyStream extends Readable {
                     }
                 };
 
-                value.once('error', error => this.abort(error));
+                value.once('error', error => this.destroy(error));
                 value.once('end', continueProcessing);
                 value.on('readable', continueProcessing);
                 break;
         }
-    }
-
-    abort(error) {
-        this.error = error;
-        this._stack = null;
-        this._processing = false;
-        this._ended = true;
-
-        process.nextTick(() => {
-            this._buffer = null;
-            this.emit('error', error);
-            this.push(null);
-        });
     }
 
     pushStack(node) {
@@ -339,19 +331,13 @@ class JsonStringifyStream extends Readable {
 
             this._processing = false;
         } catch (error) {
-            this.abort(error);
+            this.destroy(error);
             return;
         }
 
         if (this._stack === null && !this._ended) {
-            this._ended = true;
-
-            if (this._buffer.length) {
-                super.push(this._buffer); // flush buffer
-            }
-
+            this._finish();
             this.push(null);
-            this._buffer = null;
         }
     }
 
@@ -382,6 +368,25 @@ class JsonStringifyStream extends Readable {
 
         // start processing
         this.processStack();
+    }
+
+    _finish() {
+        this._ended = true;
+        this._processing = false;
+        this._stack = null;
+        this._visited = null;
+
+        if (this._buffer && this._buffer.length) {
+            super.push(this._buffer); // flush buffer
+        }
+
+        this._buffer = null;
+    }
+
+    _destroy(error, cb) {
+        this.error = this.error || error;
+        this._finish();
+        cb(error);
     }
 }
 
