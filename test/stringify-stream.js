@@ -303,13 +303,58 @@ describe('stringifyStream()', () => {
             [{
                 source: 'replacer',
                 toJSON: () => ({ source: 'toJSON' })
-            }, (_, value) => value.source]
+            }, (_, value) => value.source],
+
+            // `this` should refer to holder
+            [
+                (() => {
+                    const ar = [4, 5, { a: 7 }, { m: 2, a: 8 }];
+                    ar.m = 6;
+                    return {
+                        a: 2,
+                        b: 3,
+                        m: 4,
+                        c: ar
+                    };
+                })(),
+                function(key, value) {
+                    return typeof value === 'number' && key !== 'm' && typeof this.m === 'number'
+                        ? value * this.m
+                        : value;
+                }
+            ]
         ];
 
         for (const [value, replacer] of entries) {
             const expected = JSON.stringify(value, replacer);
             it(`${inspect(value)} should be ${expected}`, createStringifyCompareFn(value, expected, replacer));
         }
+
+        it('walk sequence should be the same', () => {
+            const data = { a: 1, b: 'asd', c: [1, 2, 3, { d: true, e: null }] };
+            const actual = [];
+            const expected = [];
+            const replacer = function(key, value) {
+                currentLog.push(this, key, value);
+                return value;
+            };
+            let res;
+            let currentLog;
+
+            currentLog = expected;
+            res = JSON.stringify(data, replacer);
+
+            currentLog = actual;
+            return createStringifyCompareFn(data, res, replacer)()
+                .then(() => {
+                    assert.strictEqual(actual.length, expected.length);
+                    assert.deepEqual(actual[0], expected[0]); // { '': data }
+
+                    for (let i = 1; i < actual.length; i++) {
+                        assert.strictEqual(actual[i], expected[i]);
+                    }
+                });
+        });
     });
 
     describe('space option', () => {

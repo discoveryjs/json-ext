@@ -85,7 +85,7 @@ function processObject() {
 
     const key = current.keys[current.index];
 
-    this.processValue(key, current.value[key], processObjectEntry);
+    this.processValue(current.value, key, current.value[key], processObjectEntry);
     current.index++;
 }
 
@@ -113,7 +113,7 @@ function processArray() {
         return;
     }
 
-    this.processValue(current.index, current.value[current.index], processArrayItem);
+    this.processValue(current.value, current.index, current.value[current.index], processArrayItem);
     current.index++;
 }
 
@@ -137,7 +137,7 @@ function createStreamReader(fn) {
 }
 
 const processReadableObject = createStreamReader(function(data, current) {
-    this.processValue(current.index, data, processArrayItem);
+    this.processValue(current.value, current.index, data, processArrayItem);
     current.index++;
 });
 
@@ -168,18 +168,18 @@ class JsonStringifyStream extends Readable {
         this.pushStack({
             handler: () => {
                 this.popStack();
-                this.processValue('', value, noop);
+                this.processValue({ '': value }, '', value, noop);
             }
         });
     }
 
-    processValue(key, value, callback) {
+    processValue(holder, key, value, callback) {
         if (value && typeof value.toJSON === 'function') {
             value = value.toJSON();
         }
 
         if (this.replacer !== null) {
-            value = this.replacer.call(null, String(key), value);  // FIXME: `this` should be current value
+            value = this.replacer.call(holder, String(key), value);
         }
 
         if (typeof value === 'function' || typeof value === 'symbol') {
@@ -244,7 +244,7 @@ class JsonStringifyStream extends Readable {
                 Promise.resolve(value)
                     .then(resolved => {
                         this.popStack();
-                        this.processValue(key, resolved, callback);
+                        this.processValue(holder, key, resolved, callback);
                         this.processStack();
                     })
                     .catch(error => {
