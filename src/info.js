@@ -70,7 +70,7 @@ function primitiveLength(value) {
             return 4; /* null */
 
         default:
-            throw new Error(`Unknown type "${typeof value}". Please file an issue!`);
+            throw new TypeError(`Do not know how to serialize a ${typeof value}`);
     }
 }
 
@@ -116,7 +116,7 @@ module.exports = function jsonStrinifyInfo(value, replacer, space, options) {
                 if (value !== undefined || Array.isArray(this)) {
                     length += primitiveLength(value);
                 } else if (this === root) {
-                    length += 9; // FIXME: that's the length of undefined, show we normalize behaviour to convert it to null?
+                    length += 9; // FIXME: that's the length of undefined, should we normalize behaviour to convert it to null?
                 }
                 break;
 
