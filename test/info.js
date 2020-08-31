@@ -2,6 +2,33 @@ const assert = require('assert');
 const { inspect } = require('util');
 const { info: jsonStringifyInfo } = require('../src');
 const strBytesLength = str => Buffer.byteLength(str, 'utf8');
+const fixture = {
+    a: 1,
+    b: [2, null, true, false, 'string', { o: 3 }],
+    c: 'asd',
+    d: {
+        e: 4,
+        d: true,
+        f: false,
+        g: 'string',
+        h: null,
+        i: [5, 6]
+    }
+};
+
+function createInfoTest(value, ...args) {
+    it(inspect(value, { depth: null }), () => {
+        const native = String(JSON.stringify(value, ...args));
+        const info = jsonStringifyInfo(value, ...args);
+
+        assert.deepEqual(info, {
+            minLength: strBytesLength(native),
+            circular: [],
+            duplicate: [],
+            async: []
+        });
+    });
+}
 
 describe('info()', () => {
     describe('basic', () => {
@@ -40,37 +67,26 @@ describe('info()', () => {
             Symbol('test'),
             { foo: 1, bar: Symbol('test') },
             () => 123,
-            { foo: 1, bar: () => 123 }
+            { foo: 1, bar: () => 123 },
+            fixture
         ];
 
         describe('no spaces', () => {
             for (const value of tests) {
-                it(inspect(value, { depth: null }), () => {
-                    const native = String(JSON.stringify(value));
-                    const info = jsonStringifyInfo(value);
-
-                    assert.deepEqual(info, {
-                        minLength: strBytesLength(native),
-                        circular: [],
-                        duplicate: [],
-                        async: []
-                    });
-                });
+                createInfoTest(value);
             }
         });
 
-        describe('with spaces', () => {
-            for (const value of tests) {
-                it(inspect(value, { depth: null }), () => {
-                    const native = String(JSON.stringify(value, null, 4));
-                    const info = jsonStringifyInfo(value, null, 4);
+        describe('space option', () => {
+            const spaceTests = tests
+                .filter(t => typeof t === 'object')
+                .concat(['foo', 123, null, false]);
 
-                    assert.deepEqual(info, {
-                        minLength: strBytesLength(native),
-                        circular: [],
-                        duplicate: [],
-                        async: []
-                    });
+            for (const space of [undefined, 0, '', 2, '  ', '\t', '___']) {
+                describe('space ' + JSON.stringify(space), () => {
+                    for (const value of spaceTests) {
+                        createInfoTest(value, null, space);
+                    }
                 });
             }
         });

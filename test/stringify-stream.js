@@ -372,10 +372,10 @@ describe('stringifyStream()', () => {
             [{ a: 1 }, 'test', { b: [{ c: 3, d: 4 }]}]
         ];
 
-        for (const spacer of [2, '  ', '\t', '_']) {
-            describe('spacer ' + JSON.stringify(spacer), () => {
+        for (const space of [undefined, 0, '', 2, '  ', '\t', '___']) {
+            describe('space ' + JSON.stringify(space), () => {
                 for (const value of values) {
-                    it(inspect(value), createStringifyCompareFn(value, JSON.stringify(value, null, spacer), null, spacer));
+                    it(inspect(value), createStringifyCompareFn(value, JSON.stringify(value, null, space), null, space));
                 }
 
                 it('[Number, Array, Promise, ReadableStream, ReadableStream]',
@@ -387,9 +387,9 @@ describe('stringifyStream()', () => {
                             new TestStream(5),
                             new TestStream('6')
                         ],
-                        JSON.stringify([1, [2, 3], 4, [5], 6], null, spacer),
+                        JSON.stringify([1, [2, 3], 4, [5], 6], null, space),
                         null,
-                        spacer
+                        space
                     )
                 );
             });
