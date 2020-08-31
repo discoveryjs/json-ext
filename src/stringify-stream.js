@@ -13,10 +13,10 @@ const {
     }
 } = require('./utils');
 const noop = () => {};
-const needToEscape = /[^\x20-\uD799]/;
 
 function quoteJSONString(str) {
-    if (str.length > 64 || needToEscape.test(str)) {
+    // use JSON.stringify() only if a string contains a char that should be escaped
+    if (/[^\x20-\uD799]/.test(str)) {
         return JSON.stringify(str);
     }
 
