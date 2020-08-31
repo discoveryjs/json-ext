@@ -25,27 +25,26 @@ function prettySize(size, signed, pad) {
     ).padStart(pad || 0);
 }
 
-function memDelta(oldValues) {
-    const newValues = process.memoryUsage();
+function memDelta(_base) {
+    const current = process.memoryUsage();
     const delta = {};
+    const base = { ..._base };
 
-    for (const [k, v] of Object.entries(newValues)) {
-        delta[k] = v - (oldValues ? oldValues[k] : 0);
+    for (const [k, v] of Object.entries(current)) {
+        base[k] = base[k] || 0;
+        delta[k] = v - base[k];
     }
 
     return {
-        old: oldValues || null,
-        new: newValues,
+        base,
+        current,
         delta,
         toString() {
             const res = [];
 
             for (const [k, v] of Object.entries(delta)) {
-                // if (v === 0) {
-                //     continue;
-                // }
-
-                res.push(`${k} ${(v < 0 ? chalk.red : chalk.green)(prettySize(v, true, 9))}`);
+                const rel = _base && k in _base;
+                res.push(`${k} ${(rel && v > 0 ? chalk.yellow : chalk.green)(prettySize(v, rel, 9))}`);
             }
 
             return res.join(' | ') || 'No changes';
@@ -75,40 +74,100 @@ async function timeout(ms) {
     await new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function traceMem(resolutionMs) {
+    const base = process.memoryUsage();
+    const startTime = Date.now();
+    const samples = [];
+    const timer = setInterval(
+        () => samples.push({
+            time: Date.now() - startTime,
+            mem: process.memoryUsage()
+        }),
+        isFinite(resolutionMs) && parseInt(resolutionMs) > 0 ? parseInt(resolutionMs) : 16
+    );
+
+    return {
+        get current() {
+            return memDelta(base);
+        },
+        series(abs) {
+            const keys = Object.keys(base);
+            const series = {};
+
+            for (const key of keys) {
+                series[key] = {
+                    name: key,
+                    data: new Array(samples.length)
+                };
+            }
+
+            for (let i = 0; i < samples.length; i++) {
+                const sample = samples[i];
+
+                for (const key of keys) {
+                    series[key].data[i] = abs
+                        ? sample.mem[key] || 0
+                        : sample.mem[key] ? sample.mem[key] - base[key] : 0;
+                }
+            }
+
+            return {
+                time: samples.map(s => s.time),
+                series: Object.values(series)
+            };
+        },
+        stop() {
+            clearInterval(timer);
+            return memDelta(base);
+        }
+    };
+}
+
+async function collectGarbage() {
+    global.gc();
+
+    // double sure
+    await timeout(100);
+    global.gc();
+}
+
 async function run(data, size) {
-    console.log('Test:', chalk.cyan('JSON stringify as a stream'));
+    console.log('Test:', chalk.cyan('JSON.stringify() as a stream'));
     console.log('JSON size:', chalk.yellow(prettySize(size || JSON.stringify(data).length)));
     console.log('');
 
     await timeout(100);
 
     for (const [name, init] of Object.entries(tests)) {
-        global.gc();
+        await collectGarbage();
 
-        const startMem = process.memoryUsage();
+        const mem = traceMem(100);
         const startTime = Date.now();
-        let stream = init(data);
 
         try {
             console.log(name);
+            // console.log('memory state:    ', String(memDelta()));
             await new Promise((resolve, reject) => {
-                stream.pipe(fs.createWriteStream(outputPath(name)))
+                init(data)
+                    .on('error', reject)
+                    .pipe(fs.createWriteStream(outputPath(name)))
                     .on('close', resolve)
                     .on('error', reject);
             });
         } catch (e) {
             console.error(e);
         } finally {
-            console.log('time:', Date.now() - startTime);
-            console.log('memory before GC:', String(memDelta(startMem)));
+            const currentMem = mem.stop();
 
-            stream._buffer = null;
-            stream = null;
-            global.gc();
+            console.log('time:', Date.now() - startTime, 'ms');
+            console.log('memory before GC:', String(currentMem));
 
-            console.log('memory after GC: ', String(memDelta(startMem)));
+            await collectGarbage();
+
+            console.log('memory after GC: ', String(memDelta(currentMem.base)));
             console.log();
 
+            // fs.writeFileSync(outputPath('mem-' + name), JSON.stringify(mem.series()));
             await timeout(100);
         }
     }
