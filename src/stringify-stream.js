@@ -14,15 +14,6 @@ const {
 } = require('./utils');
 const noop = () => {};
 
-function quoteJSONString(str) {
-    // use JSON.stringify() only if a string contains a char that should be escaped
-    if (/[^\x20-\uD799]/.test(str)) {
-        return JSON.stringify(str);
-    }
-
-    return '"' + str + '"';
-}
-
 function push() {
     this.push(this._stack.value);
     this.popStack();
@@ -31,11 +22,11 @@ function push() {
 function pushPrimitive(value) {
     switch (typeof value) {
         case 'string':
-            this.push(quoteJSONString(value));
+            this.push(this.encodeString(value));
             break;
 
         case 'number':
-            this.push(Number.isFinite(value) ? value : 'null');
+            this.push(Number.isFinite(value) ? this.encodeNumber(value) : 'null');
             break;
 
         case 'boolean':
@@ -62,9 +53,9 @@ function processObjectEntry(key) {
     }
 
     if (this.space) {
-        this.push(`\n${this.space.repeat(this._depth)}${quoteJSONString(key)}: `);
+        this.push(`\n${this.space.repeat(this._depth)}${this.encodeString(key)}: `);
     } else {
-        this.push(quoteJSONString(key) + ':');
+        this.push(this.encodeString(key) + ':');
     }
 }
 
@@ -171,6 +162,18 @@ class JsonStringifyStream extends Readable {
                 this.processValue({ '': value }, '', value, noop);
             }
         });
+    }
+
+    encodeString(value) {
+        if (/[^\x20-\uD799]|[\x22\x5c]/.test(value)) {
+            return JSON.stringify(value);
+        }
+
+        return '"' + value + '"';
+    }
+
+    encodeNumber(value) {
+        return value;
     }
 
     processValue(holder, key, value, callback) {

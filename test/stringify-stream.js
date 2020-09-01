@@ -7,8 +7,17 @@ const { inspect } = require('util');
 const { stringifyStream } = require('../src');
 const FIXTURE1 = 'fixture/stringify-stream-small.json';
 const FIXTURE2 = 'fixture/stringify-stream-medium.json';
+const allUtf8LengthDiffChars = Array.from({ length: 0x900 }).map((_, i) => String.fromCharCode(i)).join(''); // all chars 0x00..0x8FF
 
 inspect.defaultOptions.breakLength = Infinity;
+
+function testTitleWithValue(title) {
+    title = title === allUtf8LengthDiffChars
+        ? `All UTF8 length diff chars ${title[0]}..${title[title.length - 1]}`
+        : inspect(title, { depth: null });
+
+    return title.replace(/[\u0000-\u001f\u0100-\uffff]/g, m => '\\u' + m.charCodeAt().toString(16).padStart(4, '0'));
+}
 
 function createStringifyCompareFn(input, expected, ...args) {
     return () => new Promise((resolve, reject) => {
@@ -80,6 +89,7 @@ describe('stringifyStream()', () => {
 
     describe('simple', () => {
         const values = [
+            allUtf8LengthDiffChars,
             // scalar
             null, // null
             true,
@@ -91,12 +101,17 @@ describe('stringifyStream()', () => {
             '漢字',
             '\u009f', // "\u009f"
             '\b\t\n\f\r"\\', // escapes
+            ...'\b\t\n\f\r"\\', // escapes as a separate char
+            '\x7F',    // 127  - 1 byte
+            '\x80',    // 128  - 2 bytes
+            '\u07FF',  // 2047 - 2 bytes
+            '\u0800',  // 2048 - 3 bytes
             '\u0000\u0010\u001f\u009f', // "\u009f"
             '\uD800\uDC00',  // surrogate pair
             '\uDC00\uD800',  // broken surrogate pair
             '\uD800',  // leading surrogate (broken surrogate pair)
             '\uDC00',  // trailing surrogate (broken surrogate pair)
-            Array.from({ length: 0x900 }).map((_, i) => String.fromCharCode(i)).join(''), // all chars 0x00..0x8FF
+            allUtf8LengthDiffChars,
 
             // object
             {},
@@ -132,7 +147,8 @@ describe('stringifyStream()', () => {
 
         for (const value of values) {
             const expected = JSON.stringify(value);
-            it(`${inspect(value)} should be ${expected}`, createStringifyCompareFn(value, expected));
+            it(`${testTitleWithValue(value)} should be ${testTitleWithValue(expected)}`,
+                createStringifyCompareFn(value, expected));
         }
 
         // exceptions
@@ -149,7 +165,8 @@ describe('stringifyStream()', () => {
 
         for (const value of values) {
             const expected = JSON.stringify(value);
-            it(`${inspect(value)} should be ${expected}`, createStringifyCompareFn(value, expected));
+            it(`${testTitleWithValue(value)} should be ${testTitleWithValue(expected)}`,
+                createStringifyCompareFn(value, expected));
         }
     });
 
@@ -174,7 +191,8 @@ describe('stringifyStream()', () => {
         ];
 
         for (const [value, expected] of entries) {
-            it(`${inspect(value)} should be ${expected}`, createStringifyCompareFn(value, expected));
+            it(`${testTitleWithValue(value)} should be ${testTitleWithValue(expected)}`,
+                createStringifyCompareFn(value, expected));
         }
 
         it('Promise.reject(Error) should emit Error', () => {
@@ -204,12 +222,14 @@ describe('stringifyStream()', () => {
 
         describe('test cases w/o timeout', () => {
             for (const [value, expected] of createTestFixture(TestStream)) {
-                it(`${inspect(value)} should be ${expected}`, createStringifyCompareFn(value, expected));
+                it(`${testTitleWithValue(value)} should be ${testTitleWithValue(expected)}`,
+                    createStringifyCompareFn(value, expected));
             }
         });
         describe('test cases with timeout', () => {
             for (const [value, expected] of createTestFixture(TestStreamTimeout)) {
-                it(`${inspect(value)} should be ${expected}`, createStringifyCompareFn(value, expected));
+                it(`${testTitleWithValue(value)} should be ${testTitleWithValue(expected)}`,
+                    createStringifyCompareFn(value, expected));
             }
         });
 
@@ -327,7 +347,8 @@ describe('stringifyStream()', () => {
 
         for (const [value, replacer] of entries) {
             const expected = JSON.stringify(value, replacer);
-            it(`${inspect(value)} should be ${expected}`, createStringifyCompareFn(value, expected, replacer));
+            it(`${testTitleWithValue(value)} should be ${testTitleWithValue(expected)}`,
+                createStringifyCompareFn(value, expected, replacer));
         }
 
         it('walk sequence should be the same', () => {
