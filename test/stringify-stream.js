@@ -7,7 +7,12 @@ const { inspect } = require('util');
 const { stringifyStream } = require('../src');
 const FIXTURE1 = 'fixture/stringify-stream-small.json';
 const FIXTURE2 = 'fixture/stringify-stream-medium.json';
-const allUtf8LengthDiffChars = Array.from({ length: 0x900 }).map((_, i) => String.fromCharCode(i)).join(''); // all chars 0x00..0x8FF
+const {
+    date,
+    allUtf8LengthDiffChars,
+    tests,
+    spaceTests
+} = require('./fixture/stringify-cases');
 
 inspect.defaultOptions.breakLength = Infinity;
 
@@ -85,67 +90,8 @@ class TestStreamTimeout extends Readable {
 }
 
 describe('stringifyStream()', () => {
-    const date = new Date();
-
-    describe('simple', () => {
-        const values = [
-            allUtf8LengthDiffChars,
-            // scalar
-            null, // null
-            true,
-            false,
-            1,
-            123,
-            12.34,
-            '\n', // "\n"
-            '漢字',
-            '\u009f', // "\u009f"
-            '\b\t\n\f\r"\\', // escapes
-            ...'\b\t\n\f\r"\\', // escapes as a separate char
-            '\x7F',    // 127  - 1 byte
-            '\x80',    // 128  - 2 bytes
-            '\u07FF',  // 2047 - 2 bytes
-            '\u0800',  // 2048 - 3 bytes
-            '\u0000\u0010\u001f\u009f', // "\u009f"
-            '\uD800\uDC00',  // surrogate pair
-            '\uDC00\uD800',  // broken surrogate pair
-            '\uD800',  // leading surrogate (broken surrogate pair)
-            '\uDC00',  // trailing surrogate (broken surrogate pair)
-            allUtf8LengthDiffChars,
-
-            // object
-            {},
-            { a: undefined }, // {}
-            { a: null }, // {"a":null}
-            { a: undefined, b: undefined }, // {}
-            { a: undefined, b: 1 }, // {"b":1}
-            { a: 1, b: undefined },
-            { a: 1, b: undefined, c: 2 },
-            { a: 1 },
-            { a: 1, b: { c: 2 } },
-            { a: [1], b: 2 },
-            { a() {}, b: 'b' },
-
-            // array
-            [],
-            [[[]],[[]]],
-            [function a() {}],
-            [function a() {}, undefined],
-            [1, undefined, 2],
-            [1, , 2],
-            [1, 'a'],
-            [{}, [], { a: [], o: {} }],
-
-            // special cases
-            /regex/gi, // {}
-            date, // date.toJSON()
-            NaN, // null
-            Infinity // null
-            // undefined, // JSON.stringify() returns undefined instead of 'undefined'
-            // Symbol('test') // JSON.stringify() returns undefined instead of 'null'
-        ];
-
-        for (const value of values) {
+    describe('base', () => {
+        for (const value of tests) {
             const expected = JSON.stringify(value);
             it(`${testTitleWithValue(value)} should be ${testTitleWithValue(expected)}`,
                 createStringifyCompareFn(value, expected));
@@ -379,23 +325,9 @@ describe('stringifyStream()', () => {
     });
 
     describe('space option', () => {
-        const values = [
-            {},
-            { a: 1 },
-            { a: 1, b: 2 },
-            { a: 1, b: undefined, c: 2 },
-            { a: undefined },
-            [],
-            [1],
-            [1, 2],
-            [undefined],
-            [1, undefined, 3],
-            [{ a: 1 }, 'test', { b: [{ c: 3, d: 4 }]}]
-        ];
-
         for (const space of [undefined, 0, '', 2, '  ', '\t', '___']) {
             describe('space ' + JSON.stringify(space), () => {
-                for (const value of values) {
+                for (const value of spaceTests) {
                     it(inspect(value), createStringifyCompareFn(value, JSON.stringify(value, null, space), null, space));
                 }
 
