@@ -4,7 +4,12 @@
     "description": "A set of utilities that extend the use of JSON",
     "keywords": [
         "json",
-        "utils"
+        "utils",
+        "stream",
+        "async",
+        "promise",
+        "stringify",
+        "info"
     ],
     "author": "Roman Dvornov <rdvornov@gmail.com> (https://github.com/lahmatiy)",
     "license": "MIT",
@@ -28,5 +33,7 @@
     "engines": {
         "node": ">=12.0.0"
     },
-    "files": []
+    "files": [
+        "src"
+    ]
 }
