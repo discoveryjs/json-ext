@@ -1,14 +1,26 @@
 const fs = require('fs');
+const path = require('path');
 const { Readable } = require('stream');
 const chalk = require('chalk');
 const bfj = require('bfj');
 const JsonStreamStringify = require('json-stream-stringify');
 const jsonExt = require('../src');
 const outputPath = name => __dirname + '/tmp/stringify-stream-' + name.replace(/\s*\(.+$/, '') + '.json';
-// const inputString = fs.readFileSync('../../fe-reports/.discoveryjs.repos.cache'); // 2,1MB
-// const inputString = fs.readFileSync('../../fe-reports/.discoveryjs.ownership.cache'); // 13,7MB
-const inputString = fs.readFileSync('../../fe-reports/.discoveryjs.gitlab-pipeline.cache'); // 105MB
+const inputPaths = [
+    'fixture/small.json',  // ~2,1MB
+    'fixture/medium.json', // ~13,7MB
+    'fixture/big.json'     // ~100Mb
+];
+const inputPath = inputPaths[Number(process.argv[2]) in inputPaths ? process.argv[2] : 0];
+const inputString = fs.readFileSync(path.join(__dirname, inputPath));
 const inputData = JSON.parse(inputString);
+
+const tests = {
+    'native (JSON.stringify() -> readable stream)': data => new StringStream(JSON.stringify(data)),
+    'json-ext': data => jsonExt.stringifyStream(data),
+    'bfj': data => bfj.streamify(data),
+    'json-stream-stringify': data => new JsonStreamStringify(data)
+};
 
 function prettySize(size, signed, pad) {
     const unit = ['', 'kB', 'MB', 'GB'];
@@ -25,8 +37,8 @@ function prettySize(size, signed, pad) {
     ).padStart(pad || 0);
 }
 
-function memDelta(_base) {
-    const current = process.memoryUsage();
+function memDelta(_base, cur) {
+    const current = cur || process.memoryUsage();
     const delta = {};
     const base = { ..._base };
 
@@ -54,39 +66,53 @@ function memDelta(_base) {
 
 class StringStream extends Readable {
     constructor(str) {
-        super();
-        this.str = str;
-    }
-    _read(numRead) {
-        this.push(this.str.slice(0, numRead) || null);
-        this.str = this.str.slice(numRead);
+        let pushed = null;
+        super({
+            read() {
+                if (!pushed) {
+                    pushed = setTimeout(() => {
+                        this.push(str);
+                        this.push(null);
+                    }, 1);
+                }
+            }
+        });
     }
 }
-
-const tests = {
-    'native (JSON.stringify() -> readable stream)': data => new StringStream(JSON.stringify(data)),
-    'json-ext': data => jsonExt.stringifyStream(data),
-    'bfj': data => bfj.streamify(data),
-    'json-stream-stringify': data => new JsonStreamStringify(data)
-};
 
 async function timeout(ms) {
     await new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function traceMem(resolutionMs) {
+function traceMem(resolutionMs, sample = false) {
     const base = process.memoryUsage();
+    const max = { ...base };
     const startTime = Date.now();
     const samples = [];
+    const takeSample = () => {
+        const mem = process.memoryUsage();
+
+        if (sample) {
+            samples.push({
+                time: Date.now() - startTime,
+                mem
+            });
+        }
+
+        for (let key in base) {
+            if (max[key] < mem[key]) {
+                max[key] = mem[key];
+            }
+        }
+    };
     const timer = setInterval(
-        () => samples.push({
-            time: Date.now() - startTime,
-            mem: process.memoryUsage()
-        }),
+        takeSample,
         isFinite(resolutionMs) && parseInt(resolutionMs) > 0 ? parseInt(resolutionMs) : 16
     );
 
     return {
+        base,
+        max,
         get current() {
             return memDelta(base);
         },
@@ -118,6 +144,7 @@ function traceMem(resolutionMs) {
         },
         stop() {
             clearInterval(timer);
+            takeSample();
             return memDelta(base);
         }
     };
@@ -136,12 +163,10 @@ async function run(data, size) {
     console.log('JSON size:', chalk.yellow(prettySize(size || JSON.stringify(data).length)));
     console.log('');
 
-    await timeout(100);
-
     for (const [name, init] of Object.entries(tests)) {
         await collectGarbage();
 
-        const mem = traceMem(100);
+        const mem = traceMem(10);
         const startTime = Date.now();
 
         try {
@@ -160,11 +185,11 @@ async function run(data, size) {
             const currentMem = mem.stop();
 
             console.log('time:', Date.now() - startTime, 'ms');
-            console.log('memory before GC:', String(currentMem));
 
             await collectGarbage();
 
-            console.log('memory after GC: ', String(memDelta(currentMem.base)));
+            console.log('mem impact: ', String(memDelta(currentMem.base)));
+            console.log('       max: ', String(memDelta(mem.base, mem.max)));
             console.log();
 
             // fs.writeFileSync(outputPath('mem-' + name), JSON.stringify(mem.series()));
