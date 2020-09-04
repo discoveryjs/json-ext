@@ -2,6 +2,7 @@ const { Readable } = require('stream');
 const {
     normalizeReplacer,
     normalizeSpace,
+    replaceValue,
     getTypeAsync,
     type: {
         PRIMITIVE,
@@ -177,17 +178,7 @@ class JsonStringifyStream extends Readable {
     }
 
     processValue(holder, key, value, callback) {
-        if (value && typeof value.toJSON === 'function') {
-            value = value.toJSON();
-        }
-
-        if (this.replacer !== null) {
-            value = this.replacer.call(holder, String(key), value);
-        }
-
-        if (typeof value === 'function' || typeof value === 'symbol') {
-            value = undefined;
-        }
+        value = replaceValue(holder, key, value, this.replacer);
 
         let type = getTypeAsync(value);
 
@@ -383,7 +374,7 @@ class JsonStringifyStream extends Readable {
             super.push(this._buffer); // flush buffer
         }
 
-        this._buffer = null;
+        this._buffer = '';
     }
 
     _destroy(error, cb) {

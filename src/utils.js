@@ -41,6 +41,34 @@ function isReadableStream(value) {
     );
 }
 
+function replaceValue(holder, key, value, replacer) {
+    if (value && typeof value.toJSON === 'function') {
+        value = value.toJSON();
+    }
+
+    if (replacer !== null) {
+        value = replacer.call(holder, String(key), value);
+    }
+
+    switch (typeof value) {
+        case 'function':
+        case 'symbol':
+            value = undefined;
+            break;
+
+        case 'object':
+            if (value !== null) {
+                const cls = value.constructor;
+                if (cls === String || cls === Number || cls === Boolean) {
+                    value = value.valueOf();
+                }
+            }
+            break;
+    }
+
+    return value;
+}
+
 function getTypeNative(value) {
     if (value === null || typeof value !== 'object') {
         return PrimitiveType;
@@ -124,6 +152,7 @@ module.exports = {
     },
 
     isReadableStream,
+    replaceValue,
     getTypeNative,
     getTypeAsync,
     normalizeReplacer,

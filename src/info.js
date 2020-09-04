@@ -1,6 +1,7 @@
 const {
     normalizeReplacer,
     normalizeSpace,
+    replaceValue,
     getTypeNative,
     getTypeAsync,
     isLeadingSurrogate,
@@ -79,23 +80,13 @@ function spaceLength(space) {
     return typeof space === 'string' ? space.length : 0;
 }
 
-module.exports = function jsonStrinifyInfo(value, replacer, space, options) {
+module.exports = function jsonStringifyInfo(value, replacer, space, options) {
     function walk(key, value) {
         if (stop) {
             return;
         }
 
-        if (value && typeof value.toJSON === 'function') {
-            value = value.toJSON();
-        }
-
-        if (replacer !== null) {
-            value = replacer.call(this, key, value);
-        }
-
-        if (typeof value === 'function' || typeof value === 'symbol') {
-            value = undefined;
-        }
+        value = replaceValue(this, key, value, replacer);
 
         let type = getType(value);
 
