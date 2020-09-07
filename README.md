@@ -8,10 +8,10 @@ A set of utilities that extend the use of JSON.
 
 Features:
 
+- [x] Value info: `info()`
 - [x] Stringify stream: `stringifyStream()`
 - [ ] **TBD** Parse stream
-- [x] Value info: `info()`
-- [ ] **TBD**Support for circular references
+- [ ] **TBD** Support for circular references
 - [ ] **TBD** Binary representation
 
 ## Install
@@ -24,12 +24,15 @@ npm install json-ext
 
 ### stringifyStream(value[, replacer[, space]])
 
-Mostly works the same as `JSON.stringify()`, but returns instance of `ReadableStream` instead of string.
+Works the same as [`JSON.stringify()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify), but returns an instance of `ReadableStream` instead of string.
 
 Extensions:
-- Promises are rescursively resolve and the result value is stringify as any onther
-- Streams in object mode are output as arrays
-- Streams in non-object mode are output as is
+- Output `null` to the output when `JSON.stringify()` returns `undefined` (since streams may not to emit undefined)
+- A promise is resolving and the result value is stringifying as a regular value
+- A Stream in non-object mode is piping to output as is
+- A Stream in object mode is piping to output as an array of objects
+
+[Comparison with other solutions](https://github.com/discoveryjs/json-ext/tree/master/benchmarks#stream-stringifying) (benchmark)
 
 ### info(value[, replacer[, space[, options]]])
 
