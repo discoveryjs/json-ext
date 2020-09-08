@@ -20,7 +20,7 @@ Benchmark: `stringify-stream.js`
 | Fixture | S (~2Mb) | M (~13.7Mb) | L (~100Mb) |
 | ------- | -------: | ----------: | ---------: |
 | JSON.stringify() | 36ms | 76ms | 1012ms |
-| json-ext | 71ms | 133ms | 2403ms |
+| @discoveryjs/json-ext | 71ms | 133ms | 2403ms |
 | bfj | 1375ms | 3813ms | 77585ms |
 | json-stream-stringify | 2062ms | 6768ms | 163314ms |
 <!--/stringify-stream-table:time-->
@@ -31,7 +31,7 @@ Benchmark: `stringify-stream.js`
 | Fixture | S (~2Mb) | M (~13.7Mb) | L (~100Mb) |
 | ------- | -------: | ----------: | ---------: |
 | JSON.stringify() | 26ms | 66ms | 1092ms |
-| json-ext | 81ms | 148ms | 2272ms |
+| @discoveryjs/json-ext | 81ms | 148ms | 2272ms |
 | bfj | 1109ms | 2227ms | 63500ms |
 | json-stream-stringify | 1896ms | 5525ms | 159375ms |
 <!--/stringify-stream-table:cpu-->
@@ -42,7 +42,7 @@ Benchmark: `stringify-stream.js`
 | Fixture | S (~2Mb) | M (~13.7Mb) | L (~100Mb) |
 | ------- | -------: | ----------: | ---------: |
 | JSON.stringify() | 8.03MB | 42.12MB | 301.65MB |
-| json-ext | 7.69MB | 14.38MB | 113.59MB |
+| @discoveryjs/json-ext | 7.69MB | 14.38MB | 113.59MB |
 | bfj | 18.18MB | 18.67MB | 402.45MB |
 | json-stream-stringify | 14.36MB | 14.51MB | 85.70MB |
 <!--/stringify-stream-table:memory-->
@@ -64,7 +64,7 @@ cpu: 26 ms
 mem impact:  rss   +6.01MB | heapTotal   +8.91MB | heapUsed     +78kB | external   -2.08MB | arrayBuffers       +16
        max:  rss  +12.88MB | heapTotal  +15.95MB | heapUsed   +8.03MB | external       +56 | arrayBuffers       +16
 
-# json-ext
+# @discoveryjs/json-ext
 time: 71 ms
 cpu: 81 ms
 mem impact:  rss   +8.77MB | heapTotal         0 | heapUsed    +194kB | external         0 | arrayBuffers         0
@@ -100,7 +100,7 @@ cpu: 66 ms
 mem impact:  rss  +17.75MB | heapTotal    +262kB | heapUsed     +77kB | external  -13.69MB | arrayBuffers       +16
        max:  rss  +45.09MB | heapTotal  +27.39MB | heapUsed  +42.12MB | external       +56 | arrayBuffers       +16
 
-# json-ext
+# @discoveryjs/json-ext
 time: 133 ms
 cpu: 148 ms
 mem impact:  rss   +5.36MB | heapTotal    +266kB | heapUsed    +336kB | external         0 | arrayBuffers         0
@@ -137,7 +137,7 @@ cpu: 1092 ms
 mem impact:  rss  +19.29MB | heapTotal         0 | heapUsed     +79kB | external  -99.95MB | arrayBuffers       +16
        max:  rss +313.76MB | heapTotal +300.04MB | heapUsed +301.65MB | external       +56 | arrayBuffers       +16
 
-# json-ext
+# @discoveryjs/json-ext
 time: 2403 ms
 cpu: 2272 ms
 mem impact:  rss  +12.88MB | heapTotal    +266kB | heapUsed    +381kB | external         0 | arrayBuffers         0

@@ -13,7 +13,7 @@ const {
     outputToReadme,
     replaceInReadme
 } = require('./benchmark-utils');
-const outputPath = name => __dirname + '/tmp/stringify-stream-' + name.replace(/\s*\(.+$/, '') + '.json';
+const outputPath = name => __dirname + '/tmp/stringify-stream-' + name.replace(/[@\/]/g, '-').replace(/\s*\(.+$/, '') + '.json';
 const fixtures = [
     'fixture/small.json',  // ~2,1MB
     'fixture/medium.json', // ~13,7MB
