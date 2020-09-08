@@ -14,7 +14,7 @@
     "author": "Roman Dvornov <rdvornov@gmail.com> (https://github.com/lahmatiy)",
     "license": "MIT",
     "repository": "discoveryjs/json-ext",
-    "main": "./index",
+    "main": "./src/index",
     "scripts": {
         "test": "mocha --reporter progress",
         "lint": "eslint src test",
