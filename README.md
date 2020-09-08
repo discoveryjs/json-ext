@@ -17,7 +17,7 @@ Features:
 ## Install
 
 ```bash
-npm install json-ext
+npm install @discoveryjs/json-ext
 ```
 
 ## API
