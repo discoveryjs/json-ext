@@ -1,4 +1,4 @@
-## next
+## 0.1.1 (2020-09-08)
 
 - Fixed main entry point
 
