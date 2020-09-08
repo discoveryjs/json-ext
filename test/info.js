@@ -5,7 +5,8 @@ const strBytesLength = str => Buffer.byteLength(str, 'utf8');
 const {
     allUtf8LengthDiffChars,
     tests,
-    spaceTests
+    spaceTests,
+    spaces
 } = require('./fixture/stringify-cases');
 
 function createInfoTest(value, ...args) {
@@ -33,7 +34,7 @@ describe('info()', () => {
     });
 
     describe('space option', () => {
-        for (const space of [undefined, 0, '', 2, '  ', '\t', '___']) {
+        for (const space of spaces) {
             describe('space ' + JSON.stringify(space), () => {
                 for (const value of spaceTests) {
                     createInfoTest(value, null, space);

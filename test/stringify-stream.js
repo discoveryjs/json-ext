@@ -11,7 +11,8 @@ const {
     date,
     allUtf8LengthDiffChars,
     tests,
-    spaceTests
+    spaceTests,
+    spaces
 } = require('./fixture/stringify-cases');
 
 inspect.defaultOptions.breakLength = Infinity;
@@ -325,7 +326,7 @@ describe('stringifyStream()', () => {
     });
 
     describe('space option', () => {
-        for (const space of [undefined, 0, '', 2, '  ', '\t', '___']) {
+        for (const space of spaces) {
             describe('space ' + JSON.stringify(space), () => {
                 for (const value of spaceTests) {
                     it(inspect(value), createStringifyCompareFn(value, JSON.stringify(value, null, space), null, space));

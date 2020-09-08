@@ -99,5 +99,6 @@ module.exports = {
     fixture,
     date,
     tests,
-    spaceTests
+    spaceTests,
+    spaces: [undefined, 0, '', 2, '  ', '\t', '___', 20, '-'.repeat(20)]
 };
