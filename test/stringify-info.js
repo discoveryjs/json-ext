@@ -1,6 +1,6 @@
 const assert = require('assert');
 const { inspect } = require('util');
-const { stringifyInfo } = require('../src');
+const { stringifyInfo } = require('./helpers/lib');
 const strBytesLength = str => Buffer.byteLength(str, 'utf8');
 const {
     allUtf8LengthDiffChars,

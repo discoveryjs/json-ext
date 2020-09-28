@@ -24,7 +24,7 @@ module.exports = {
     plugins: [
         nodeResolve({ browser: true }),
         replaceContent({
-            'src/stringify-stream.js': () => 'module.exports = function() { console.warn("Function is unsupported"); };'
+            'src/stringify-stream.js': () => 'module.exports = "Method is not supported";'
         }),
         commonjs()
     ]

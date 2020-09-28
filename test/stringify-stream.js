@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { Readable, Transform } = require('stream');
 const { inspect } = require('util');
-const { stringifyStream } = require('../src');
+const { stringifyStream } = require('./helpers/lib');
 const FIXTURE1 = 'fixture/stringify-stream-small.json';
 const FIXTURE2 = 'fixture/stringify-stream-medium.json';
 const {
@@ -14,6 +14,11 @@ const {
     spaceTests,
     spaces
 } = require('./fixture/stringify-cases');
+
+// Not supported in dist mode
+if (typeof stringifyStream === 'string') {
+    return;
+}
 
 inspect.defaultOptions.breakLength = Infinity;
 
