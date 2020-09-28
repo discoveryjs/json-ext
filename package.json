@@ -19,16 +19,22 @@
         "test": "mocha --reporter progress",
         "lint": "eslint src test",
         "lint-and-test": "npm run lint && npm test",
+        "build": "rollup --config",
+        "build-and-test": "npm run build && npm run test",
         "coverage": "nyc npm test",
         "travis": "nyc npm run lint-and-test && npm run coveralls",
         "coveralls": "nyc report --reporter=text-lcov | coveralls"
     },
     "dependencies": {},
     "devDependencies": {
+        "@rollup/plugin-commonjs": "^15.1.0",
+        "@rollup/plugin-node-resolve": "^9.0.0",
         "coveralls": "^3.1.0",
         "eslint": "^7.6.0",
         "mocha": "^8.1.1",
-        "nyc": "^15.1.0"
+        "nyc": "^15.1.0",
+        "rollup": "^2.28.2",
+        "rollup-plugin-terser": "^7.0.2"
     },
     "engines": {
         "node": ">=12.0.0"
