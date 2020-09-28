@@ -1,4 +1,4 @@
 module.exports = {
-    info: require('./info'),
+    stringifyInfo: require('./stringify-info'),
     stringifyStream: require('./stringify-stream')
 };

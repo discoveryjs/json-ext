@@ -1,6 +1,6 @@
 const assert = require('assert');
 const { inspect } = require('util');
-const { info: jsonStringifyInfo } = require('../src');
+const { stringifyInfo } = require('../src');
 const strBytesLength = str => Buffer.byteLength(str, 'utf8');
 const {
     allUtf8LengthDiffChars,
@@ -15,7 +15,7 @@ function createInfoTest(value, ...args) {
         : inspect(value, { depth: null });
     it(title.replace(/[\u0000-\u001f\u0100-\uffff]/g, m => '\\u' + m.charCodeAt().toString(16).padStart(4, '0')), () => {
         const native = String(JSON.stringify(value, ...args));
-        const info = jsonStringifyInfo(value, ...args);
+        const info = stringifyInfo(value, ...args);
 
         assert.deepEqual(info, {
             minLength: strBytesLength(native),

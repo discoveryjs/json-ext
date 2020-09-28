@@ -1,3 +1,7 @@
+## next
+
+- Renamed `info()` method into `stringifyInfo()`
+
 ## 0.2.0 (2020-09-28)
 
 - Added `dist` version to package (`dist/json-ext.js` and `dist/json-ext.min.js`)

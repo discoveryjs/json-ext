@@ -8,7 +8,7 @@ A set of utilities that extend the use of JSON.
 
 Features:
 
-- [x] Value info: `info()`
+- [x] Value info: `stringifyInfo()`
 - [x] Stringify stream: `stringifyStream()`
 - [ ] **TBD** Parse stream
 - [ ] **TBD** Support for circular references
@@ -22,6 +22,16 @@ npm install @discoveryjs/json-ext
 
 ## API
 
+<!-- TOC depthfrom:3 -->
+
+- [stringifyStreamvalue[, replacer[, space]]](#stringifystreamvalue-replacer-space)
+- [stringifyInfovalue[, replacer[, space[, options]]]](#stringifyinfovalue-replacer-space-options)
+    - [Options](#options)
+        - [async](#async)
+        - [continueOnCircular](#continueoncircular)
+
+<!-- /TOC -->
+
 ### stringifyStream(value[, replacer[, space]])
 
 Works the same as [`JSON.stringify()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify), but returns an instance of `ReadableStream` instead of string.
@@ -34,7 +44,7 @@ Extensions:
 
 [Comparison with other solutions](https://github.com/discoveryjs/json-ext/tree/master/benchmarks#stream-stringifying) (benchmark)
 
-### info(value[, replacer[, space[, options]]])
+### stringifyInfo(value[, replacer[, space[, options]]])
 
 `value`, `replacer` and `space` arguments are the same as for `JSON.stringify()`.
 
@@ -49,21 +59,21 @@ Result is an object:
 }
 ```
 
-Options:
+#### Options
 
-#### async
+##### async
 
 Type: `Boolean`  
 Default: `false`
 
 Collect async values (promises and streams) or not.
 
-#### continueOnCircular
+##### continueOnCircular
 
 Type: `Boolean`  
 Default: `false`
 
-Stop walking through a value or not whenever circular reference is found. Setting option to `true` allows to find all circular references.
+Stop collecting info for a value or not whenever circular reference is found. Setting option to `true` allows to find all circular references.
 
 ## License
 
