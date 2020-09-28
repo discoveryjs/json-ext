@@ -1,7 +1,7 @@
-## next
+## 0.3.0 (2020-09-28)
 
 - Renamed `info()` method into `stringifyInfo()`
-- Fixed distribution settings
+- Fixed lib's distribution setup
 
 ## 0.2.0 (2020-09-28)
 
