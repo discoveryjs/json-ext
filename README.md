@@ -22,15 +22,11 @@ npm install @discoveryjs/json-ext
 
 ## API
 
-<!-- TOC depthfrom:3 -->
-
-- [stringifyStreamvalue[, replacer[, space]]](#stringifystreamvalue-replacer-space)
-- [stringifyInfovalue[, replacer[, space[, options]]]](#stringifyinfovalue-replacer-space-options)
+- [stringifyStream(value[, replacer[, space]])](#stringifystreamvalue-replacer-space)
+- [stringifyInfo(value[, replacer[, space[, options]]])](#stringifyinfovalue-replacer-space-options)
     - [Options](#options)
         - [async](#async)
         - [continueOnCircular](#continueoncircular)
-
-<!-- /TOC -->
 
 ### stringifyStream(value[, replacer[, space]])
 
