@@ -27,7 +27,7 @@ function isReadableStream(value) {
     return (
         typeof value.pipe === 'function' &&
         typeof value._read === 'function' &&
-        typeof value._readableState === 'object'
+        typeof value._readableState === 'object' && value._readableState !== null
     );
 }
 
