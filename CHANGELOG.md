@@ -1,4 +1,4 @@
-## next
+## 0.3.1 (2020-10-26)
 
 - Changed build setup to allow building by any bundler that supports `browser` property in `package.json`
 - Exposed version
