@@ -1,6 +1,6 @@
 {
     "name": "@discoveryjs/json-ext",
-    "version": "0.3.1",
+    "version": "0.3.2",
     "description": "A set of utilities that extend the use of JSON",
     "keywords": [
         "json",
@@ -16,7 +16,7 @@
     "repository": "discoveryjs/json-ext",
     "main": "./src/index",
     "browser": {
-        "./src/stringify-stream.js": "./browser-method-is-not-supported.js"
+        "./src/stringify-stream.js": "./src/browser-method-is-not-supported.js"
     },
     "scripts": {
         "test": "mocha --reporter progress",
