@@ -1,3 +1,8 @@
+## next
+
+- Changed build setup to allow building by any bundler that supports `browser` property in `package.json`
+- Exposed version
+
 ## 0.3.0 (2020-09-28)
 
 - Renamed `info()` method into `stringifyInfo()`

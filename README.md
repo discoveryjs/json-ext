@@ -71,6 +71,10 @@ Default: `false`
 
 Stop collecting info for a value or not whenever circular reference is found. Setting option to `true` allows to find all circular references.
 
+### version
+
+The version of library, e.g. `"0.3.1"`.
+
 ## License
 
 MIT

@@ -15,6 +15,9 @@
     "license": "MIT",
     "repository": "discoveryjs/json-ext",
     "main": "./src/index",
+    "browser": {
+        "./src/stringify-stream.js": "./browser-method-is-not-supported.js"
+    },
     "scripts": {
         "test": "mocha --reporter progress",
         "lint": "eslint src test",
@@ -32,6 +35,7 @@
     "dependencies": {},
     "devDependencies": {
         "@rollup/plugin-commonjs": "^15.1.0",
+        "@rollup/plugin-json": "^4.1.0",
         "@rollup/plugin-node-resolve": "^9.0.0",
         "chalk": "^4.1.0",
         "coveralls": "^3.1.0",
