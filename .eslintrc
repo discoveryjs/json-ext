@@ -2,10 +2,11 @@
     "env": {
         "node": true,
         "mocha": true,
-        "es6": true
+        "es6": true,
+        "es2020": true
     },
     "parserOptions": {
-        "ecmaVersion": 2018
+        "ecmaVersion": 2020
     },
     "rules": {
         "no-duplicate-case": 2,
