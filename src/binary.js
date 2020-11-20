@@ -119,102 +119,137 @@ function getType(value) {
     }
 }
 
-function encode(rootValue) {
-    function writeAdaptiveNumber(num) {
+class Writer {
+    constructor(initialSize) {
+        this.bytes = new Uint8Array(initialSize || 10000000);
+        this.view = new DataView(this.bytes.buffer);
+        this.pos = 0;
+        this.stringEncoder = new TextEncoder();
+    }
+    get value() {
+        return this.bytes.subarray(0, this.pos);
+    }
+    writeAdaptiveNumber(num) {
         //  8: num << 1 |   0  –  7 bits data | xxxx xxx0
         // 16: num << 2 |  01  - 14 bits data | xxxx xxxx xxxx xx01
         // 32: num << 3 | 011  – 29 bits data | xxxx xxxx xxxx xxxx xxxx xxxx xxxx x011
         // 64: num << 3 | 111  – 61 bits data | xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx x111
         if (num <= MAX_ADAPTIVE_8) {
-            view.setUint8(pos, num << 1  | 0b0000);
-            pos += 1;
+            this.writeUint8(num << 1  | 0b0000);
         } else if (num <= MAX_ADAPTIVE_16) {
-            view.setUint16(pos, num << 2 | 0b0001, true);
-            pos += 2;
+            this.writeUint16(num << 2 | 0b0001, true);
         } else if (num <= MAX_ADAPTIVE_32) {
-            view.setUint32(pos, num << 3 | 0b0011, true);
-            pos += 4;
+            this.writeUint32(num << 3 | 0b0011, true);
         } else {
-            view.setBigUint64(pos, (BigInt(num) << 3) | 0b0111, true);
-            bic++;
-            pos += 8;
+            this.writeBigUint64((BigInt(num) << 3) | 0b0111, true);
         }
     }
-
-    function writeType(type) {
-        writeAdaptiveNumber(type << 1);
+    writeType(type) {
+        this.writeAdaptiveNumber(type << 1);
     }
-
-    function writeReference(ref) {
-        writeAdaptiveNumber(ref << 1 | 1);
+    writeReference(ref) {
+        this.writeAdaptiveNumber(ref << 1 | 1);
     }
+    writeString(str) {
+        const strBuffer = this.stringEncoder.encode(str);
 
+        this.writeAdaptiveNumber(strBuffer.length << 1);
+
+        this.bytes.set(strBuffer, this.pos);
+        this.pos += strBuffer.length;
+    }
+    writeInt8(value, littleEndian) {
+        this.view.setInt8(this.pos, value, littleEndian);
+        this.pos += 1;
+    }
+    writeInt16(value, littleEndian) {
+        this.view.setInt16(this.pos, value, littleEndian);
+        this.pos += 2;
+    }
+    writeInt32(value, littleEndian) {
+        this.view.setInt32(this.pos, value, littleEndian);
+        this.pos += 4;
+    }
+    writeBigInt64(value, littleEndian) {
+        this.view.setBigInt64(this.pos, BigInt(value), littleEndian);
+        this.pos += 8;
+    }
+    writeUint8(value, littleEndian) {
+        this.view.setUint8(this.pos, value, littleEndian);
+        this.pos += 1;
+    }
+    writeUint16(value, littleEndian) {
+        this.view.setUint16(this.pos, value, littleEndian);
+        this.pos += 2;
+    }
+    writeUint32(value, littleEndian) {
+        this.view.setUint32(this.pos, value, littleEndian);
+        this.pos += 4;
+    }
+    writeBigUint64(value, littleEndian) {
+        this.view.setBigUint64(this.pos, BigInt(value), littleEndian);
+        this.pos += 8;
+    }
+    writeFloat32(value, littleEndian) {
+        this.view.setFloat32(this.pos, value, littleEndian);
+        this.pos += 4;
+    }
+    writeFloat64(value, littleEndian) {
+        this.view.setFloat64(this.pos, value, littleEndian);
+        this.pos += 8;
+    }
+}
+
+function encode(rootValue) {
     function writeValue(type, value) {
         switch (type) {
             case TYPE.STRING:
                 if (defs.has(value)) {
-                    writeReference(defs.get(value).get(0));
+                    writer.writeReference(defs.get(value).get(0));
                 } else {
-                    const strBuffer = stringEncoder.encode(value);
-
-                    // console.log('+', defCount, value);
                     defs.set(value, new Map([[0, defCount++]]));
-                    writeAdaptiveNumber(strBuffer.length << 1);
-
-                    bytes.set(strBuffer, pos);
-                    pos += strBuffer.length;
+                    writer.writeString(value);
                 }
                 break;
 
             case TYPE.INT_8:
-                view.setInt8(pos, value);
-                pos += 1;
+                writer.writeInt8(value);
                 break;
 
             case TYPE.INT_16:
-                view.setInt16(pos, value);
-                pos += 2;
+                writer.writeInt16(value);
                 break;
 
             case TYPE.INT_32:
-                view.setInt32(pos, value);
-                pos += 4;
+                writer.writeInt32(value);
                 break;
 
             case TYPE.INT_64:
-                view.setBigInt64(pos, BigInt(value));
-                pos += 8;
+                writer.writeBigInt64(BigInt(value));
                 break;
 
             case TYPE.UINT_8:
-                view.setUint8(pos, value);
-                pos += 1;
+                writer.writeUint8(value);
                 break;
 
             case TYPE.UINT_16:
-                view.setUint16(pos, value);
-                pos += 2;
+                writer.writeUint16(value);
                 break;
 
             case TYPE.UINT_32:
-                view.setUint32(pos, value);
-                pos += 4;
+                writer.writeUint32(value);
                 break;
 
             case TYPE.UINT_64:
-                view.setBigUint64(pos, BigInt(value));
-                bic++;
-                pos += 8;
+                writer.writeBigUint64(BigInt(value));
                 break;
 
             case TYPE.FLOAT_32:
-                view.setFloat32(pos, value);
-                pos += 4;
+                writer.writeFloat32(value);
                 break;
 
             case TYPE.FLOAT_64:
-                view.setFloat64(pos, value);
-                pos += 8;
+                writer.writeFloat64(value);
                 break;
 
             case TYPE.OBJECT:
@@ -224,27 +259,25 @@ function encode(rootValue) {
 
                         if (defs.has(key) && defs.get(key).has(type)) {
                             // ref
-                            writeReference(defs.get(key).get(type));
+                            writer.writeReference(defs.get(key).get(type));
                         } else {
                             write(key);
-
-                            // console.log('+', defCount, key, type);
                             defs.get(key).set(type, defCount++);
-                            writeType(type);
+                            writer.writeType(type);
                         }
 
                         writeValue(type, value[key]);
                     }
                 }
 
-                writeType(TYPE.END);
+                writer.writeType(TYPE.END);
                 break;
 
             case TYPE.ARRAY_TYPED:
                 const elemType = getType(value[0]);
 
-                writeType(elemType);
-                writeAdaptiveNumber(value.length, 1);
+                writer.writeType(elemType);
+                writer.writeAdaptiveNumber(value.length, 1);
 
                 for (const elem of value) {
                     writeValue(elemType, elem);
@@ -256,7 +289,7 @@ function encode(rootValue) {
                     write(elem);
                 }
 
-                writeType(TYPE.END);
+                writer.writeType(TYPE.END);
                 break;
         }
     }
@@ -264,22 +297,17 @@ function encode(rootValue) {
     function write(value) {
         const type = getType(value);
 
-        writeType(type);
+        writer.writeType(type);
         writeValue(type, value);
     }
 
-    const stringEncoder = new TextEncoder();
-    const bytes = new Uint8Array(300000000);
-    const view = new DataView(bytes.buffer);
+    const writer = new Writer();
     const defs = new Map();
     let defCount = 0;
-    let pos = 0;
-    let bic = 0;
 
     write(rootValue);
-    console.log('bigint', bic);
 
-    return bytes.subarray(0, pos);
+    return writer.value;
 }
 
 function decode(bytes) {
