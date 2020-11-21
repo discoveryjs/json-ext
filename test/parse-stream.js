@@ -74,7 +74,7 @@ describe.only('ParseStream', () => {
     for (const len of [1, 2, 3, 4, 5, 10]) {
         describe(len + ' char(s) length chunks with formatting', () => {
             for (const expected of values) {
-                const json = JSON.stringify(expected, null, '\n\t \r\u2028\u2029');
+                const json = JSON.stringify(expected, null, '\r\n\t ');
 
                 if (json.length > len) {
                     it(json, () => assert.deepStrictEqual(parse(split(json, len)), expected));
