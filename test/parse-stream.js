@@ -38,6 +38,13 @@ describe.only('ParseStream', () => {
         null,
         '',
         'test',
+        '🤓漢字',
+        '\b\t\n\f\r"\\', // escapes
+        '\u0000\u0010\u001F\u009F',
+        '\uD800\uDC00',  // surrogate pair
+        '\uDC00\uD800',  // broken surrogate pair
+        '\uD800',  // leading surrogate (broken surrogate pair)
+        '\uDC00',  // trailing surrogate (broken surrogate pair)
         {},
         { a: 1 },
         { a: 1, b: 2 },
