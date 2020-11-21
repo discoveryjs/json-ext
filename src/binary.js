@@ -121,7 +121,7 @@ function getType(value) {
 
 class Writer {
     constructor(initialSize) {
-        this.bytes = new Uint8Array(initialSize || 10000000);
+        this.bytes = new Uint8Array(initialSize || 100000000);
         this.view = new DataView(this.bytes.buffer);
         this.pos = 0;
         this.stringEncoder = new TextEncoder();
@@ -145,7 +145,7 @@ class Writer {
         }
     }
     writeType(type) {
-        this.writeAdaptiveNumber(type << 1);
+        this.writeUint8(type << 1);
     }
     writeReference(ref) {
         this.writeAdaptiveNumber(ref << 1 | 1);
@@ -332,7 +332,7 @@ function decode(bytes) {
     }
 
     function readType() {
-        return readAdaptiveNumber() >> 1;
+        return readAdaptiveNumber();
     }
 
     function readValue(type) {
@@ -439,13 +439,13 @@ function decode(bytes) {
                 while (bytes[pos] !== TYPE.END) {
                     const type = readAdaptiveNumber();
 
-                    if (type & 1 && Array.isArray(defs[type >> 1])) {
+                    if (type & 1) {
                         // reference
                         const [key, entryType] = defs[type >> 1];
                         value[key] = readValue(entryType);
                     } else {
                         // definition
-                        const key = readValue(type >> 1);
+                        const key = readValue(type);
                         const entryType = readType();
 
                         defs.push([key, entryType]);
