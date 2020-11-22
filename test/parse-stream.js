@@ -1,17 +1,16 @@
 const assert = require('assert');
-const { ParseStream } = require('./helpers/lib');
+const { createChunkParser } = require('./helpers/lib');
 
 function parse(chunks) {
-    const parser = new ParseStream();
+    const { push, finish } = createChunkParser();
 
     if (!Array.isArray(chunks)) {
         chunks = [chunks];
     }
 
-    chunks.forEach(c => parser.push(c));
-    parser.finish();
+    chunks.forEach(c => push(c));
 
-    return parser.value;
+    return finish();
 }
 
 function split(str, chunkLen = 1) {
@@ -39,7 +38,7 @@ describe.only('ParseStream', () => {
         '',
         'test',
         '🤓漢字',
-        '\b\t\n\f\r"\\', // escapes
+        '\b\t\n\f\r"\\\\"\\u0020', // escapes
         '\u0000\u0010\u001F\u009F',
         '\uD800\uDC00',  // surrogate pair
         '\uDC00\uD800',  // broken surrogate pair
@@ -49,6 +48,7 @@ describe.only('ParseStream', () => {
         { a: 1 },
         { a: 1, b: 2 },
         { a: { b: 2 } },
+        { 'te\\u0020st\\"': 'te\\u0020st\\"' },
         [],
         [1],
         [1, 2],
@@ -89,4 +89,22 @@ describe.only('ParseStream', () => {
             }
         });
     }
+
+    describe('errors', () => {
+        it('abs pos across chunks', () => {
+            assert.throws(() => parse(['{"test":"he', 'llo",}']), /Unexpected \} in JSON at position 16/);
+        });
+    });
+
+    describe('promise', () => {
+        it('resolve', () => {
+            const { push, promise } = createChunkParser();
+
+            push('{"ok":true}', true);
+
+            return promise.then(value => {
+                assert.deepStrictEqual(value, { ok: true });
+            });
+        });
+    });
 });

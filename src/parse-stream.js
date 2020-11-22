@@ -1,27 +1,48 @@
-const STATE_NONE = 0;
+const STATE_DONE = 0;
 const STATE_ANY = 1;
 const STATE_OBJECT_END_OR_ENTRY_START = 2;
-const STATE_OBJECT_ENTRY_COLON = 3;
-const STATE_OBJECT_END_OR_NEXT_ENTRY = 4;
-const STATE_ARRAY_END_OR_NEXT_ELEMENT = 5;
+const STATE_OBJECT_ENTRY_START = 3;
+const STATE_OBJECT_ENTRY_COLON = 4;
+const STATE_OBJECT_END_OR_NEXT_ENTRY = 5;
+const STATE_ARRAY_END_OR_NEXT_ELEMENT = 6;
 
-module.exports = class StreamParser {
+module.exports = function() {
+    const parser = new StreamParser();
+    let promise = null;
+
+    return {
+        push: parser.push.bind(parser),
+        finish: parser.finish.bind(parser),
+        get promise() {
+            if (promise === null) {
+                promise = new Promise((resolve, reject) => {
+                    parser.resolve = resolve;
+                    parser.reject = reject;
+                });
+            }
+
+            return promise;
+        }
+    };
+};
+
+class StreamParser {
     constructor() {
         this.value = undefined;
         this.stack = null;
         this.state = STATE_ANY;
         this.property = undefined;
         this.pendingChunk = undefined;
+        this.pos = 0;
     }
 
-    _decodeString(s) {
-        return JSON.parse(s);
-    }
+    resolve() {}
+    reject() {}
 
     _pushValue(value) {
         if (this.stack === null) {
             this.value = value;
-            this.state = STATE_NONE;
+            this.state = STATE_DONE;
             return;
         }
 
@@ -37,23 +58,19 @@ module.exports = class StreamParser {
     _popStack() {
         this.stack = this.stack.prev;
         this.state = this.stack === null
-            ? STATE_NONE
+            ? STATE_DONE
             : this.stack.isArray
                 ? STATE_ARRAY_END_OR_NEXT_ELEMENT
                 : STATE_OBJECT_END_OR_NEXT_ENTRY;
     }
 
     push(chunk, last) {
-        if (this.state === STATE_NONE) {
-            return;
-        }
-
         if (this.pendingChunk) {
             chunk = this.pendingChunk + chunk;
             this.pendingChunk = undefined;
         }
 
-        for (let i = 0; i < chunk.length; i++) {
+        scan: for (let i = 0; i < chunk.length; i++) {
             const code = chunk.charCodeAt(i);
 
             // skip whitespace
@@ -61,7 +78,7 @@ module.exports = class StreamParser {
                 continue;
             }
 
-            main: switch (this.state) {
+            state: switch (this.state) {
                 case STATE_ANY: {
                     // consume number
                     if (code === 0x2D /* - */ || (code >= 0x30 /* 0 */ && code <= 0x39 /* 9 */)) {
@@ -89,17 +106,17 @@ module.exports = class StreamParser {
                             } else if (code < 0x30 /* 0 */ || code > 0x39 /* 9 */) {
                                 this._pushValue(Number(chunk.slice(i, j)));
                                 i = j - 1;
-                                break main;
+                                break state;
                             }
                         }
 
                         if (!last) {
                             this.pendingChunk = chunk.slice(i);
-                            return;
+                            break scan;
                         }
 
                         this._pushValue(Number(chunk.slice(i)));
-                        return;
+                        break scan;
                     }
 
                     // consume string
@@ -109,11 +126,11 @@ module.exports = class StreamParser {
 
                             if (code === 0x22 /* " */) {
                                 this._pushValue(decode
-                                    ? this._decodeString(chunk.slice(i, j + 1))
+                                    ? JSON.parse(chunk.slice(i, j + 1))
                                     : chunk.slice(i + 1, j)
                                 );
                                 i = j;
-                                break main;
+                                break state;
                             }
 
                             if (code === 0x5C /* \ */) {
@@ -124,7 +141,7 @@ module.exports = class StreamParser {
 
                         if (!last) {
                             this.pendingChunk = chunk.slice(i);
-                            return;
+                            break scan;
                         }
 
                         this.unexpectedEnd();
@@ -142,18 +159,18 @@ module.exports = class StreamParser {
                             if (chunk.slice(i, i + word.length) === word) {
                                 this._pushValue(code === 0x66 /* f */ ? false : code === 0x74 /* t */ ? true : null);
                                 i += word.length - 1;
-                                break main;
+                                break state;
                             }
 
-                            this.error(chunk[i], i);
+                            this.error(chunk, i);
                         }
 
                         if (!last) {
                             this.pendingChunk = chunk.slice(i);
-                            return;
+                            break scan;
                         }
 
-                        this.error(chunk[i], i);
+                        this.error(chunk, i);
                     }
 
                     if (code === 0x7B /* { */) {
@@ -182,13 +199,14 @@ module.exports = class StreamParser {
                         // end array
                         this._popStack();
                     } else {
-                        this.error(chunk[i], i);
+                        this.error(chunk, i);
                     }
 
                     break;
                 }
 
-                case STATE_OBJECT_END_OR_ENTRY_START: {
+                case STATE_OBJECT_END_OR_ENTRY_START:
+                case STATE_OBJECT_ENTRY_START: {
                     if (code === 0x22 /* " */) {
                         // consume string
                         for (let j = i + 1, decode = false; j < chunk.length; j++) {
@@ -197,10 +215,10 @@ module.exports = class StreamParser {
                             if (code === 0x22 /* " */) {
                                 this.state = STATE_OBJECT_ENTRY_COLON;
                                 this.property = decode
-                                    ? this._decodeString(chunk.slice(i, j + 1))
+                                    ? JSON.parse(chunk.slice(i, j + 1))
                                     : chunk.slice(i + 1, j);
                                 i = j;
-                                break main;
+                                break state;
                             }
 
                             if (code === 0x5C /* \ */) {
@@ -211,19 +229,19 @@ module.exports = class StreamParser {
 
                         if (!last) {
                             this.pendingChunk = chunk.slice(i);
-                            return;
+                            break scan;
                         }
 
                         this.unexpectedEnd();
                     }
 
                     // end
-                    if (code === 0x7D /* } */) {
+                    if (code === 0x7D /* } */ && this.state === STATE_OBJECT_END_OR_ENTRY_START) {
                         this._popStack();
                         break;
                     }
 
-                    this.error(chunk[i], i);
+                    this.error(chunk, i);
                 }
 
                 case STATE_OBJECT_ENTRY_COLON: {
@@ -232,13 +250,13 @@ module.exports = class StreamParser {
                         break;
                     }
 
-                    this.error(chunk[i], i);
+                    this.error(chunk, i);
                 }
 
                 case STATE_OBJECT_END_OR_NEXT_ENTRY: {
                     // next
                     if (code === 0x2C /* , */) {
-                        this.state = STATE_OBJECT_END_OR_ENTRY_START;
+                        this.state = STATE_OBJECT_ENTRY_START;
                         break;
                     }
 
@@ -248,7 +266,7 @@ module.exports = class StreamParser {
                         break;
                     }
 
-                    this.error(chunk[i], i);
+                    this.error(chunk, i);
                 }
 
                 case STATE_ARRAY_END_OR_NEXT_ELEMENT: {
@@ -264,29 +282,40 @@ module.exports = class StreamParser {
                         break;
                     }
 
-                    this.error(chunk[i], i);
+                    this.error(chunk, i);
                 }
 
                 default:
-                    this.error(chunk[i], i);
+                    this.error(chunk, i);
             }
         }
 
-        if (last && this.state !== STATE_NONE) {
-            this.unexpectedEnd();
+        this.pos += chunk.length - (this.pendingChunk ? this.pendingChunk.length : 0);
+
+        if (last) {
+            if (this.state !== STATE_DONE) {
+                this.unexpectedEnd();
+            }
+
+            this.resolve(this.value);
         }
     }
 
     finish() {
         this.push('', true);
+
         return this.value;
     }
 
     unexpectedEnd() {
-        throw new SyntaxError('Unexpected end of JSON input');
+        const error = new SyntaxError('Unexpected end of JSON input');
+        this.reject(error);
+        throw error;
     }
 
-    error(token, pos) {
-        throw new SyntaxError('Unexpected ' + token + ' in JSON at position ' + pos);
+    error(source, pos) {
+        const error = new SyntaxError('Unexpected ' + source[pos] + ' in JSON at position ' + (this.pos + pos));
+        this.reject(error);
+        throw error;
     }
 };
