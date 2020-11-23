@@ -1,26 +1,36 @@
-const ParseStream = require('./src/parse-stream');
-const data = require('fs').readFileSync('./benchmarks/fixture/big.json', 'utf8');
-const parser = new ParseStream();
-const chunkSize = 1 * 1024 * 1024;
+const parseStream = require('./src/parse-stream');
+const filename = [
+    './benchmarks/fixture/small.json',
+    './benchmarks/fixture/medium.json',
+    './benchmarks/fixture/big.json'
+][1];
+const chunkSize = .5 * 1024 * 1024; // chunk size for generator
 
-console.time('parse');
-for (let i = 0; i < data.length; i += chunkSize) {
-    parser.push(data.slice(i, i + chunkSize));
-}
-const result = parser.finish();
-console.timeEnd('parse');
+(async () => {
+    // stream
+    const stream = require('fs').createReadStream(filename);
+    console.time('parse stream');
+    const resultStream = await parseStream(stream);
+    console.timeEnd('parse stream');
 
-console.time('parse native');
-const result2 = JSON.parse(data);
-console.timeEnd('parse native');
+    // generator
+    console.time('parse gen');
+    const data = require('fs').readFileSync(filename, 'utf8');
+    console.time('parse gen (no fs)');
+    const resultGen = await parseStream(function*() {
+        for (let i = 0; i < data.length; i += chunkSize) {
+            yield data.slice(i, i + chunkSize);
+        }
+    });
+    console.timeEnd('parse gen');
+    console.timeEnd('parse gen (no fs)');
 
-require('assert').deepStrictEqual(result, result2);
+    // native
+    console.time('parse native');
+    const result = JSON.parse(data);
+    console.timeEnd('parse native');
 
-// console.time('parse');
-// require('fs').createReadStream()
-//     .on('data', chunk => parser.push(String(chunk)))
-//     .on('end', () => {
-//         const result = parser.finish();
-//         console.timeEnd('parse');
-//         // console.log(result);
-//     });
+    // check
+    require('assert').deepStrictEqual(result, resultStream);
+    require('assert').deepStrictEqual(result, resultGen);
+})();

@@ -8,10 +8,14 @@ const STATE_OBJECT_ENTRY_COLON = 4;
 const STATE_OBJECT_END_OR_NEXT_ENTRY = 5;
 const STATE_ARRAY_END_OR_NEXT_ELEMENT = 6;
 
+function isObject(value) {
+    return value !== null && typeof value === 'object';
+}
+
 module.exports = function(chunkEmitter) {
     let parser = new StreamParser();
 
-    if (isReadableStream(chunkEmitter)) {
+    if (isObject(chunkEmitter) && isReadableStream(chunkEmitter)) {
         return new Promise((resolve, reject) => {
             chunkEmitter
                 .on('data', chunk => {
@@ -38,7 +42,27 @@ module.exports = function(chunkEmitter) {
         });
     }
 
-    throw new Error('Chunk emitter should be a readable stream');
+    if (typeof chunkEmitter === 'function') {
+        const iterator = chunkEmitter();
+
+        if (isObject(iterator) && (Symbol.iterator in iterator || Symbol.asyncIterator in iterator)) {
+            return new Promise(async (resolve, reject) => {
+                try {
+                    for await (const chunk of iterator) {
+                        parser.push(chunk);
+                    }
+
+                    resolve(parser.finish());
+                } catch (e) {
+                    reject(e);
+                } finally {
+                    parser = null;
+                }
+            });
+        }
+    }
+
+    throw new Error('Chunk emitter should be readable stream, generator, async generator or function returning an iterable object');
 };
 
 class StreamParser {
