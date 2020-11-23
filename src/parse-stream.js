@@ -1,3 +1,5 @@
+const { isReadableStream } = require('./utils');
+
 const STATE_DONE = 0;
 const STATE_ANY = 1;
 const STATE_OBJECT_END_OR_ENTRY_START = 2;
@@ -6,24 +8,37 @@ const STATE_OBJECT_ENTRY_COLON = 4;
 const STATE_OBJECT_END_OR_NEXT_ENTRY = 5;
 const STATE_ARRAY_END_OR_NEXT_ELEMENT = 6;
 
-module.exports = function() {
-    const parser = new StreamParser();
-    let promise = null;
+module.exports = function(chunkEmitter) {
+    let parser = new StreamParser();
 
-    return {
-        push: parser.push.bind(parser),
-        finish: parser.finish.bind(parser),
-        get promise() {
-            if (promise === null) {
-                promise = new Promise((resolve, reject) => {
-                    parser.resolve = resolve;
-                    parser.reject = reject;
+    if (isReadableStream(chunkEmitter)) {
+        return new Promise((resolve, reject) => {
+            chunkEmitter
+                .on('data', chunk => {
+                    try {
+                        parser.push(String(chunk));
+                    } catch (e) {
+                        parser = null;
+                        reject(e);
+                    }
+                })
+                .on('error', (e) => {
+                    parser = null;
+                    reject(e);
+                })
+                .on('end', () => {
+                    try {
+                        resolve(parser.finish());
+                    } catch (e) {
+                        reject(e);
+                    } finally {
+                        parser = null;
+                    }
                 });
-            }
+        });
+    }
 
-            return promise;
-        }
-    };
+    throw new Error('Chunk emitter should be a readable stream');
 };
 
 class StreamParser {
@@ -35,9 +50,6 @@ class StreamParser {
         this.pendingChunk = undefined;
         this.pos = 0;
     }
-
-    resolve() {}
-    reject() {}
 
     _pushValue(value) {
         if (this.stack === null) {
@@ -296,8 +308,6 @@ class StreamParser {
             if (this.state !== STATE_DONE) {
                 this.unexpectedEnd();
             }
-
-            this.resolve(this.value);
         }
     }
 
@@ -308,14 +318,10 @@ class StreamParser {
     }
 
     unexpectedEnd() {
-        const error = new SyntaxError('Unexpected end of JSON input');
-        this.reject(error);
-        throw error;
+        throw new SyntaxError('Unexpected end of JSON input');
     }
 
     error(source, pos) {
-        const error = new SyntaxError('Unexpected ' + source[pos] + ' in JSON at position ' + (this.pos + pos));
-        this.reject(error);
-        throw error;
+        throw new SyntaxError('Unexpected ' + source[pos] + ' in JSON at position ' + (this.pos + pos));
     }
 };
