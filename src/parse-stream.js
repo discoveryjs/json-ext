@@ -163,7 +163,10 @@ class StreamParser {
                             if (code === 0x22 /* " */) {
                                 this._pushValue(decode
                                     ? JSON.parse(chunk.slice(i, j + 1))
-                                    : chunk.slice(i + 1, j)
+                                    // use (' ' + s).slice(1) as a hack to detach sliced string from original string
+                                    // see V8 bug: https://bugs.chromium.org/p/v8/issues/detail?id=2869
+                                    // also: https://mrale.ph/blog/2016/11/23/making-less-dart-faster.html
+                                    : (' ' + chunk.slice(i + 1, j)).slice(1)
                                 );
                                 i = j;
                                 break state;
