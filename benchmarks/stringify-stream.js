@@ -6,9 +6,8 @@ const JsonStreamStringify = require('json-stream-stringify');
 const jsonExt = require('../src');
 const {
     StringStream,
+    benchmark,
     prettySize,
-    memDelta,
-    traceMem,
     timeout,
     outputToReadme,
     replaceInReadme
@@ -31,14 +30,6 @@ const tests = {
     'json-stream-stringify': data => new JsonStreamStringify(data)
 };
 
-async function collectGarbage() {
-    global.gc();
-
-    // double sure
-    await timeout(100);
-    global.gc();
-}
-
 async function run(data, size) {
     const result = [];
 
@@ -48,50 +39,15 @@ async function run(data, size) {
     console.log('');
 
     for (const [name, init] of Object.entries(tests)) {
-        await collectGarbage();
+        result.push(await benchmark(name, () => new Promise((resolve, reject) => {
+            init(data)
+                .on('error', reject)
+                .pipe(fs.createWriteStream(outputPath(name)))
+                .on('close', resolve)
+                .on('error', reject);
+        })));
 
-        const mem = traceMem(10);
-        const startCpu = process.cpuUsage();
-        const startTime = Date.now();
-
-        try {
-            console.log('#', chalk.cyan(name));
-            // console.log('memory state:    ', String(memDelta()));
-            await new Promise((resolve, reject) => {
-                init(data)
-                    .on('error', reject)
-                    .pipe(fs.createWriteStream(outputPath(name)))
-                    .on('close', resolve)
-                    .on('error', reject);
-            });
-        } catch (e) {
-            console.error(e);
-        } finally {
-            const time = Date.now() - startTime;
-            const cpu = parseInt(process.cpuUsage(startCpu).user / 1000);
-            const currentMem = mem.stop();
-            const maxMem = memDelta(mem.base, mem.max);
-
-            console.log('time:', time, 'ms');
-            console.log('cpu:', cpu, 'ms');
-
-            await collectGarbage();
-
-            console.log('mem impact: ', String(memDelta(currentMem.base)));
-            console.log('       max: ', String(maxMem));
-            console.log();
-
-            result.push({
-                name,
-                time,
-                cpu,
-                heapUsed: maxMem.delta.heapUsed,
-                external: maxMem.delta.external
-            });
-
-            // fs.writeFileSync(outputPath('mem-' + name), JSON.stringify(mem.series()));
-            await timeout(100);
-        }
+        await timeout(100);
     }
 
     return result;

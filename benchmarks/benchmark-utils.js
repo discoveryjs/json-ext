@@ -19,6 +19,57 @@ class StringStream extends Readable {
     }
 }
 
+async function benchmark(name, fn, output = true) {
+    await collectGarbage();
+
+    const mem = traceMem(10);
+    const startCpu = process.cpuUsage();
+    const startTime = Date.now();
+    let result;
+
+    try {
+        if (output) {
+            console.log('#', chalk.cyan(name));
+        }
+        // console.log('memory state:    ', String(memDelta()));
+        result = await fn();
+    } catch (e) {
+        if (output) {
+            console.error(e);
+        }
+    } finally {
+        const time = Date.now() - startTime;
+        const cpu = parseInt(process.cpuUsage(startCpu).user / 1000);
+        const currentMem = mem.stop();
+        const maxMem = memDelta(mem.base, mem.max);
+
+        if (output) {
+            console.log('time:', time, 'ms');
+            console.log('cpu:', cpu, 'ms');
+        }
+
+        await collectGarbage();
+
+        if (output) {
+            console.log('mem impact: ', String(memDelta(currentMem.base)));
+            console.log('       max: ', String(maxMem));
+            console.log();
+        }
+
+        // fs.writeFileSync(outputPath('mem-' + name), JSON.stringify(mem.series()));
+        await timeout(100);
+
+        return {
+            result,
+            name,
+            time,
+            cpu,
+            heapUsed: maxMem.delta.heapUsed,
+            external: maxMem.delta.external
+        };
+    }
+}
+
 function stripAnsi(str) {
     return str.replace(ANSI_REGEXP, '');
 }
@@ -38,7 +89,7 @@ function prettySize(size, signed, pad) {
     ).padStart(pad || 0);
 }
 
-function memDelta(_base, cur) {
+function memDelta(_base, cur, skip = ['external', 'arrayBuffers']) {
     const current = cur || process.memoryUsage();
     const delta = {};
     const base = { ..._base };
@@ -56,6 +107,10 @@ function memDelta(_base, cur) {
             const res = [];
 
             for (const [k, v] of Object.entries(delta)) {
+                if (skip.includes(k)) {
+                    continue;
+                }
+
                 const rel = _base && k in _base;
                 res.push(`${k} ${(rel && v > 0 ? chalk.yellow : chalk.green)(prettySize(v, rel, 9))}`);
             }
@@ -135,6 +190,22 @@ function traceMem(resolutionMs, sample = false) {
     };
 }
 
+let exposeGcShowed = false;
+async function collectGarbage() {
+    if (typeof global.gc === 'function') {
+        global.gc();
+
+        // double sure
+        await timeout(100);
+        global.gc();
+    } else if (!exposeGcShowed) {
+        exposeGcShowed = true;
+        console.warn(chalk.magenta('Looks like script is forcing GC to collect garbarge, but coresponding API is not enabled'));
+        console.warn(chalk.magenta('Run node with --expose-gc flag to enable API and get precise measurements'));
+    }
+}
+
+
 function captureStdout(callback) {
     const oldWrite = process.stdout.write;
     const cancelCapture = () => process.stdout.write = oldWrite;
@@ -185,9 +256,11 @@ function outputToReadme(start, end, fmt = output => output) {
 
 module.exports = {
     StringStream,
+    benchmark,
     prettySize,
     memDelta,
     traceMem,
+    collectGarbage,
     timeout,
     captureStdout,
     replaceInReadme,
