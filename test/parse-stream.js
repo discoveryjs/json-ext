@@ -45,10 +45,10 @@ describe.only('ParseStream', () => {
         null,
         '',
         'test',
-        // '🤓漢字',
+        '🤓漢字',
         '\b\t\n\f\r"\\\\"\\u0020', // escapes
         '\u0000\u0010\u001F\u009F',
-        // '\uD800\uDC00',  // surrogate pair
+        '\uD800\uDC00',  // surrogate pair
         '\uDC00\uD800',  // broken surrogate pair
         '\uD800',  // leading surrogate (broken surrogate pair)
         '\uDC00',  // trailing surrogate (broken surrogate pair)
@@ -104,6 +104,31 @@ describe.only('ParseStream', () => {
                 async () => await parse(['{"test":"he', 'llo",}']),
                 /Unexpected \} in JSON at position 16/
             );
+        });
+    });
+
+    describe('use with buffers', () => {
+        const input = '[1234,{"🤓\\uD800\\uDC00":"🤓\\uD800\\uDC00"}]';
+        const expected = [1234, { '🤓\uD800\uDC00': '🤓\uD800\uDC00' }];
+        const slices = [
+            [0, 3],  // [12
+            [3, 9],  // 34,{"\ud8
+            [9, 13], // 3e\udd13\uD800\uDC00
+            [13]
+        ];
+
+        it('Buffer', async () => {
+            const buffer = Buffer.from(input);
+            const actual = await parseStream(() => slices.map(([...args]) => buffer.slice(...args)));
+
+            assert.deepStrictEqual(actual, expected);
+        });
+
+        it('Uint8Array', async () => {
+            const encoded = new TextEncoder().encode(input);
+            const actual = await parseStream(() => slices.map(([...args]) => encoded.slice(...args)));
+
+            assert.deepStrictEqual(actual, expected);
         });
     });
 

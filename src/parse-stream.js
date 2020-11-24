@@ -7,6 +7,7 @@ const STATE_OBJECT_ENTRY_START = 3;
 const STATE_OBJECT_ENTRY_COLON = 4;
 const STATE_OBJECT_END_OR_NEXT_ENTRY = 5;
 const STATE_ARRAY_END_OR_NEXT_ELEMENT = 6;
+const decoder = new TextDecoder();
 
 function isObject(value) {
     return value !== null && typeof value === 'object';
@@ -20,7 +21,7 @@ module.exports = function(chunkEmitter) {
             chunkEmitter
                 .on('data', chunk => {
                     try {
-                        parser.push(String(chunk));
+                        parser.push(chunk);
                     } catch (e) {
                         parser = null;
                         reject(e);
@@ -101,13 +102,25 @@ class StreamParser {
     }
 
     push(chunk, last) {
+        const isString = typeof chunk === 'string';
+        let i = 0;
+
         if (this.pendingChunk) {
-            chunk = this.pendingChunk + chunk;
+            if (isString) {
+                chunk = this.pendingChunk + chunk;
+            } else {
+                const newChunk = chunk;
+                chunk = new Uint8Array(this.pendingChunk.length + newChunk.length);
+                chunk.set(this.pendingChunk);
+                chunk.set(newChunk, this.pendingChunk.length);
+            }
             this.pendingChunk = undefined;
         }
 
-        scan: for (let i = 0; i < chunk.length; i++) {
-            const code = chunk.charCodeAt(i);
+        scan: for (; i < chunk.length; i++) {
+            const code = isString
+                ? chunk.charCodeAt(i)
+                : chunk[i];
 
             // skip whitespace
             if (code === 0x09 || code === 0x0A || code === 0x0D || code === 0x20) {
@@ -119,14 +132,16 @@ class StreamParser {
                     // consume number
                     if (code === 0x2D /* - */ || (code >= 0x30 /* 0 */ && code <= 0x39 /* 9 */)) {
                         let j = i;
-                        let part = 0; // 0 int, 1 mantise, 2 exp
+                        let part = 0; // 0 int, 1 mantissa, 2 exp
 
                         if (code === 0x2D /* - */) {
                             j++;
                         }
 
                         for (; j < chunk.length; j++) {
-                            const code = chunk.charCodeAt(j);
+                            const code = isString
+                                ? chunk.charCodeAt(j)
+                                : chunk[j];
 
                             if (code === 0x2E /* . */ && part === 0) {
                                 part = 1;
@@ -134,39 +149,52 @@ class StreamParser {
                                 part = 2;
 
                                 if (j + 1 < chunk.length) {
-                                    const next = chunk.charCodeAt(j + 1);
+                                    const next = isString
+                                        ? chunk.charCodeAt(j + 1)
+                                        : chunk[i];
+
                                     if (next === 0x2D /* - */ || next === 0x2B /* + */) {
                                         j++;
                                     }
                                 }
                             } else if (code < 0x30 /* 0 */ || code > 0x39 /* 9 */) {
-                                this._pushValue(Number(chunk.slice(i, j)));
+                                this._pushValue(Number(isString
+                                    ? chunk.slice(i, j)
+                                    : decoder.decode(chunk.slice(i, j))
+                                ));
                                 i = j - 1;
                                 break state;
                             }
                         }
 
-                        if (!last) {
-                            this.pendingChunk = chunk.slice(i);
-                            break scan;
+                        if (last) {
+                            this._pushValue(Number(isString
+                                ? chunk.slice(i)
+                                : decoder.decode(chunk.slice(i))
+                            ));
                         }
 
-                        this._pushValue(Number(chunk.slice(i)));
                         break scan;
                     }
 
                     // consume string
                     if (code === 0x22 /* " */) {
                         for (let j = i + 1, decode = false; j < chunk.length; j++) {
-                            const code = chunk.charCodeAt(j);
+                            const code = isString
+                                ? chunk.charCodeAt(j)
+                                : chunk[j];
 
                             if (code === 0x22 /* " */) {
                                 this._pushValue(decode
-                                    ? JSON.parse(chunk.slice(i, j + 1))
+                                    ? JSON.parse(isString
+                                        ? chunk.slice(i, j + 1)
+                                        : decoder.decode(chunk.slice(i, j + 1)))
                                     // use (' ' + s).slice(1) as a hack to detach sliced string from original string
                                     // see V8 bug: https://bugs.chromium.org/p/v8/issues/detail?id=2869
                                     // also: https://mrale.ph/blog/2016/11/23/making-less-dart-faster.html
-                                    : (' ' + chunk.slice(i + 1, j)).slice(1)
+                                    : isString
+                                        ? (' ' + chunk.slice(i + 1, j)).slice(1)
+                                        : decoder.decode(chunk.slice(i + 1, j))
                                 );
                                 i = j;
                                 break state;
@@ -179,7 +207,6 @@ class StreamParser {
                         }
 
                         if (!last) {
-                            this.pendingChunk = chunk.slice(i);
                             break scan;
                         }
 
@@ -195,7 +222,11 @@ class StreamParser {
                                 : 'null';
 
                         if (i + word.length <= chunk.length) {
-                            if (chunk.slice(i, i + word.length) === word) {
+                            const actual = isString
+                                ? chunk.slice(i, i + word.length)
+                                : decoder.decode(chunk.slice(i, i + word.length));
+
+                            if (actual === word) {
                                 this._pushValue(code === 0x66 /* f */ ? false : code === 0x74 /* t */ ? true : null);
                                 i += word.length - 1;
                                 break state;
@@ -205,7 +236,6 @@ class StreamParser {
                         }
 
                         if (!last) {
-                            this.pendingChunk = chunk.slice(i);
                             break scan;
                         }
 
@@ -249,13 +279,19 @@ class StreamParser {
                     if (code === 0x22 /* " */) {
                         // consume string
                         for (let j = i + 1, decode = false; j < chunk.length; j++) {
-                            const code = chunk.charCodeAt(j);
+                            const code = isString
+                                ? chunk.charCodeAt(j)
+                                : chunk[j];
 
                             if (code === 0x22 /* " */) {
                                 this.state = STATE_OBJECT_ENTRY_COLON;
                                 this.property = decode
-                                    ? JSON.parse(chunk.slice(i, j + 1))
-                                    : chunk.slice(i + 1, j);
+                                    ? JSON.parse(isString
+                                        ? chunk.slice(i, j + 1)
+                                        : decoder.decode(chunk.slice(i, j + 1)))
+                                    : isString
+                                        ? chunk.slice(i + 1, j)
+                                        : decoder.decode(chunk.slice(i + 1, j));
                                 i = j;
                                 break state;
                             }
@@ -267,7 +303,6 @@ class StreamParser {
                         }
 
                         if (!last) {
-                            this.pendingChunk = chunk.slice(i);
                             break scan;
                         }
 
@@ -329,7 +364,11 @@ class StreamParser {
             }
         }
 
-        this.pos += chunk.length - (this.pendingChunk ? this.pendingChunk.length : 0);
+        this.pos += i;
+
+        if (i < chunk.length) {
+            this.pendingChunk = chunk.slice(i);
+        }
 
         if (last) {
             if (this.state !== STATE_DONE) {
@@ -349,6 +388,12 @@ class StreamParser {
     }
 
     error(source, pos) {
-        throw new SyntaxError('Unexpected ' + source[pos] + ' in JSON at position ' + (this.pos + pos));
+        const token = source[pos];
+
+        throw new SyntaxError(`Unexpected ${
+            typeof token === 'string' ? token : String.fromCharCode(token)
+        } in JSON at position ${
+            this.pos + pos
+        }`);
     }
 };
