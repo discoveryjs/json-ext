@@ -63,8 +63,36 @@ module.exports = function(chunkEmitter) {
         }
     }
 
-    throw new Error('Chunk emitter should be readable stream, generator, async generator or function returning an iterable object');
+    throw new Error(
+        'Chunk emitter should be readable stream, generator, ' +
+        'async generator or function returning an iterable object'
+    );
 };
+
+// Adopted from https://github.com/mathiasbynens/utf8.js/blob/master/utf8.js
+function utf8bytes(string, from, to) {
+    let res = 0;
+
+    for (let i = from; i < to; i++) {
+        const code = string.charCodeAt(i);
+
+        if (code >= 0xD800 && code <= 0xDBFF && i + 1 < to) {
+            // high surrogate, and there is a next character
+            if ((string.charCodeAt(i + 1) & 0xFC00) == 0xDC00) { // low surrogate
+                res += 4; // 4-byte sequence
+                i++;
+            } else {
+                // unmatched surrogate; only append this code unit, in case the next
+                // code unit is the high surrogate of a surrogate pair
+                res += 3; // 3-byte sequence
+            }
+        } else {
+            res += code < 128 ? 1 : code < 2048 ? 2 : 3;
+        }
+    }
+
+    return res;
+}
 
 class StreamParser {
     constructor() {
@@ -101,26 +129,70 @@ class StreamParser {
                 : STATE_OBJECT_END_OR_NEXT_ENTRY;
     }
 
-    push(chunk, last) {
-        const isString = typeof chunk === 'string';
+    push(rawChunk, last = false) {
+        let uncompletedSeqLength = 0;
+        let chunk;
+        let chunkLength;
         let i = 0;
 
-        if (this.pendingChunk) {
-            if (isString) {
-                chunk = this.pendingChunk + chunk;
-            } else {
-                const newChunk = chunk;
-                chunk = new Uint8Array(this.pendingChunk.length + newChunk.length);
-                chunk.set(this.pendingChunk);
-                chunk.set(newChunk, this.pendingChunk.length);
+        if (typeof rawChunk === 'string') {
+            // Prepend pending chunk if any
+            if (this.pendingChunk) {
+                rawChunk = this.pendingChunk + rawChunk;
+                this.pendingChunk = undefined;
             }
-            this.pendingChunk = undefined;
+
+            // If chunk is a string use all the chunk as is
+            chunk = rawChunk;
+            chunkLength = rawChunk.length;
+        } else {
+            // Suppose chunk is Buffer or Uint8Array
+            // Prepend pending chunk if any
+            if (this.pendingChunk) {
+                const origRawChunk = rawChunk;
+                rawChunk = new Uint8Array(this.pendingChunk.length + origRawChunk.length);
+                rawChunk.set(this.pendingChunk);
+                rawChunk.set(origRawChunk, this.pendingChunk.length);
+                this.pendingChunk = undefined;
+            }
+
+            // In case of Buffer/Uint8Array, input encoded in UTF8
+            // Seek for parts of broken UTF8 symbol on the ending
+            // This makes sence only if we expect more chunks and last char is not multi-bytes
+            if (!last && rawChunk[rawChunk.length - 1] > 127) {
+                for (; uncompletedSeqLength < rawChunk.length; uncompletedSeqLength++) {
+                    const byte = rawChunk[rawChunk.length - 1 - uncompletedSeqLength];
+
+                    // 10xxxxxx - 2nd, 3rd or 4th byte
+                    // 110xxxxx – first byte of 2-byte sequence
+                    // 1110xxxx - first byte of 3-byte sequence
+                    // 11110xxx - first byte of 4-byte sequence
+                    if (byte >> 6 === 3) {
+                        uncompletedSeqLength++;
+
+                        // It's completed actually
+                        if ((uncompletedSeqLength === 4 && byte >> 3 === 0b11110) ||
+                            (uncompletedSeqLength === 3 && byte >> 4 === 0b1110) ||
+                            (uncompletedSeqLength === 2 && byte >> 5 === 0b110)) {
+                            uncompletedSeqLength = 0;
+                        }
+
+                        break;
+                    }
+                }
+            }
+
+            // Convert chunk to string, since single decode per chunk
+            // is much effective than decode multiple small substrings
+            chunk = decoder.decode(rawChunk);
+
+            // Ignore last char since it's uncompleted
+            chunkLength = chunk.length - (uncompletedSeqLength > 0 ? 1 : 0);
         }
 
-        scan: for (; i < chunk.length; i++) {
-            const code = isString
-                ? chunk.charCodeAt(i)
-                : chunk[i];
+        // Main scan loop
+        scan: for (; i < chunkLength; i++) {
+            const code = chunk.charCodeAt(i);
 
             // skip whitespace
             if (code === 0x09 || code === 0x0A || code === 0x0D || code === 0x20) {
@@ -138,40 +210,30 @@ class StreamParser {
                             j++;
                         }
 
-                        for (; j < chunk.length; j++) {
-                            const code = isString
-                                ? chunk.charCodeAt(j)
-                                : chunk[j];
+                        for (; j < chunkLength; j++) {
+                            const code = chunk.charCodeAt(j);
 
                             if (code === 0x2E /* . */ && part === 0) {
                                 part = 1;
                             } else if ((code === 0x65 /* e */ || code === 0x45 /* E */) && part < 2) {
                                 part = 2;
 
-                                if (j + 1 < chunk.length) {
-                                    const next = isString
-                                        ? chunk.charCodeAt(j + 1)
-                                        : chunk[i];
+                                if (j + 1 < chunkLength) {
+                                    const next = chunk.charCodeAt(j + 1);
 
                                     if (next === 0x2D /* - */ || next === 0x2B /* + */) {
                                         j++;
                                     }
                                 }
                             } else if (code < 0x30 /* 0 */ || code > 0x39 /* 9 */) {
-                                this._pushValue(Number(isString
-                                    ? chunk.slice(i, j)
-                                    : decoder.decode(chunk.slice(i, j))
-                                ));
+                                this._pushValue(Number(chunk.slice(i, j)));
                                 i = j - 1;
                                 break state;
                             }
                         }
 
                         if (last) {
-                            this._pushValue(Number(isString
-                                ? chunk.slice(i)
-                                : decoder.decode(chunk.slice(i))
-                            ));
+                            this._pushValue(Number(chunk.slice(i)));
                         }
 
                         break scan;
@@ -179,22 +241,16 @@ class StreamParser {
 
                     // consume string
                     if (code === 0x22 /* " */) {
-                        for (let j = i + 1, decode = false; j < chunk.length; j++) {
-                            const code = isString
-                                ? chunk.charCodeAt(j)
-                                : chunk[j];
+                        for (let j = i + 1, decode = false; j < chunkLength; j++) {
+                            const code = chunk.charCodeAt(j);
 
                             if (code === 0x22 /* " */) {
                                 this._pushValue(decode
-                                    ? JSON.parse(isString
-                                        ? chunk.slice(i, j + 1)
-                                        : decoder.decode(chunk.slice(i, j + 1)))
+                                    ? JSON.parse(chunk.slice(i, j + 1))
                                     // use (' ' + s).slice(1) as a hack to detach sliced string from original string
                                     // see V8 bug: https://bugs.chromium.org/p/v8/issues/detail?id=2869
                                     // also: https://mrale.ph/blog/2016/11/23/making-less-dart-faster.html
-                                    : isString
-                                        ? (' ' + chunk.slice(i + 1, j)).slice(1)
-                                        : decoder.decode(chunk.slice(i + 1, j))
+                                    : (' ' + chunk.slice(i + 1, j)).slice(1)
                                 );
                                 i = j;
                                 break state;
@@ -221,10 +277,8 @@ class StreamParser {
                                 ? 'true'
                                 : 'null';
 
-                        if (i + word.length <= chunk.length) {
-                            const actual = isString
-                                ? chunk.slice(i, i + word.length)
-                                : decoder.decode(chunk.slice(i, i + word.length));
+                        if (i + word.length <= chunkLength) {
+                            const actual = chunk.slice(i, i + word.length);
 
                             if (actual === word) {
                                 this._pushValue(code === 0x66 /* f */ ? false : code === 0x74 /* t */ ? true : null);
@@ -278,20 +332,14 @@ class StreamParser {
                 case STATE_OBJECT_ENTRY_START: {
                     if (code === 0x22 /* " */) {
                         // consume string
-                        for (let j = i + 1, decode = false; j < chunk.length; j++) {
-                            const code = isString
-                                ? chunk.charCodeAt(j)
-                                : chunk[j];
+                        for (let j = i + 1, decode = false; j < chunkLength; j++) {
+                            const code = chunk.charCodeAt(j);
 
                             if (code === 0x22 /* " */) {
                                 this.state = STATE_OBJECT_ENTRY_COLON;
                                 this.property = decode
-                                    ? JSON.parse(isString
-                                        ? chunk.slice(i, j + 1)
-                                        : decoder.decode(chunk.slice(i, j + 1)))
-                                    : isString
-                                        ? chunk.slice(i + 1, j)
-                                        : decoder.decode(chunk.slice(i + 1, j));
+                                    ? JSON.parse(chunk.slice(i, j + 1))
+                                    : chunk.slice(i + 1, j);
                                 i = j;
                                 break state;
                             }
@@ -364,15 +412,25 @@ class StreamParser {
             }
         }
 
-        this.pos += i;
-
-        if (i < chunk.length) {
-            this.pendingChunk = chunk.slice(i);
-        }
-
         if (last) {
+            // No more chunks expected
             if (this.state !== STATE_DONE) {
                 this.unexpectedEnd();
+            }
+        } else {
+            // Update absolute position in symbols
+            this.pos += i;
+
+            // Produce pendingChunk if any
+            if (typeof rawChunk === 'string') {
+                if (i < chunkLength) {
+                    this.pendingChunk = rawChunk.slice(i);
+                }
+            } else {
+                let pendingSlice = utf8bytes(chunk, i, chunkLength) + uncompletedSeqLength;
+                if (pendingSlice > 0) {
+                    this.pendingChunk = rawChunk.slice(rawChunk.length - pendingSlice);
+                }
             }
         }
     }

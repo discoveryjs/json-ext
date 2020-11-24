@@ -26,7 +26,7 @@ function createInfoTest(value, ...args) {
     });
 }
 
-describe('info()', () => {
+describe('stringifyInfo()', () => {
     describe('default', () => {
         for (const value of tests) {
             createInfoTest(value);

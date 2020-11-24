@@ -31,7 +31,7 @@ function split(str, chunkLen = 1) {
     return chunks;
 }
 
-describe.only('ParseStream', () => {
+describe.only('parseStream()', () => {
     const values = [
         1,
         123,
@@ -111,10 +111,11 @@ describe.only('ParseStream', () => {
         const input = '[1234,{"🤓\\uD800\\uDC00":"🤓\\uD800\\uDC00"}]';
         const expected = [1234, { '🤓\uD800\uDC00': '🤓\uD800\uDC00' }];
         const slices = [
-            [0, 3],  // [12
-            [3, 9],  // 34,{"\ud8
-            [9, 13], // 3e\udd13\uD800\uDC00
-            [13]
+            [0, 3],   // [12
+            [3, 9],   // 34,{"\ud8
+            [9, 13],  // 3e\udd13
+            [13, 16], // \uD800\uDC00
+            [16]
         ];
 
         it('Buffer', async () => {
