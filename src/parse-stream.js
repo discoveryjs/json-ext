@@ -2,11 +2,13 @@ const { isReadableStream } = require('./utils');
 
 const STATE_DONE = 0;
 const STATE_ANY = 1;
-const STATE_OBJECT_END_OR_ENTRY_START = 2;
-const STATE_OBJECT_ENTRY_START = 3;
-const STATE_OBJECT_ENTRY_COLON = 4;
-const STATE_OBJECT_END_OR_NEXT_ENTRY = 5;
-const STATE_ARRAY_END_OR_NEXT_ELEMENT = 6;
+const STATE_STRING = 2;
+const STATE_OBJECT_END_OR_ENTRY_START = 3;
+const STATE_OBJECT_ENTRY_START = 4;
+const STATE_OBJECT_ENTRY_PROPERTY = 5;
+const STATE_OBJECT_ENTRY_COLON = 6;
+const STATE_OBJECT_END_OR_NEXT_ENTRY = 7;
+const STATE_ARRAY_END_OR_NEXT_ELEMENT = 8;
 const decoder = new TextDecoder();
 
 function isObject(value) {
@@ -101,6 +103,9 @@ class StreamParser {
         this.state = STATE_ANY;
         this.property = undefined;
         this.pendingChunk = undefined;
+        this.pendingString = '';
+        this.pendingStringDecode = false;
+        this.pendingStringEscape = false;
         this.pos = 0;
     }
 
@@ -157,7 +162,7 @@ class StreamParser {
             }
 
             // In case of Buffer/Uint8Array, input encoded in UTF8
-            // Seek for parts of broken UTF8 symbol on the ending
+            // Seek for parts of uncompleted UTF8 symbol on the ending
             // This makes sence only if we expect more chunks and last char is not multi-bytes
             if (!last && rawChunk[rawChunk.length - 1] > 127) {
                 for (; uncompletedSeqLength < rawChunk.length; uncompletedSeqLength++) {
@@ -192,6 +197,52 @@ class StreamParser {
 
         // Main scan loop
         scan: for (; i < chunkLength; i++) {
+            // consume string
+            if (this.state === STATE_STRING || this.state === STATE_OBJECT_ENTRY_PROPERTY) {
+                const start = i;
+
+                for (; i < chunkLength; i++) {
+                    if (this.pendingStringEscape) {
+                        this.pendingStringEscape = false;
+                        continue;
+                    }
+
+                    const code = chunk.charCodeAt(i);
+
+                    if (code === 0x22 /* " */) {
+                        const value = this.pendingStringDecode
+                            ? JSON.parse(this.pendingString + chunk.slice(start, i + 1))
+                            // use (' ' + s).slice(1) as a hack to detach sliced string from original string
+                            // see V8 bug: https://bugs.chromium.org/p/v8/issues/detail?id=2869
+                            // also: https://mrale.ph/blog/2016/11/23/making-less-dart-faster.html
+                            : (this.pendingString + chunk.slice(start, i)).slice(1);
+
+                        this.pendingString = '';
+
+                        if (this.state === STATE_STRING) {
+                            this._pushValue(value);
+                        } else {
+                            this.state = STATE_OBJECT_ENTRY_COLON;
+                            this.property = value;
+                        }
+
+                        continue scan;
+                    }
+
+                    if (code === 0x5C /* \ */) {
+                        this.pendingStringDecode = true;
+                        this.pendingStringEscape = true;
+                    }
+                }
+
+                if (!last) {
+                    this.pendingString += chunk.slice(start, chunkLength);
+                    break scan;
+                }
+
+                this.unexpectedEnd();
+            }
+
             const code = chunk.charCodeAt(i);
 
             // skip whitespace
@@ -199,7 +250,7 @@ class StreamParser {
                 continue;
             }
 
-            state: switch (this.state) {
+            switch (this.state) {
                 case STATE_ANY: {
                     // consume number
                     if (code === 0x2D /* - */ || (code >= 0x30 /* 0 */ && code <= 0x39 /* 9 */)) {
@@ -228,12 +279,12 @@ class StreamParser {
                             } else if (code < 0x30 /* 0 */ || code > 0x39 /* 9 */) {
                                 this._pushValue(Number(chunk.slice(i, j)));
                                 i = j - 1;
-                                break state;
+                                continue scan;
                             }
                         }
 
                         if (last) {
-                            this._pushValue(Number(chunk.slice(i)));
+                            this._pushValue(Number(chunk.slice(i, chunkLength)));
                         }
 
                         break scan;
@@ -241,32 +292,11 @@ class StreamParser {
 
                     // consume string
                     if (code === 0x22 /* " */) {
-                        for (let j = i + 1, decode = false; j < chunkLength; j++) {
-                            const code = chunk.charCodeAt(j);
-
-                            if (code === 0x22 /* " */) {
-                                this._pushValue(decode
-                                    ? JSON.parse(chunk.slice(i, j + 1))
-                                    // use (' ' + s).slice(1) as a hack to detach sliced string from original string
-                                    // see V8 bug: https://bugs.chromium.org/p/v8/issues/detail?id=2869
-                                    // also: https://mrale.ph/blog/2016/11/23/making-less-dart-faster.html
-                                    : (' ' + chunk.slice(i + 1, j)).slice(1)
-                                );
-                                i = j;
-                                break state;
-                            }
-
-                            if (code === 0x5C /* \ */) {
-                                decode = true;
-                                j++;
-                            }
-                        }
-
-                        if (!last) {
-                            break scan;
-                        }
-
-                        this.unexpectedEnd();
+                        this.state = STATE_STRING;
+                        this.pendingString = '"';
+                        this.pendingStringEscape = false;
+                        this.pendingStringDecode = false;
+                        break;
                     }
 
                     // consume keyword
@@ -283,7 +313,7 @@ class StreamParser {
                             if (actual === word) {
                                 this._pushValue(code === 0x66 /* f */ ? false : code === 0x74 /* t */ ? true : null);
                                 i += word.length - 1;
-                                break state;
+                                continue scan;
                             }
 
                             this.error(chunk, i);
@@ -331,30 +361,11 @@ class StreamParser {
                 case STATE_OBJECT_END_OR_ENTRY_START:
                 case STATE_OBJECT_ENTRY_START: {
                     if (code === 0x22 /* " */) {
-                        // consume string
-                        for (let j = i + 1, decode = false; j < chunkLength; j++) {
-                            const code = chunk.charCodeAt(j);
-
-                            if (code === 0x22 /* " */) {
-                                this.state = STATE_OBJECT_ENTRY_COLON;
-                                this.property = decode
-                                    ? JSON.parse(chunk.slice(i, j + 1))
-                                    : chunk.slice(i + 1, j);
-                                i = j;
-                                break state;
-                            }
-
-                            if (code === 0x5C /* \ */) {
-                                decode = true;
-                                j++;
-                            }
-                        }
-
-                        if (!last) {
-                            break scan;
-                        }
-
-                        this.unexpectedEnd();
+                        this.state = STATE_OBJECT_ENTRY_PROPERTY;
+                        this.pendingString = '"';
+                        this.pendingStringDecode = false;
+                        this.pendingStringEscape = false;
+                        break;
                     }
 
                     // end

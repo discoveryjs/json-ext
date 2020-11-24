@@ -45,6 +45,7 @@ describe.only('parseStream()', () => {
         null,
         '',
         'test',
+        'hello world',
         '🤓漢字',
         '\b\t\n\f\r"\\\\"\\u0020', // escapes
         '\u0000\u0010\u001F\u009F',
@@ -90,8 +91,9 @@ describe.only('parseStream()', () => {
         describe(len + ' char(s) length chunks with formatting', () => {
             for (const expected of values) {
                 const json = JSON.stringify(expected, null, '\r\n\t ');
+                const nofmt = JSON.stringify(expected);
 
-                if (json.length > len) {
+                if (json.length > len && json !== nofmt) {
                     it(json, async () => assert.deepStrictEqual(await parse(split(json, len)), expected));
                 }
             }
