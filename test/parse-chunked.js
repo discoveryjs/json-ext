@@ -1,7 +1,7 @@
 const assert = require('assert');
 const { inspect } = require('util');
 const { Readable } = require('stream');
-const { parseStream } = require('./helpers/lib');
+const { parseChunked } = require('./helpers/lib');
 
 function createReadableStream(chunks) {
     return new Readable({
@@ -18,7 +18,7 @@ function createReadableStream(chunks) {
 }
 
 function parse(chunks) {
-    return parseStream(() => chunks);
+    return parseChunked(() => chunks);
 }
 
 function split(str, chunkLen = 1) {
@@ -31,7 +31,7 @@ function split(str, chunkLen = 1) {
     return chunks;
 }
 
-describe.only('parseStream()', () => {
+describe.only('parseChunked()', () => {
     const values = [
         1,
         123,
@@ -122,35 +122,46 @@ describe.only('parseStream()', () => {
 
         it('Buffer', async () => {
             const buffer = Buffer.from(input);
-            const actual = await parseStream(() => slices.map(([...args]) => buffer.slice(...args)));
+            const actual = await parseChunked(() => slices.map(([...args]) => buffer.slice(...args)));
 
             assert.deepStrictEqual(actual, expected);
         });
 
         it('Uint8Array', async () => {
             const encoded = new TextEncoder().encode(input);
-            const actual = await parseStream(() => slices.map(([...args]) => encoded.slice(...args)));
+            const actual = await parseChunked(() => slices.map(([...args]) => encoded.slice(...args)));
 
             assert.deepStrictEqual(actual, expected);
         });
+
+        // it('Uint8Array', async () => {
+        //     const encoded = new TextEncoder().encode('[1,{"🤓\\uD800\\uDC00":2}]');
+        //     const p = 9;
+        //     const actual = await parseChunked(() => [
+        //         encoded.slice(0, p),
+        //         encoded.slice(p)
+        //     ]);
+
+        //     assert.deepStrictEqual(actual, [1, {"🤓\uD800\uDC00":2}]);
+        // });
     });
 
     describe('use with stream', () => {
         it('basic usage', async () => {
-            const actual = await parseStream(createReadableStream(['[1,', '2]']));
+            const actual = await parseChunked(createReadableStream(['[1,', '2]']));
             assert.deepStrictEqual(actual, [1, 2]);
         });
 
         it('with failure in JSON', () =>
             assert.rejects(
-                () => parseStream(createReadableStream(['[1 ', '2]'])),
+                () => parseChunked(createReadableStream(['[1 ', '2]'])),
                 /Unexpected 2 in JSON at position 3/
             )
         );
 
         it('with failure in stream', () =>
             assert.rejects(
-                () => parseStream(createReadableStream([new Error('test error in stream')])),
+                () => parseChunked(createReadableStream([new Error('test error in stream')])),
                 /test error in stream/
             )
         );
@@ -158,7 +169,7 @@ describe.only('parseStream()', () => {
 
     describe('use with generator', () => {
         it('basic usage', async () => {
-            const actual = await parseStream(function*() {
+            const actual = await parseChunked(function*() {
                 yield '[1,';
                 yield '2]';
             });
@@ -166,7 +177,7 @@ describe.only('parseStream()', () => {
         });
 
         it('promise should be resolved', async () => {
-            const actual = await parseStream(function*() {
+            const actual = await parseChunked(function*() {
                 yield '[1,';
                 yield Promise.resolve('2]');
             });
@@ -175,7 +186,7 @@ describe.only('parseStream()', () => {
 
         it('with failure in JSON', () =>
             assert.rejects(
-                () => parseStream(function*() {
+                () => parseChunked(function*() {
                     yield '[1 ';
                     yield '2]';
                 }),
@@ -185,7 +196,7 @@ describe.only('parseStream()', () => {
 
         it('with failure in generator', () =>
             assert.rejects(
-                () => parseStream(function*() {
+                () => parseChunked(function*() {
                     yield '[1 ';
                     throw new Error('test error in generator');
                 }),
@@ -196,7 +207,7 @@ describe.only('parseStream()', () => {
 
     describe('use with async generator', () => {
         it('basic usage', async () => {
-            const actual = await parseStream(async function*() {
+            const actual = await parseChunked(async function*() {
                 yield await Promise.resolve('[1,');
                 yield Promise.resolve('2,');
                 yield await '3,';
@@ -207,7 +218,7 @@ describe.only('parseStream()', () => {
 
         it('with failure in JSON', () =>
             assert.rejects(
-                () => parseStream(async function*() {
+                () => parseChunked(async function*() {
                     yield await Promise.resolve('[1 ');
                     yield '2]';
                 }),
@@ -217,7 +228,7 @@ describe.only('parseStream()', () => {
 
         it('with failure in generator', () =>
             assert.rejects(
-                () => parseStream(async function*() {
+                () => parseChunked(async function*() {
                     yield '[1 ';
                     throw new Error('test error in generator');
                 }),
@@ -227,7 +238,7 @@ describe.only('parseStream()', () => {
 
         it('with reject in generator', () =>
             assert.rejects(
-                () => parseStream(async function*() {
+                () => parseChunked(async function*() {
                     yield Promise.reject('test error in generator');
                 }),
                 /test error in generator/
@@ -237,12 +248,12 @@ describe.only('parseStream()', () => {
 
     describe('use with a function returns iterable object', () => {
         it('array', async () => {
-            const actual = await parseStream(() => ['[1,', '2]']);
+            const actual = await parseChunked(() => ['[1,', '2]']);
             assert.deepStrictEqual(actual, [1, 2]);
         });
 
         it('iterator method', async () => {
-            const actual = await parseStream(() => ({
+            const actual = await parseChunked(() => ({
                 *[Symbol.iterator]() {
                     yield '[1,';
                     yield '2]';
@@ -269,7 +280,7 @@ describe.only('parseStream()', () => {
         for (const value of badValues) {
             it(inspect(value), () =>
                 assert.throws(
-                    () => parseStream(value),
+                    () => parseChunked(value),
                     /Chunk emitter should be readable stream, generator, async generator or function returning an iterable object/
                 )
             );
