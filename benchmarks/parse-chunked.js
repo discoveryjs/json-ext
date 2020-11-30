@@ -1,10 +1,10 @@
 const fs = require('fs');
-const parseChunked = require('./src/parse-chunked');
-const { runBenchmark, prettySize } = require('./benchmarks/benchmark-utils');
+const parseChunked = require('../src/parse-chunked');
+const { runBenchmark, prettySize } = require('./benchmark-utils');
 const filename = require('path').join(__dirname, [
-    './benchmarks/fixture/small.json',
-    './benchmarks/fixture/medium.json',
-    './benchmarks/fixture/big.json'
+    './fixture/small.json',
+    './fixture/medium.json',
+    './fixture/big.json'
 ][process.argv[2] || 1]);
 const chunkSize = 512 * 1024; // chunk size for generator
 
