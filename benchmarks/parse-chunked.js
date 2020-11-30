@@ -1,4 +1,6 @@
 const fs = require('fs');
+const path = require('path');
+const chalk = require('chalk');
 const parseChunked = require('../src/parse-chunked');
 const { runBenchmark, prettySize } = require('./benchmark-utils');
 const filename = require('path').join(__dirname, [
@@ -26,18 +28,19 @@ const tests = module.exports = {
 
 if (require.main === module) {
     (async () => {
-        console.log();
-        console.log(
-            require('path').relative(__dirname, filename),
-            prettySize(fs.statSync(filename).size),
-            'chunk size',
-            prettySize(chunkSize)
+        console.log('Benchmark:', chalk.green('parseChunked()'), '(parse chunked JSON)');
+        console.log('Node version:', chalk.green(process.versions.node));
+        console.log('Fixture:',
+            chalk.green(path.relative(process.cwd(), filename)),
+            chalk.yellow(prettySize(fs.statSync(filename).size)),
+            '/ chunk size',
+            chalk.yellow(prettySize(chunkSize))
         );
         console.log();
 
+        const results = [];
         for (const name of Object.keys(tests)) {
-            await runBenchmark(name, process.argv.slice(2));
-            await new Promise(resolve => setTimeout(resolve, 100));
+            results.push(await runBenchmark(name));
         }
     })();
 }

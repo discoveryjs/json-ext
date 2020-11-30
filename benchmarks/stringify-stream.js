@@ -6,9 +6,8 @@ const JsonStreamStringify = require('json-stream-stringify');
 const jsonExt = require('../src');
 const {
     StringStream,
-    benchmark,
+    runBenchmark,
     prettySize,
-    timeout,
     outputToReadme,
     replaceInReadme
 } = require('./benchmark-utils');
@@ -19,38 +18,40 @@ const fixtures = [
     'fixture/big.json'     // ~100Mb
 ];
 const fixtureIndex = Number(process.argv[2]) in fixtures ? Number(process.argv[2]) : 0;
-const inputPath = fixtures[fixtureIndex];
-const inputString = fs.readFileSync(path.join(__dirname, inputPath));
+const inputPath = path.join(__dirname, fixtures[fixtureIndex]);
+const inputString = fs.readFileSync(inputPath);
 const inputData = JSON.parse(inputString);
 
-const tests = {
+const tests = module.exports = {
     'JSON.stringify()': data => new StringStream(JSON.stringify(data)),
     [require('../package.json').name]: data => jsonExt.stringifyStream(data),
     'bfj': data => bfj.streamify(data),
     'json-stream-stringify': data => new JsonStreamStringify(data)
 };
 
-async function run(data, size) {
-    const result = [];
+for (const [name, init] of Object.entries(tests)) {
+    tests[name] = () => new Promise((resolve, reject) => {
+        init(inputData)
+            .on('error', reject)
+            .pipe(fs.createWriteStream(outputPath(name)))
+            .on('close', resolve)
+            .on('error', reject);
+    });
+}
 
-    console.log('Test:', chalk.cyan('JSON.stringify() as a stream'));
-    console.log('Node version:', process.versions.node);
-    console.log('JSON size:', chalk.yellow(prettySize(size || JSON.stringify(data).length)));
+async function run(data, size) {
+    const results = [];
+
+    console.log('Benchmark:', chalk.green('stringifyStream()'), '(JSON.stringify() as a stream)');
+    console.log('Node version:', chalk.green(process.versions.node));
+    console.log('Fixture:', chalk.green(path.relative(process.cwd(), inputPath)), chalk.yellow(prettySize(size || JSON.stringify(data).length)));
     console.log('');
 
-    for (const [name, init] of Object.entries(tests)) {
-        result.push(await benchmark(name, () => new Promise((resolve, reject) => {
-            init(data)
-                .on('error', reject)
-                .pipe(fs.createWriteStream(outputPath(name)))
-                .on('close', resolve)
-                .on('error', reject);
-        })));
-
-        await timeout(100);
+    for (const name of Object.keys(tests)) {
+        results.push(await runBenchmark(name));
     }
 
-    return result;
+    return results;
 }
 
 if (typeof global.gc !== 'function') {
@@ -64,6 +65,10 @@ if (process.env.README) {
         new RegExp(`<!--/stringify-stream-output:${fixtureIndex}-->`),
         output => '\n```\n' + output.trim() + '\n```\n'
     );
+}
+
+if (require.main !== module) {
+    return;
 }
 
 run(inputData, inputString.length)

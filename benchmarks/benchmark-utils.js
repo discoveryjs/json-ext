@@ -20,8 +20,8 @@ class StringStream extends Readable {
     }
 }
 
-function runBenchmark(name, argv) {
-    return new Promise(resolve => {
+function runBenchmark(name, argv = process.argv.slice(2)) {
+    return new Promise((resolve, reject) => {
         fork(__dirname + '/run-test.js', [
             require.main.filename,
             name,
@@ -31,7 +31,10 @@ function runBenchmark(name, argv) {
                 ...process.env,
                 FORCE_COLOR: chalk.supportsColor ? chalk.supportsColor.level : 0
             }
-        }).on('close', resolve);
+        })
+            .on('message', resolve)
+            .on('error', reject)
+            .on('close', code => code ? reject(new Error('Exit code ' + code)) : resolve());
     });
 }
 
@@ -72,16 +75,20 @@ async function benchmark(name, fn, output = true) {
             console.log();
         }
 
+        // release mem
+        // eslint-disable-next-line no-unused-vars
+        result = null;
+        await collectGarbage();
+
         // fs.writeFileSync(outputPath('mem-' + name), JSON.stringify(mem.series()));
-        await timeout(100);
 
         return {
-            result,
             name,
             time,
             cpu,
-            heapUsed: maxMem.delta.heapUsed,
-            external: maxMem.delta.external
+            rss: maxMem.delta.rss,
+            heapTotal: maxMem.delta.heapTotal,
+            heapUsed: maxMem.delta.heapUsed
         };
     }
 }
