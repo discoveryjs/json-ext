@@ -62,7 +62,8 @@ describe.only('parseChunked()', () => {
         [1],
         [1, 2],
         [1, [2, [3]]],
-        [{ a: 2, b: true }, false, '', 12, [1, null]]
+        [{ a: 2, b: true }, false, '', 12, [1, null]],
+        [1, { a: [true, { b: 1, c: [{ d: 2 }] }, 'hello  world\n!', null, 123, [{ e: '4', f: [] }, [], 123, [1, false]]] }, 2, { g: 5 }, [42]]
     ];
 
     describe('basic parsing (single chunk)', () => {
