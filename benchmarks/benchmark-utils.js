@@ -1,4 +1,5 @@
 const fs = require('fs');
+const { fork } = require('child_process');
 const chalk = require('chalk');
 const { Readable } = require('stream');
 const ANSI_REGEXP = /([\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><])/g;
@@ -17,6 +18,21 @@ class StringStream extends Readable {
             }
         });
     }
+}
+
+function runBenchmark(name, argv) {
+    return new Promise(resolve => {
+        fork(__dirname + '/run-test.js', [
+            require.main.filename,
+            name,
+            ...argv
+        ], {
+            env: {
+                ...process.env,
+                FORCE_COLOR: chalk.supportsColor ? chalk.supportsColor.level : 0
+            }
+        }).on('close', resolve);
+    });
 }
 
 async function benchmark(name, fn, output = true) {
@@ -256,6 +272,7 @@ function outputToReadme(start, end, fmt = output => output) {
 
 module.exports = {
     StringStream,
+    runBenchmark,
     benchmark,
     prettySize,
     memDelta,

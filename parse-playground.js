@@ -1,38 +1,43 @@
 const fs = require('fs');
 const parseChunked = require('./src/parse-chunked');
-const { benchmark, prettySize } = require('./benchmarks/benchmark-utils');
-const filename = [
+const { runBenchmark, prettySize } = require('./benchmarks/benchmark-utils');
+const filename = require('path').join(__dirname, [
     './benchmarks/fixture/small.json',
     './benchmarks/fixture/medium.json',
     './benchmarks/fixture/big.json'
-][process.argv[2] || 1];
-const chunkSize = .5 * 1024 * 1024; // chunk size for generator
-(async () => {
-    console.log(filename, prettySize(fs.statSync(filename).size));
-    console.log();
+][process.argv[2] || 1]);
+const chunkSize = 512 * 1024; // chunk size for generator
 
-    // stream
-    const { result: resultStream } = await benchmark('parse stream', () =>
-        parseChunked(fs.createReadStream(filename, { highWaterMark: chunkSize }))
-    );
+const tests = module.exports = {
+    'parse stream': () =>
+        parseChunked(fs.createReadStream(filename, { highWaterMark: chunkSize })),
 
-    // generator
-    const { result: resultGen } = await benchmark('parse generator', () => {
-        return parseChunked(function*() {
+    'parse generator': () =>
+        parseChunked(function*() {
             let json = fs.readFileSync(filename, 'utf8');
             for (let i = 0; i < json.length; i += chunkSize) {
                 yield json.slice(i, i + chunkSize);
             }
-        });
-    });
+        }),
 
-    // native
-    const { result } = await benchmark('JSON.parse()', () => {
-        const json = fs.readFileSync(filename, 'utf8');
-        return JSON.parse(json);
-    });
+    'JSON.parse()': () =>
+        JSON.parse(fs.readFileSync(filename, 'utf8'))
+};
 
-    // check
-    require('assert').deepStrictEqual(result, resultStream);
-    require('assert').deepStrictEqual(result, resultGen);
-})();
+if (require.main === module) {
+    (async () => {
+        console.log();
+        console.log(
+            require('path').relative(__dirname, filename),
+            prettySize(fs.statSync(filename).size),
+            'chunk size',
+            prettySize(chunkSize)
+        );
+        console.log();
+
+        for (const name of Object.keys(tests)) {
+            await runBenchmark(name, process.argv.slice(2));
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+    })();
+}
