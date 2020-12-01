@@ -1,18 +1,7 @@
 const { isReadableStream } = require('./utils');
 
-const STATE_DONE = 0;
-const STATE_ANY = 1;
-const STATE_STRING = 2;
-const STATE_NUMBER = 3;
-const STATE_KEYWORD = 4;
-const STATE_OBJECT_END_OR_ENTRY_START = 5;
-const STATE_OBJECT_ENTRY_START = 6;
-const STATE_OBJECT_ENTRY_PROPERTY = 7;
-const STATE_OBJECT_ENTRY_COLON = 8;
-const STATE_OBJECT_END_OR_NEXT_ENTRY = 9;
-const STATE_ARRAY_END_OR_NEXT_ELEMENT = 10;
-const STACK_OBJECT = STATE_OBJECT_END_OR_NEXT_ENTRY;
-const STACK_ARRAY = STATE_ARRAY_END_OR_NEXT_ELEMENT;
+const STACK_OBJECT = 1;
+const STACK_ARRAY = 2;
 const decoder = new TextDecoder();
 
 function isObject(value) {
@@ -20,9 +9,9 @@ function isObject(value) {
 }
 
 function adjustPosition(error, parser) {
-    if (error.name === 'SyntaxError' && (parser.pos || parser.posJsonParse)) {
+    if (error.name === 'SyntaxError' && (parser.pos || parser.jsonParseOffset)) {
         error.message = error.message.replace(/at position (\d+)/, (_, pos) =>
-            'at position ' + (parser.pos + Number(pos) + parser.posJsonParse)
+            'at position ' + (parser.pos + Number(pos) + parser.jsonParseOffset)
         );
     }
 
@@ -93,23 +82,17 @@ class ChunkParser {
         this.stack = new Array(100);
         this.lastFlushDepth = 0;
         this.flushDepth = 0;
-        this.state = STATE_ANY;
+        this.stateString = false;
         this.stateStringEscape = false;
-        this.pendingCharSeq = null;
+        this.pendingByteSeq = null;
         this.pendingChunk = null;
         this.pos = 0;
-        this.posJsonParse = 0;
-    }
-
-    popState() {
-        this.state = this.flushDepth > 0
-            ? this.stack[this.flushDepth - 1]
-            : STATE_DONE;
+        this.jsonParseOffset = 0;
     }
 
     flush(chunk, start, end) {
         let fragment = chunk.slice(start, end);
-        this.posJsonParse = 0; // using for position correction in JSON.parse() error if any
+        this.jsonParseOffset = 0; // using for position correction in JSON.parse() error if any
 
         // Prepend pending chunk if any
         if (this.pendingChunk !== null) {
@@ -120,13 +103,13 @@ class ChunkParser {
         // Skip a comma at the beginning if any
         if (fragment[0] === ',') {
             fragment = fragment.slice(1);
-            this.posJsonParse++;
+            this.jsonParseOffset++;
         }
 
         if (this.flushDepth === this.lastFlushDepth) {
             // Depth didn't changed, so it's a root value or entry/element set
             if (this.flushDepth > 0) {
-                this.posJsonParse--;
+                this.jsonParseOffset--;
 
                 // Append new entries or elements
                 if (this.stack[this.flushDepth - 1] === STACK_OBJECT) {
@@ -156,7 +139,7 @@ class ChunkParser {
                     prev: null
                 };
             } else {
-                this.posJsonParse--;
+                this.jsonParseOffset--;
 
                 // Parse fragment and append to current value
                 if (this.stack[this.lastFlushDepth - 1] === STACK_OBJECT) {
@@ -189,7 +172,7 @@ class ChunkParser {
         } else { // this.flushDepth < this.lastFlushDepth
             // Add missed opening brackets/parentheses
             for (let i = this.lastFlushDepth - 1; i >= this.flushDepth; i--) {
-                this.posJsonParse--;
+                this.jsonParseOffset--;
                 fragment = (this.stack[i] === STACK_OBJECT ? '{' : '[') + fragment;
             }
 
@@ -216,12 +199,12 @@ class ChunkParser {
             // Suppose chunk is Buffer or Uint8Array
 
             // Prepend uncompleted byte sequence if any
-            if (this.pendingCharSeq !== null) {
+            if (this.pendingByteSeq !== null) {
                 const origRawChunk = chunk;
-                chunk = new Uint8Array(this.pendingCharSeq.length + origRawChunk.length);
-                chunk.set(this.pendingCharSeq);
-                chunk.set(origRawChunk, this.pendingCharSeq.length);
-                this.pendingCharSeq = null;
+                chunk = new Uint8Array(this.pendingByteSeq.length + origRawChunk.length);
+                chunk.set(this.pendingByteSeq);
+                chunk.set(origRawChunk, this.pendingByteSeq.length);
+                this.pendingByteSeq = null;
             }
 
             // In case Buffer/Uint8Array, an input is encoded in UTF8
@@ -243,7 +226,7 @@ class ChunkParser {
                         if ((seqLength !== 4 && byte >> 3 === 0b11110) ||
                             (seqLength !== 3 && byte >> 4 === 0b1110) ||
                             (seqLength !== 2 && byte >> 5 === 0b110)) {
-                            this.pendingCharSeq = chunk.slice(chunk.length - seqLength);
+                            this.pendingByteSeq = chunk.slice(chunk.length - seqLength);
                             chunk = chunk.slice(0, -seqLength);
                         }
 
@@ -264,238 +247,60 @@ class ChunkParser {
 
         // Main scan loop
         scan: for (let i = 0; i < chunkLength; i++) {
-            // continues states
-            switch (this.state) {
-                case STATE_STRING:
-                case STATE_OBJECT_ENTRY_PROPERTY: {
-                    // consume string
-                    for (; i < chunkLength; i++) {
-                        if (this.stateStringEscape) {
-                            this.stateStringEscape = false;
-                            continue;
-                        }
-
-                        const code = chunk.charCodeAt(i);
-
-                        if (code === 0x22 /* " */) {
-                            if (this.state === STATE_STRING) {
-                                this.popState();
-                            } else {
-                                this.state = STATE_OBJECT_ENTRY_COLON;
-                            }
-
-                            continue scan;
-                        }
-
-                        if (code === 0x5C /* \ */) {
-                            this.stateStringEscape = true;
-                        }
-                    }
-
-                    if (!last) {
-                        break scan;
-                    }
-
-                    this.unexpectedEnd();
-                }
-
-                case STATE_NUMBER: {
-                    // consume number
-                    // In fact we don't need to follow the rules for a number,
-                    // just scan chars that may be in an number and left validation for the JSON.parse()
-                    for (; i < chunkLength; i++) {
-                        const code = chunk.charCodeAt(i);
-
-                        if ((code < 0x30 /* 0 */ || code > 0x39 /* 9 */) &&
-                            code !== 0x2D /* - */ && code !== 0x2B /* + */ &&
-                            code !== 0x65 /* e */ && code !== 0x45 /* E */ &&
-                            code !== 0x2E /* . */) {
-                            i--;
-                            this.popState();
-                            continue scan;
-                        }
-                    }
-
-                    if (!last) {
-                        break scan;
-                    }
-
-                    this.unexpectedEnd();
-                }
-
-                case STATE_KEYWORD: {
-                    // In fact we don't need to follow the rules for a keyword,
-                    // just scan it as a sequence of alpha chars and left validation for the JSON.parse()
-                    for (; i < chunkLength; i++) {
-                        const code = chunk.charCodeAt(i);
-
-                        if (code < 0x61 /* a */ || code > 0x7A /* z */) {
-                            i--;
-                            this.popState();
-                            continue scan;
-                        }
-                    }
-
-                    if (!last) {
-                        break scan;
-                    }
-
-                    this.unexpectedEnd();
-                }
-            }
-
-            const code = chunk.charCodeAt(i);
-
-            // skip whitespace
-            if (code === 0x09 || code === 0x0A || code === 0x0D || code === 0x20) {
-                continue;
-            }
-
-            switch (this.state) {
-                case STATE_ANY: {
-                    // consume number
-                    if (code === 0x2D /* - */ || (code >= 0x30 /* 0 */ && code <= 0x39 /* 9 */)) {
-                        this.state = STATE_NUMBER;
-                        break;
-                    }
-
-                    // consume string
-                    if (code === 0x22 /* " */) {
-                        this.state = STATE_STRING;
+            if (this.stateString) {
+                for (; i < chunkLength; i++) {
+                    if (this.stateStringEscape) {
                         this.stateStringEscape = false;
-                        break;
-                    }
+                    } else {
+                        switch (chunk.charCodeAt(i)) {
+                            case 0x22: /* " */
+                                this.stateString = false;
+                                continue scan;
 
-                    // consume keyword
-                    if (code === 0x66 /* f */ || code === 0x74 /* t */ || code === 0x6e /* n */) {
-                        this.state = STATE_KEYWORD;
-                        break;
+                            case 0x5C: /* \ */
+                                this.stateStringEscape = true;
+                        }
                     }
+                }
 
+                break;
+            }
+
+            switch (chunk.charCodeAt(i)) {
+                case 0x22: /* " */
+                    this.stateString = true;
+                    this.stateStringEscape = false;
+                    break;
+
+                case 0x2C: /* , */
+                    flushPoint = i;
+                    break;
+
+                case 0x7B: /* { */
                     // begin object
-                    if (code === 0x7B /* { */) {
-                        flushPoint = i + 1;
-                        this.stack[this.flushDepth++] = STACK_OBJECT;
-                        this.state = STATE_OBJECT_END_OR_ENTRY_START;
-                        break;
-                    }
+                    flushPoint = i + 1;
+                    this.stack[this.flushDepth++] = STACK_OBJECT;
+                    break;
 
+                case 0x5B: /* [ */
                     // begin array
-                    if (code === 0x5B /* [ */) {
-                        flushPoint = i + 1;
-                        this.stack[this.flushDepth++] = STACK_ARRAY;
-                        this.state = STATE_ANY;
-                        break;
+                    flushPoint = i + 1;
+                    this.stack[this.flushDepth++] = STACK_ARRAY;
+                    break;
+
+                case 0x5D: /* ] */
+                case 0x7D: /* } */
+                    // end object or array
+                    flushPoint = i + 1;
+                    this.flushDepth--;
+
+                    if (this.flushDepth < curDepth) {
+                        this.flush(chunk, lastFlushPoint, flushPoint);
+                        curDepth = this.flushDepth;
+                        lastFlushPoint = flushPoint;
                     }
 
-                    // end array
-                    if (code === 0x5D /* ] */ && this.flushDepth > 0 && this.stack[this.flushDepth - 1] === STACK_ARRAY) {
-                        flushPoint = i + 1;
-                        this.flushDepth--;
-                        this.popState();
-
-                        if (this.flushDepth < curDepth) {
-                            this.flush(chunk, lastFlushPoint, flushPoint);
-                            curDepth = this.flushDepth;
-                            lastFlushPoint = flushPoint;
-                        };
-                        break;
-                    }
-
-                    this.error(chunk, i);
-                }
-
-                case STATE_OBJECT_END_OR_ENTRY_START:
-                case STATE_OBJECT_ENTRY_START: {
-                    // start entry
-                    if (code === 0x22 /* " */) {
-                        this.state = STATE_OBJECT_ENTRY_PROPERTY;
-                        this.stateStringEscape = false;
-                        break;
-                    }
-
-                    // end object
-                    if (code === 0x7D /* } */ && this.state === STATE_OBJECT_END_OR_ENTRY_START) {
-                        flushPoint = i + 1;
-                        this.flushDepth--;
-                        this.popState();
-
-                        if (this.flushDepth < curDepth) {
-                            this.flush(chunk, lastFlushPoint, flushPoint);
-                            curDepth = this.flushDepth;
-                            lastFlushPoint = flushPoint;
-                        }
-
-                        break;
-                    }
-
-                    this.error(chunk, i);
-                }
-
-                case STATE_OBJECT_ENTRY_COLON: {
-                    // continue entry
-                    if (code === 0x3A /* : */) {
-                        this.state = STATE_ANY;
-                        break;
-                    }
-
-                    this.error(chunk, i);
-                }
-
-                case STATE_OBJECT_END_OR_NEXT_ENTRY: {
-                    // next entry
-                    if (code === 0x2C /* , */) {
-                        flushPoint = i;
-                        this.state = STATE_OBJECT_ENTRY_START;
-                        break;
-                    }
-
-                    // end object
-                    if (code === 0x7D /* } */) {
-                        flushPoint = i + 1;
-                        this.flushDepth--;
-                        this.popState();
-
-                        if (this.flushDepth < curDepth) {
-                            this.flush(chunk, lastFlushPoint, flushPoint);
-                            curDepth = this.flushDepth;
-                            lastFlushPoint = flushPoint;
-                        }
-
-                        break;
-                    }
-
-                    this.error(chunk, i);
-                }
-
-                case STATE_ARRAY_END_OR_NEXT_ELEMENT: {
-                    // next element
-                    if (code === 0x2C /* , */) {
-                        flushPoint = i;
-                        this.state = STATE_ANY;
-                        break;
-                    }
-
-                    // end array
-                    if (code === 0x5D /* ] */) {
-                        flushPoint = i + 1;
-                        this.flushDepth--;
-                        this.popState();
-
-                        if (this.flushDepth < curDepth) {
-                            this.flush(chunk, lastFlushPoint, flushPoint);
-                            curDepth = this.flushDepth;
-                            lastFlushPoint = flushPoint;
-                        }
-
-                        break;
-                    }
-
-                    this.error(chunk, i);
-                }
-
-                default:
-                    this.error(chunk, i);
+                    break;
             }
         }
 
@@ -503,18 +308,13 @@ class ChunkParser {
             this.flush(chunk, lastFlushPoint, last ? chunkLength : flushPoint);
         }
 
-        if (last) {
-            // No more chunks expected
-            this.state = STATE_DONE;
-        } else {
-            // Produce pendingChunk if any
-            if (flushPoint < chunkLength) {
-                const newPending = chunk.slice(flushPoint, chunkLength);
+        // Produce pendingChunk if any
+        if (!last && flushPoint < chunkLength) {
+            const newPending = chunk.slice(flushPoint, chunkLength);
 
-                this.pendingChunk = this.pendingChunk !== null
-                    ? this.pendingChunk + newPending
-                    : newPending;
-            }
+            this.pendingChunk = this.pendingChunk !== null
+                ? this.pendingChunk + newPending
+                : newPending;
         }
     }
 
@@ -522,23 +322,5 @@ class ChunkParser {
         this.push('', true);
 
         return this.value;
-    }
-
-    unexpectedEnd() {
-        throw new SyntaxError('Unexpected end of JSON input');
-    }
-
-    error(source, pos) {
-        const token = source[pos];
-
-        pos += this.pos + (this.pendingChunk !== null ? this.pendingChunk.length : 0);
-        this.pos = 0;
-        this.posJsonParse = 0;
-
-        throw new SyntaxError(`Unexpected ${
-            typeof token === 'string' ? token : String.fromCharCode(token)
-        } in JSON at position ${
-            pos
-        }`);
     }
 };

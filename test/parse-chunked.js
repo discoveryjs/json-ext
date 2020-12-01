@@ -102,12 +102,12 @@ describe.only('parseChunked()', () => {
     }
 
     describe('errors', () => {
-        it('abs pos across chunks', () => {
+        it('abs pos across chunks', () =>
             assert.rejects(
                 async () => await parse(['{"test":"he', 'llo",}']),
-                /Unexpected \} in JSON at position 16/
-            );
-        });
+                /Unexpected token \} in JSON at position 16/
+            )
+        );
     });
 
     describe('use with buffers', () => {
@@ -156,7 +156,7 @@ describe.only('parseChunked()', () => {
         it('with failure in JSON', () =>
             assert.rejects(
                 () => parseChunked(createReadableStream(['[1 ', '2]'])),
-                /Unexpected 2 in JSON at position 3/
+                /Unexpected number in JSON at position 3/
             )
         );
 
@@ -191,7 +191,7 @@ describe.only('parseChunked()', () => {
                     yield '[1 ';
                     yield '2]';
                 }),
-                /Unexpected 2 in JSON at position 3/
+                /Unexpected number in JSON at position 3/
             )
         );
 
@@ -223,7 +223,7 @@ describe.only('parseChunked()', () => {
                     yield await Promise.resolve('[1 ');
                     yield '2]';
                 }),
-                /Unexpected 2 in JSON at position 3/
+                /Unexpected number in JSON at position 3/
             )
         );
 
