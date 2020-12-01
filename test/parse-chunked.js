@@ -31,7 +31,7 @@ function split(str, chunkLen = 1) {
     return chunks;
 }
 
-describe.only('parseChunked()', () => {
+describe('parseChunked()', () => {
     const values = [
         1,
         123,
