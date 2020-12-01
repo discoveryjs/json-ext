@@ -89,21 +89,21 @@ class ChunkParser {
     constructor() {
         this.value = undefined;
         this.valueStack = null;
+
         this.stack = new Array(100);
-        this.stackDepth = 0;
         this.lastFlushDepth = 0;
-        this.stateStartOffset = 0;
+        this.flushDepth = 0;
         this.state = STATE_ANY;
-        this.uncompletedSeq = null;
+        this.stateStringEscape = false;
+        this.pendingCharSeq = null;
         this.pendingChunk = null;
-        this.stringEscape = false;
         this.pos = 0;
         this.posJsonParse = 0;
     }
 
     popState() {
-        this.state = this.stackDepth > 0
-            ? this.stack[this.stackDepth - 1]
+        this.state = this.flushDepth > 0
+            ? this.stack[this.flushDepth - 1]
             : STATE_DONE;
     }
 
@@ -123,13 +123,13 @@ class ChunkParser {
             this.posJsonParse++;
         }
 
-        if (this.stackDepth === this.lastFlushDepth) {
+        if (this.flushDepth === this.lastFlushDepth) {
             // Depth didn't changed, so it's a root value or entry/element set
-            if (this.stackDepth > 0) {
+            if (this.flushDepth > 0) {
                 this.posJsonParse--;
 
                 // Append new entries or elements
-                if (this.stack[this.stackDepth - 1] === STACK_OBJECT) {
+                if (this.stack[this.flushDepth - 1] === STACK_OBJECT) {
                     Object.assign(this.valueStack.value, JSON.parse('{' + fragment + '}'));
                 } else {
                     this.valueStack.value.push(...JSON.parse('[' + fragment + ']'));
@@ -142,9 +142,9 @@ class ChunkParser {
                     prev: null
                 };
             }
-        } else if (this.stackDepth > this.lastFlushDepth) {
+        } else if (this.flushDepth > this.lastFlushDepth) {
             // Add missed closing brackets/parentheses
-            for (let i = this.stackDepth - 1; i >= this.lastFlushDepth; i--) {
+            for (let i = this.flushDepth - 1; i >= this.lastFlushDepth; i--) {
                 fragment += this.stack[i] === STACK_OBJECT ? '}' : ']';
             }
 
@@ -167,7 +167,7 @@ class ChunkParser {
             }
 
             // Move down to the depths to the last object/array, which is current now
-            for (let i = this.lastFlushDepth || 1; i < this.stackDepth; i++) {
+            for (let i = this.lastFlushDepth || 1; i < this.flushDepth; i++) {
                 let value = this.valueStack.value;
 
                 if (this.stack[i - 1] === STACK_OBJECT) {
@@ -186,9 +186,9 @@ class ChunkParser {
                     prev: this.valueStack
                 };
             }
-        } else { // this.stackDepth < this.lastFlushDepth
+        } else { // this.flushDepth < this.lastFlushDepth
             // Add missed opening brackets/parentheses
-            for (let i = this.lastFlushDepth - 1; i >= this.stackDepth; i--) {
+            for (let i = this.lastFlushDepth - 1; i >= this.flushDepth; i--) {
                 this.posJsonParse--;
                 fragment = (this.stack[i] === STACK_OBJECT ? '{' : '[') + fragment;
             }
@@ -202,13 +202,13 @@ class ChunkParser {
                 this.valueStack.value.push(...value);
             }
 
-            for (let i = this.lastFlushDepth - 1; i >= this.stackDepth; i--) {
+            for (let i = this.lastFlushDepth - 1; i >= this.flushDepth; i--) {
                 this.valueStack = this.valueStack.prev;
             }
         }
 
         this.pos += end - start;
-        this.lastFlushDepth = this.stackDepth;
+        this.lastFlushDepth = this.flushDepth;
     }
 
     push(chunk, last = false) {
@@ -216,12 +216,12 @@ class ChunkParser {
             // Suppose chunk is Buffer or Uint8Array
 
             // Prepend uncompleted byte sequence if any
-            if (this.uncompletedSeq !== null) {
+            if (this.pendingCharSeq !== null) {
                 const origRawChunk = chunk;
-                chunk = new Uint8Array(this.uncompletedSeq.length + origRawChunk.length);
-                chunk.set(this.uncompletedSeq);
-                chunk.set(origRawChunk, this.uncompletedSeq.length);
-                this.uncompletedSeq = null;
+                chunk = new Uint8Array(this.pendingCharSeq.length + origRawChunk.length);
+                chunk.set(this.pendingCharSeq);
+                chunk.set(origRawChunk, this.pendingCharSeq.length);
+                this.pendingCharSeq = null;
             }
 
             // In case Buffer/Uint8Array, an input is encoded in UTF8
@@ -243,7 +243,7 @@ class ChunkParser {
                         if ((seqLength !== 4 && byte >> 3 === 0b11110) ||
                             (seqLength !== 3 && byte >> 4 === 0b1110) ||
                             (seqLength !== 2 && byte >> 5 === 0b110)) {
-                            this.uncompletedSeq = chunk.slice(chunk.length - seqLength);
+                            this.pendingCharSeq = chunk.slice(chunk.length - seqLength);
                             chunk = chunk.slice(0, -seqLength);
                         }
 
@@ -258,9 +258,9 @@ class ChunkParser {
         }
 
         const chunkLength = chunk.length;
-        let fromPoint = 0;
-        let safePoint = 0;
-        let curDepth = this.stackDepth;
+        let lastFlushPoint = 0;
+        let flushPoint = 0;
+        let curDepth = this.flushDepth;
 
         // Main scan loop
         scan: for (let i = 0; i < chunkLength; i++) {
@@ -269,9 +269,9 @@ class ChunkParser {
                 case STATE_STRING:
                 case STATE_OBJECT_ENTRY_PROPERTY: {
                     // consume string
-                    for (; i < chunk.length; i++) {
-                        if (this.stringEscape) {
-                            this.stringEscape = false;
+                    for (; i < chunkLength; i++) {
+                        if (this.stateStringEscape) {
+                            this.stateStringEscape = false;
                             continue;
                         }
 
@@ -288,7 +288,7 @@ class ChunkParser {
                         }
 
                         if (code === 0x5C /* \ */) {
-                            this.stringEscape = true;
+                            this.stateStringEscape = true;
                         }
                     }
 
@@ -303,7 +303,7 @@ class ChunkParser {
                     // consume number
                     // In fact we don't need to follow the rules for a number,
                     // just scan chars that may be in an number and left validation for the JSON.parse()
-                    for (; i < chunk.length; i++) {
+                    for (; i < chunkLength; i++) {
                         const code = chunk.charCodeAt(i);
 
                         if ((code < 0x30 /* 0 */ || code > 0x39 /* 9 */) &&
@@ -326,7 +326,7 @@ class ChunkParser {
                 case STATE_KEYWORD: {
                     // In fact we don't need to follow the rules for a keyword,
                     // just scan it as a sequence of alpha chars and left validation for the JSON.parse()
-                    for (; i < chunk.length; i++) {
+                    for (; i < chunkLength; i++) {
                         const code = chunk.charCodeAt(i);
 
                         if (code < 0x61 /* a */ || code > 0x7A /* z */) {
@@ -362,7 +362,7 @@ class ChunkParser {
                     // consume string
                     if (code === 0x22 /* " */) {
                         this.state = STATE_STRING;
-                        this.stringEscape = false;
+                        this.stateStringEscape = false;
                         break;
                     }
 
@@ -374,30 +374,30 @@ class ChunkParser {
 
                     // begin object
                     if (code === 0x7B /* { */) {
-                        safePoint = i + 1;
-                        this.stack[this.stackDepth++] = STACK_OBJECT;
+                        flushPoint = i + 1;
+                        this.stack[this.flushDepth++] = STACK_OBJECT;
                         this.state = STATE_OBJECT_END_OR_ENTRY_START;
                         break;
                     }
 
                     // begin array
                     if (code === 0x5B /* [ */) {
-                        safePoint = i + 1;
-                        this.stack[this.stackDepth++] = STACK_ARRAY;
+                        flushPoint = i + 1;
+                        this.stack[this.flushDepth++] = STACK_ARRAY;
                         this.state = STATE_ANY;
                         break;
                     }
 
                     // end array
-                    if (code === 0x5D /* ] */ && this.stackDepth > 0 && this.stack[this.stackDepth - 1] === STACK_ARRAY) {
-                        safePoint = i + 1;
-                        this.stackDepth--;
+                    if (code === 0x5D /* ] */ && this.flushDepth > 0 && this.stack[this.flushDepth - 1] === STACK_ARRAY) {
+                        flushPoint = i + 1;
+                        this.flushDepth--;
                         this.popState();
 
-                        if (this.stackDepth < curDepth) {
-                            this.flush(chunk, fromPoint, safePoint);
-                            curDepth = this.stackDepth;
-                            fromPoint = safePoint;
+                        if (this.flushDepth < curDepth) {
+                            this.flush(chunk, lastFlushPoint, flushPoint);
+                            curDepth = this.flushDepth;
+                            lastFlushPoint = flushPoint;
                         };
                         break;
                     }
@@ -410,20 +410,20 @@ class ChunkParser {
                     // start entry
                     if (code === 0x22 /* " */) {
                         this.state = STATE_OBJECT_ENTRY_PROPERTY;
-                        this.stringEscape = false;
+                        this.stateStringEscape = false;
                         break;
                     }
 
                     // end object
                     if (code === 0x7D /* } */ && this.state === STATE_OBJECT_END_OR_ENTRY_START) {
-                        safePoint = i + 1;
-                        this.stackDepth--;
+                        flushPoint = i + 1;
+                        this.flushDepth--;
                         this.popState();
 
-                        if (this.stackDepth < curDepth) {
-                            this.flush(chunk, fromPoint, safePoint);
-                            curDepth = this.stackDepth;
-                            fromPoint = safePoint;
+                        if (this.flushDepth < curDepth) {
+                            this.flush(chunk, lastFlushPoint, flushPoint);
+                            curDepth = this.flushDepth;
+                            lastFlushPoint = flushPoint;
                         }
 
                         break;
@@ -445,21 +445,21 @@ class ChunkParser {
                 case STATE_OBJECT_END_OR_NEXT_ENTRY: {
                     // next entry
                     if (code === 0x2C /* , */) {
-                        safePoint = i;
+                        flushPoint = i;
                         this.state = STATE_OBJECT_ENTRY_START;
                         break;
                     }
 
                     // end object
                     if (code === 0x7D /* } */) {
-                        safePoint = i + 1;
-                        this.stackDepth--;
+                        flushPoint = i + 1;
+                        this.flushDepth--;
                         this.popState();
 
-                        if (this.stackDepth < curDepth) {
-                            this.flush(chunk, fromPoint, safePoint);
-                            curDepth = this.stackDepth;
-                            fromPoint = safePoint;
+                        if (this.flushDepth < curDepth) {
+                            this.flush(chunk, lastFlushPoint, flushPoint);
+                            curDepth = this.flushDepth;
+                            lastFlushPoint = flushPoint;
                         }
 
                         break;
@@ -471,21 +471,21 @@ class ChunkParser {
                 case STATE_ARRAY_END_OR_NEXT_ELEMENT: {
                     // next element
                     if (code === 0x2C /* , */) {
-                        safePoint = i;
+                        flushPoint = i;
                         this.state = STATE_ANY;
                         break;
                     }
 
                     // end array
                     if (code === 0x5D /* ] */) {
-                        safePoint = i + 1;
-                        this.stackDepth--;
+                        flushPoint = i + 1;
+                        this.flushDepth--;
                         this.popState();
 
-                        if (this.stackDepth < curDepth) {
-                            this.flush(chunk, fromPoint, safePoint);
-                            curDepth = this.stackDepth;
-                            fromPoint = safePoint;
+                        if (this.flushDepth < curDepth) {
+                            this.flush(chunk, lastFlushPoint, flushPoint);
+                            curDepth = this.flushDepth;
+                            lastFlushPoint = flushPoint;
                         }
 
                         break;
@@ -499,8 +499,8 @@ class ChunkParser {
             }
         }
 
-        if (safePoint > fromPoint || (last && (chunkLength > 0 || this.pendingChunk !== null))) {
-            this.flush(chunk, fromPoint, last ? chunkLength : safePoint);
+        if (flushPoint > lastFlushPoint || (last && (chunkLength > 0 || this.pendingChunk !== null))) {
+            this.flush(chunk, lastFlushPoint, last ? chunkLength : flushPoint);
         }
 
         if (last) {
@@ -508,8 +508,8 @@ class ChunkParser {
             this.state = STATE_DONE;
         } else {
             // Produce pendingChunk if any
-            if (safePoint < chunkLength) {
-                const newPending = chunk.slice(safePoint, chunkLength);
+            if (flushPoint < chunkLength) {
+                const newPending = chunk.slice(flushPoint, chunkLength);
 
                 this.pendingChunk = this.pendingChunk !== null
                     ? this.pendingChunk + newPending
