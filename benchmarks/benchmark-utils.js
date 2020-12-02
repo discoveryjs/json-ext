@@ -97,8 +97,9 @@ function stripAnsi(str) {
     return str.replace(ANSI_REGEXP, '');
 }
 
-function prettySize(size, signed, pad) {
+function prettySize(size, options) {
     const unit = ['', 'kB', 'MB', 'GB'];
+    const { signed, pad, preserveZero } = options || {};
 
     while (Math.abs(size) > 1000) {
         size /= 1000;
@@ -107,7 +108,7 @@ function prettySize(size, signed, pad) {
 
     return (
         (signed && size > 0 ? '+' : '') +
-        size.toFixed(unit.length > 2 ? 0 : 2) +
+        size.toFixed(unit.length > 2 ? 0 : 2).replace(/\.0+/, preserveZero ? '$' : '') +
         unit[0]
     ).padStart(pad || 0);
 }
@@ -135,7 +136,7 @@ function memDelta(_base, cur, skip = ['external', 'arrayBuffers']) {
                 }
 
                 const rel = _base && k in _base;
-                res.push(`${k} ${(rel && v > 0 ? chalk.yellow : chalk.green)(prettySize(v, rel, 9))}`);
+                res.push(`${k} ${(rel && v > 0 ? chalk.yellow : chalk.green)(prettySize(v, { signed: rel, pad: 9, preserveZero: true }))}`);
             }
 
             return res.join(' | ') || 'No changes';

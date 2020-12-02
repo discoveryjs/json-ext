@@ -3,13 +3,17 @@ const path = require('path');
 const chalk = require('chalk');
 const parseChunked = require('../src/parse-chunked');
 const { runBenchmark, prettySize } = require('./benchmark-utils');
-const filename = require('path').join(__dirname, [
+const fixtures = [
     './fixture/small.json',
     './fixture/medium.json',
-    './fixture/big.json'
-][process.argv[2] || 1]);
-const chunkSize = 512 * 1024; // chunk size for generator
+    './fixture/big.json',
+    './fixture/500mb.json', // 3 | auto-generate from big.json
+    './fixture/1gb.json'    // 4 | auto-generate from big.json
+];
+const fixtureIndex = process.argv[2] || 1;
+const filename = fixtureIndex in fixtures ? path.join(__dirname, fixtures[fixtureIndex]) : false;
 
+const chunkSize = 512 * 1024; // chunk size for generator
 const tests = module.exports = {
     'parse stream': () =>
         parseChunked(fs.createReadStream(filename, { highWaterMark: chunkSize })),
@@ -26,8 +30,27 @@ const tests = module.exports = {
         JSON.parse(fs.readFileSync(filename, 'utf8'))
 };
 
+if (!filename) {
+    console.error('Fixture is not selected!');
+    console.error();
+    console.error('Run script:', chalk.green(`node --expose-gc ${path.relative(process.cwd(), process.argv[1])} [fixture]`));
+    console.error('where [fixture] is a number:');
+    fixtures.forEach((fixture, idx) =>
+        console.log(idx, fixture)
+    );
+    process.exit();
+}
+
 if (require.main === module) {
     (async () => {
+        if (!fs.existsSync(filename)) {
+            // auto-generate fixture
+            let [, num, unit] = filename.match(/(\d+)([a-z]+).json/);
+            const times = unit === 'mb' ? num / 100 : num * 10;
+
+            await require('./gen-fixture')(times, filename);
+        }
+
         console.log('Benchmark:', chalk.green('parseChunked()'), '(parse chunked JSON)');
         console.log('Node version:', chalk.green(process.versions.node));
         console.log('Fixture:',
