@@ -9,9 +9,9 @@ function isObject(value) {
 }
 
 function adjustPosition(error, parser) {
-    if (error.name === 'SyntaxError' && (parser.pos || parser.jsonParseOffset)) {
+    if (error.name === 'SyntaxError' && parser.jsonParseOffset) {
         error.message = error.message.replace(/at position (\d+)/, (_, pos) =>
-            'at position ' + (parser.pos + Number(pos) + parser.jsonParseOffset)
+            'at position ' + (Number(pos) + parser.jsonParseOffset)
         );
     }
 
@@ -92,7 +92,7 @@ class ChunkParser {
 
     flush(chunk, start, end) {
         let fragment = chunk.slice(start, end);
-        this.jsonParseOffset = 0; // using for position correction in JSON.parse() error if any
+        this.jsonParseOffset = this.pos; // using for position correction in JSON.parse() error if any
 
         // Prepend pending chunk if any
         if (this.pendingChunk !== null) {
@@ -176,13 +176,10 @@ class ChunkParser {
                 fragment = (this.stack[i] === STACK_OBJECT ? '{' : '[') + fragment;
             }
 
-            // FIXME: fast path when fragment === '}' or ']'
-            let value = JSON.parse(fragment);
-
             if (this.stack[this.lastFlushDepth - 1] === STACK_OBJECT) {
-                Object.assign(this.valueStack.value, value);
+                Object.assign(this.valueStack.value, JSON.parse(fragment));
             } else {
-                this.valueStack.value.push(...value);
+                this.valueStack.value.push(...JSON.parse(fragment));
             }
 
             for (let i = this.lastFlushDepth - 1; i >= this.flushDepth; i--) {
@@ -243,7 +240,6 @@ class ChunkParser {
         const chunkLength = chunk.length;
         let lastFlushPoint = 0;
         let flushPoint = 0;
-        let curDepth = this.flushDepth;
 
         // Main scan loop
         scan: for (let i = 0; i < chunkLength; i++) {
@@ -294,9 +290,8 @@ class ChunkParser {
                     flushPoint = i + 1;
                     this.flushDepth--;
 
-                    if (this.flushDepth < curDepth) {
+                    if (this.flushDepth < this.lastFlushDepth) {
                         this.flush(chunk, lastFlushPoint, flushPoint);
-                        curDepth = this.flushDepth;
                         lastFlushPoint = flushPoint;
                     }
 
