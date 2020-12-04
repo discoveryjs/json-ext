@@ -43,7 +43,7 @@ function stringLength(str) {
             continue;
         } else if (isTrailingSurrogate(code)) {
             len = prevLeadingSurrogate
-                ? len - 2  // surrogate pair (4 bytes), since we calulate prev leading surrogate as 6 bytes, substruct 2 bytes
+                ? len - 2  // surrogate pair (4 bytes), since we calculate prev leading surrogate as 6 bytes, substruct 2 bytes
                 : len + 6; // \uXXXX
         } else {
             len += 3; // code >= 2048 is 3 bytes length for UTF8
