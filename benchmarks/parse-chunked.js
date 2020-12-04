@@ -2,7 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const chalk = require('chalk');
 const parseChunked = require('../src/parse-chunked');
-const { runBenchmark, prettySize } = require('./benchmark-utils');
+const { runBenchmark, prettySize, outputToReadme, updateReadmeTable } = require('./benchmark-utils');
+const benchmarkName = 'parse-chunked';
 const fixtures = [
     './fixture/small.json',
     './fixture/medium.json',
@@ -10,12 +11,15 @@ const fixtures = [
     './fixture/500mb.json', // 3 | auto-generate from big.json
     './fixture/1gb.json'    // 4 | auto-generate from big.json
 ];
-const fixtureIndex = process.argv[2] || 1;
+const fixtureIndex = process.argv[2] || 0;
 const filename = fixtureIndex in fixtures ? path.join(__dirname, fixtures[fixtureIndex]) : false;
 
 const chunkSize = 512 * 1024; // chunk size for generator
 const tests = module.exports = {
-    'parse stream': () =>
+    'JSON.parse()': () =>
+        JSON.parse(fs.readFileSync(filename, 'utf8')),
+
+    'parse fs#ReadableStream': () =>
         parseChunked(fs.createReadStream(filename, { highWaterMark: chunkSize })),
 
     'parse generator': () =>
@@ -24,10 +28,7 @@ const tests = module.exports = {
             for (let i = 0; i < json.length; i += chunkSize) {
                 yield json.slice(i, i + chunkSize);
             }
-        }),
-
-    'JSON.parse()': () =>
-        JSON.parse(fs.readFileSync(filename, 'utf8'))
+        })
 };
 
 if (!filename) {
@@ -41,29 +42,39 @@ if (!filename) {
     process.exit();
 }
 
+async function run() {
+    if (!fs.existsSync(filename)) {
+        // auto-generate fixture
+        let [, num, unit] = filename.match(/(\d+)([a-z]+).json/);
+        const times = unit === 'mb' ? num / 100 : num * 10;
+
+        await require('./gen-fixture')(times, filename);
+    }
+
+    if (process.env.README) {
+        outputToReadme(benchmarkName, fixtureIndex);
+    }
+
+    console.log('Benchmark:', chalk.green('parseChunked()'), '(parse chunked JSON)');
+    console.log('Node version:', chalk.green(process.versions.node));
+    console.log('Fixture:',
+        chalk.green(path.relative(process.cwd(), filename)),
+        chalk.yellow(prettySize(fs.statSync(filename).size)),
+        '/ chunk size',
+        chalk.yellow(prettySize(chunkSize))
+    );
+    console.log();
+
+    const results = [];
+    for (const name of Object.keys(tests)) {
+        results.push(await runBenchmark(name));
+    }
+
+    if (process.env.README) {
+        updateReadmeTable(benchmarkName, fixtureIndex, fixtures, results);
+    }
+}
+
 if (require.main === module) {
-    (async () => {
-        if (!fs.existsSync(filename)) {
-            // auto-generate fixture
-            let [, num, unit] = filename.match(/(\d+)([a-z]+).json/);
-            const times = unit === 'mb' ? num / 100 : num * 10;
-
-            await require('./gen-fixture')(times, filename);
-        }
-
-        console.log('Benchmark:', chalk.green('parseChunked()'), '(parse chunked JSON)');
-        console.log('Node version:', chalk.green(process.versions.node));
-        console.log('Fixture:',
-            chalk.green(path.relative(process.cwd(), filename)),
-            chalk.yellow(prettySize(fs.statSync(filename).size)),
-            '/ chunk size',
-            chalk.yellow(prettySize(chunkSize))
-        );
-        console.log();
-
-        const results = [];
-        for (const name of Object.keys(tests)) {
-            results.push(await runBenchmark(name));
-        }
-    })();
+    run();
 }
