@@ -12,7 +12,8 @@ Features:
 - [x] `stringifyStream()` – Stringify stream (Node.js)
 - [x] `stringifyInfo()` – Get estimated size and other facts of JSON.stringify() without converting a value to string
 - [ ] **TBD** Support for circular references
-- [ ] **TBD** Binary representation
+- [ ] **TBD** Binary representation [branch](https://github.com/discoveryjs/json-ext/tree/binary)
+- [ ] **TBD** WHATWG [Streams](https://streams.spec.whatwg.org/) support
 
 ## Install
 
@@ -28,14 +29,17 @@ npm install @discoveryjs/json-ext
     - [Options](#options)
         - [async](#async)
         - [continueOnCircular](#continueoncircular)
+- [version](#version)
 
 ### parseChunked(chunkEmitter)
 
 Works the same as [`JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse) but takes `chunkEmitter` instead of string and returns [Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise).
 
 > NOTE: `reviver` parameter is not supported yet, but will be added in next releases.
+> NOTE: WHATWG streams aren't supported yet
 
 When to use:
+- It's required to avoid freezing the main thread during big JSON parsing, since this process can be distributed in time
 - Huge JSON needs to be parsed (e.g. >500MB on Node.js)
 - Needed to reduce memory pressure. `JSON.parse()` needs to receive the entire JSON before parsing it. With `parseChunked()` you may parse JSON as first bytes of it comes. This approach helps to avoid storing a huge string in the memory at a single time point and following GC.
 
@@ -107,7 +111,7 @@ async function loadData(url) {
     });
 }
 
-loadData('example.com/data.json')
+loadData('https://example.com/data.json')
     .then(data => {
         /* data is parsed JSON */
     })
@@ -116,6 +120,8 @@ loadData('example.com/data.json')
 ### stringifyStream(value[, replacer[, space]])
 
 Works the same as [`JSON.stringify()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify), but returns an instance of [`ReadableStream`](https://nodejs.org/dist/latest-v14.x/docs/api/stream.html#stream_readable_streams) instead of string.
+
+> NOTE: WHATWG Streams aren't supported yet, so function available for Node.js only for now
 
 Departs from JSON.stringify():
 - Outputs `null` when `JSON.stringify()` returns `undefined` (since streams may not emit `undefined`)
@@ -126,6 +132,7 @@ Departs from JSON.stringify():
 When to use:
 - Huge JSON needs to be generated (e.g. >500MB on Node.js)
 - Needed to reduce memory pressure. `JSON.stringify()` needs to generate the entire JSON before send or write it to somewhere. With `stringifyStream()` you may send a result to somewhere as first bytes of the result appears. This approach helps to avoid storing a huge string in the memory at a single time point.
+- The object being serialized contains Promises or Streams (see Usage for examples)
 
 [Benchmark](https://github.com/discoveryjs/json-ext/tree/master/benchmarks#stream-stringifying)
 
@@ -134,10 +141,42 @@ Usage:
 ```js
 const { stringifyStream } = require('@discoveryjs/json-ext');
 
+// handle events
 stringifyStream(data)
     .on('data', chunk => console.log(chunk))
     .on('error', error => consold.error(error))
     .on('finish', () => console.log('DONE!'));
+
+// pipe into a stream
+stringifyStream(data)
+    .pipe(writableStream);
+```
+
+Using Promise or ReadableStream in serializing object:
+
+```js
+const fs = require('fs');
+const { stringifyStream } = require('@discoveryjs/json-ext');
+
+// output will be
+// {"name":"example","willSerializeResolvedValue":42,"fromFile":[1, 2, 3],"at":{"any":{"level":"promise!"}}}
+stringifyStream({
+    name: 'example',
+    willSerializeResolvedValue: Promise.resolve(42),
+    fromFile: fs.createReadbleStream('path/to/file.json'), // support file content is "[1, 2, 3]", it'll be inserted as it
+    at: {
+        any: {
+            level: new Promise(resolve => setTimeout(() => resolve('promise!'), 100))
+        }
+    }
+})
+
+// in case several async requests are used in object, it's prefered
+// to put fastest requests first, because in this case
+stringifyStream({
+    foo: fetch('http://example.com/request_takes_2s').then(req => req.json()),
+    bar: fetch('http://example.com/request_takes_5s').then(req => req.json())
+});
 ```
 
 Using with [`WritableStream`](https://nodejs.org/dist/latest-v14.x/docs/api/stream.html#stream_writable_streams) (Node.js only):
@@ -172,11 +211,23 @@ Result is an object:
 
 ```js
 {
-    minLength: Number,  // mininmal bytes when values is stringified
+    minLength: Number,  // minimal bytes when values is stringified
     circular: [...],    // list of circular references
     duplicate: [...],   // list of objects that occur more than once
     async: [...]        // list of async values, i.e. promises and streams
 }
+```
+
+Example:
+
+```js
+const { stringifyInfo } = require('@discoveryjs/json-ext');
+
+console.log(
+    stringifyInfo({ test: true }).minLength
+);
+// > 13
+// that equals '{"test":true}'.length
 ```
 
 #### Options
