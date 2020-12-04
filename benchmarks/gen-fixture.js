@@ -24,8 +24,6 @@ module.exports = function(times, stream) {
             .on('error', reject)
             .on('finish', resolve);
     });
-
-    return ;
 };
 
 if (require.main === module) {
