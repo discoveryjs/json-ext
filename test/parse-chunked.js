@@ -53,6 +53,7 @@ describe('parseChunked()', () => {
         '\uDC00\uD800',  // broken surrogate pair
         '\uD800',  // leading surrogate (broken surrogate pair)
         '\uDC00',  // trailing surrogate (broken surrogate pair)
+        '\\\\\\"\\\\"\\"\\\\\\',
         {},
         { a: 1 },
         { a: 1, b: 2 },
@@ -106,6 +107,12 @@ describe('parseChunked()', () => {
             assert.rejects(
                 async () => await parse(['{"test":"he', 'llo",}']),
                 /Unexpected token \} in JSON at position 16/
+            )
+        );
+        it('abs pos across chunks #2', () =>
+            assert.rejects(
+                async () => await parse(['[{"test":"hello"},', ',}']),
+                /Unexpected token , in JSON at position 18/
             )
         );
     });
