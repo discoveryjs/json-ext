@@ -71,7 +71,7 @@ function primitiveLength(value) {
             return 4; /* null */
 
         default:
-            throw new TypeError(`Do not know how to serialize a ${typeof value}`);
+            return 0;
     }
 }
 
