@@ -118,14 +118,16 @@ describe('parseChunked()', () => {
     });
 
     describe('use with buffers', () => {
-        const input = '[1234,{"🤓\\uD800\\uDC00":"🤓\\uD800\\uDC00"}]';
-        const expected = [1234, { '🤓\uD800\uDC00': '🤓\uD800\uDC00' }];
+        const input = '[1234,{"🤓\\uD800\\uDC00":"🤓\\uD800\\uDC00\u1fff"}]';
+        const expected = [1234, { '🤓\uD800\uDC00': '🤓\uD800\uDC00\u1fff' }];
         const slices = [
             [0, 3],   // [12
             [3, 9],   // 34,{"\ud8
             [9, 13],  // 3e\udd13
             [13, 16], // \uD800\uDC00
-            [16]
+            [16, 17],
+            [17, 18],
+            [18]
         ];
 
         it('Buffer', async () => {

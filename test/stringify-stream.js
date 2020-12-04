@@ -103,7 +103,7 @@ describe('stringifyStream()', () => {
                 createStringifyCompareFn(value, expected));
         }
 
-        // exceptions
+        // special cases
         it('Symbol("test") should be null', createStringifyCompareFn(Symbol('test'), 'null'));
         it('undefined should be null', createStringifyCompareFn(undefined, 'null'));
     });
@@ -356,12 +356,51 @@ describe('stringifyStream()', () => {
     });
 
     describe('circular structure', () => {
-        it('{ a: $ } should emit error', () => {
-            const cyclicData0 = {};
-            cyclicData0.a = cyclicData0;
+        it('{ a: $ } should emit error when object refers to ancestor object', () => {
+            const circularRef = {};
+            circularRef.a = circularRef;
 
             assert.rejects(
-                createStringifyCompareFn(cyclicData0, '')(),
+                createStringifyCompareFn(circularRef, '')(),
+                (err) => {
+                    assert.strictEqual(err.message, 'Converting circular structure to JSON');
+                    return true;
+                }
+            );
+        });
+
+        it('[{ a: $ }] should emit error when object refers to ancestor array', () => {
+            const circularRef = [];
+            circularRef.push({ a: circularRef });
+
+            assert.rejects(
+                createStringifyCompareFn(circularRef, '')(),
+                (err) => {
+                    assert.strictEqual(err.message, 'Converting circular structure to JSON');
+                    return true;
+                }
+            );
+        });
+
+        it('{ a: [$] } should emit error when array\'s element refers to ancestor object', () => {
+            const circularRef = {};
+            circularRef.a = [circularRef];
+
+            assert.rejects(
+                createStringifyCompareFn(circularRef, '')(),
+                (err) => {
+                    assert.strictEqual(err.message, 'Converting circular structure to JSON');
+                    return true;
+                }
+            );
+        });
+
+        it('[[$]] should emit error when array\'s element refers to ancestor object', () => {
+            const circularRef = [];
+            circularRef.push(circularRef);
+
+            assert.rejects(
+                createStringifyCompareFn(circularRef, '')(),
                 (err) => {
                     assert.strictEqual(err.message, 'Converting circular structure to JSON');
                     return true;
@@ -395,14 +434,31 @@ describe('stringifyStream()', () => {
             );
         });
 
-        const obj = {};
-        const obj2 = { a: 1 };
-        const arr = [];
-        const arr2 = [1];
-        const noCycle = {
-            o1: obj, o2: obj, o3: obj2, o4: obj2,
-            a1: arr, a2: arr, a3: arr2, a4: arr2
-        };
-        it('should not fail on reuse empty object/array', createStringifyCompareFn(noCycle, JSON.stringify(noCycle)));
+        it('should not fail on reuse empty object/array', () => {
+            const obj = {};
+            const obj2 = { a: 1 };
+            const arr = [];
+            const arr2 = [1];
+            const noCycle = {
+                o1: obj, o2: obj, o3: obj2, o4: obj2,
+                a1: arr, a2: arr, a3: arr2, a4: arr2
+            };
+
+            return createStringifyCompareFn(noCycle, JSON.stringify(noCycle));
+        });
+    });
+
+    describe('errors', () => {
+        it('"Do not know how to serialize" error', () => assert.rejects(
+            createStringifyCompareFn({ test: 1n }, '')(),
+            /TypeError: Do not know how to serialize a BigInt/
+        ));
+
+        it('should catch errors on value resolving', () => assert.rejects(
+            createStringifyCompareFn({ toJSON() {
+                throw new Error('test');
+            } }, '')(),
+            /Error: test/
+        ));
     });
 });

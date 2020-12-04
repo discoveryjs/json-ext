@@ -40,7 +40,7 @@ function pushPrimitive(value) {
             break;
 
         default:
-            this.destroy(new TypeError(`Do not know how to serialize a ${typeof value}`));
+            this.destroy(new TypeError(`Do not know how to serialize a ${value.constructor && value.constructor.name || typeof value}`));
     }
 }
 
@@ -277,10 +277,7 @@ class JsonStringifyStream extends Readable {
                 const continueProcessing = () => {
                     if (self.awaiting) {
                         self.awaiting = false;
-
-                        if (this._stack === self) {
-                            this.processStack();
-                        }
+                        this.processStack();
                     }
                 };
 
@@ -354,13 +351,8 @@ class JsonStringifyStream extends Readable {
     }
 
     _read(size) {
-        if (this._ended) {
-            return;
-        }
-
-        this._readSize = size || this.readableHighWaterMark;
-
         // start processing
+        this._readSize = size || this.readableHighWaterMark;
         this.processStack();
     }
 
