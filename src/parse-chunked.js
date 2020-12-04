@@ -206,7 +206,7 @@ class ChunkParser {
 
             // In case Buffer/Uint8Array, an input is encoded in UTF8
             // Seek for parts of uncompleted UTF8 symbol on the ending
-            // This makes sence only if we expect more chunks and last char is not multi-bytes
+            // This makes sense only if we expect more chunks and last char is not multi-bytes
             if (!last && chunk[chunk.length - 1] > 127) {
                 for (let seqLength = 0; seqLength < chunk.length; seqLength++) {
                     const byte = chunk[chunk.length - 1 - seqLength];

@@ -242,7 +242,7 @@ async function collectGarbage() {
         global.gc();
     } else if (!exposeGcShowed) {
         exposeGcShowed = true;
-        console.warn(chalk.magenta('Looks like script is forcing GC to collect garbarge, but coresponding API is not enabled'));
+        console.warn(chalk.magenta('Looks like script is forcing GC to collect garbage, but corresponding API is not enabled'));
         console.warn(chalk.magenta('Run node with --expose-gc flag to enable API and get precise measurements'));
     }
 }
@@ -250,9 +250,9 @@ async function collectGarbage() {
 function captureStdio(stream, buffer) {
     const oldWrite = stream.write;
 
-    stream.write = (chunk, encondig, fd) => {
+    stream.write = (chunk, encoding, fd) => {
         buffer.push(chunk);
-        return oldWrite.call(stream, chunk, encondig, fd);
+        return oldWrite.call(stream, chunk, encoding, fd);
     };
 
     return () => stream.write = oldWrite;

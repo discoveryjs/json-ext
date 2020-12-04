@@ -33,11 +33,11 @@ npm install @discoveryjs/json-ext
 
 Works the same as [`JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse) but takes `chunkEmitter` instead of string and returns [Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise).
 
-> NOTE: `reviver` paramenter is not supported yet, but will be added in next releases.
+> NOTE: `reviver` parameter is not supported yet, but will be added in next releases.
 
 When to use:
 - Huge JSON needs to be parsed (e.g. >500MB on Node.js)
-- Needed to reduce memory pressure. `JSON.parse()` needs to recieve the entire JSON before parsing it. With `parseChunked()` you may parse JSON as first bytes of it comes. This approach helps to avoid storing a huge string in the memory at a single time point and following GC.
+- Needed to reduce memory pressure. `JSON.parse()` needs to receive the entire JSON before parsing it. With `parseChunked()` you may parse JSON as first bytes of it comes. This approach helps to avoid storing a huge string in the memory at a single time point and following GC.
 
 [Benchmark](https://github.com/discoveryjs/json-ext/tree/master/benchmarks#parse-chunked)
 
@@ -90,7 +90,7 @@ parseChunked(() => ['{ "hello":', ' "world"}'])
 Using with [fetch()](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API):
 
 ```js
-async function loadData(url)
+async function loadData(url) {
     const response = await fetch(url);
     const reader = response.body.getReader();
 
@@ -183,14 +183,14 @@ Result is an object:
 
 ##### async
 
-Type: `Boolean`  
+Type: `Boolean`
 Default: `false`
 
 Collect async values (promises and streams) or not.
 
 ##### continueOnCircular
 
-Type: `Boolean`  
+Type: `Boolean`
 Default: `false`
 
 Stop collecting info for a value or not whenever circular reference is found. Setting option to `true` allows to find all circular references.
