@@ -183,14 +183,14 @@ Result is an object:
 
 ##### async
 
-Type: `Boolean`
+Type: `Boolean`  
 Default: `false`
 
 Collect async values (promises and streams) or not.
 
 ##### continueOnCircular
 
-Type: `Boolean`
+Type: `Boolean`  
 Default: `false`
 
 Stop collecting info for a value or not whenever circular reference is found. Setting option to `true` allows to find all circular references.
