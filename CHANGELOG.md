@@ -1,3 +1,7 @@
+## next
+
+- Added support for Node.js 10
+
 ## 0.4.0 (2020-12-04)
 
 - Added `parseChunked()` method

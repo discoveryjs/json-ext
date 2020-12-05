@@ -2,6 +2,7 @@ const assert = require('assert');
 const { inspect } = require('util');
 const { Readable } = require('stream');
 const { stringifyInfo } = require('./helpers/lib');
+const wellformedStringify = require('./helpers/well-formed-stringify');
 const strBytesLength = str => Buffer.byteLength(str, 'utf8');
 const {
     allUtf8LengthDiffChars,
@@ -14,8 +15,9 @@ function createInfoTest(value, ...args) {
     const title = value === allUtf8LengthDiffChars
         ? `All UTF8 length diff chars ${value[0]}..${value[value.length - 1]}`
         : inspect(value, { depth: null });
+
     it(title.replace(/[\u0000-\u001f\u0100-\uffff]/g, m => '\\u' + m.charCodeAt().toString(16).padStart(4, '0')), () => {
-        const native = String(JSON.stringify(value, ...args));
+        const native = String(wellformedStringify(value, ...args).replace(/[]/));
         const info = stringifyInfo(value, ...args);
 
         assert.deepStrictEqual(info, {
@@ -36,7 +38,7 @@ describe('stringifyInfo()', () => {
 
     describe('space option', () => {
         for (const space of spaces) {
-            describe('space ' + JSON.stringify(space), () => {
+            describe('space ' + wellformedStringify(space), () => {
                 for (const value of spaceTests) {
                     createInfoTest(value, null, space);
                 }
@@ -100,7 +102,7 @@ describe('stringifyInfo()', () => {
                 stream,
                 objectStream
             ]);
-            assert.strictEqual(info.minLength, `[{},${JSON.stringify(stream)},${JSON.stringify(objectStream)}]`.length);
+            assert.strictEqual(info.minLength, `[{},${wellformedStringify(stream)},${wellformedStringify(objectStream)}]`.length);
             assert.deepStrictEqual(info.async, []);
         });
 

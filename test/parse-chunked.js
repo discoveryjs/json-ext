@@ -2,6 +2,7 @@ const assert = require('assert');
 const { inspect } = require('util');
 const { Readable } = require('stream');
 const { parseChunked } = require('./helpers/lib');
+const { TextEncoder } = require('util');
 
 function createReadableStream(chunks) {
     return new Readable({

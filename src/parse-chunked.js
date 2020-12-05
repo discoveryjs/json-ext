@@ -1,4 +1,5 @@
 const { isReadableStream } = require('./utils');
+const TextDecoder = require('./text-decoder');
 
 const STACK_OBJECT = 1;
 const STACK_ARRAY = 2;

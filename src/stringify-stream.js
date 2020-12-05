@@ -15,6 +15,17 @@ const {
 } = require('./utils');
 const noop = () => {};
 
+// TODO: Remove when drop support for Node.js 10
+// Node.js 10 has no well-formed JSON.stringify()
+// https://github.com/tc39/proposal-well-formed-stringify
+// Adopted code from https://bugs.chromium.org/p/v8/issues/detail?id=7782#c12
+const wellformedStringStringify = JSON.stringify('\ud800') === '"\\ud800"'
+    ? JSON.stringify
+    : s => JSON.stringify(s).replace(
+        /\p{Surrogate}/gu,
+        m => `\\u${m.charCodeAt(0).toString(16)}`
+    );
+
 function push() {
     this.push(this._stack.value);
     this.popStack();
@@ -167,7 +178,7 @@ class JsonStringifyStream extends Readable {
 
     encodeString(value) {
         if (/[^\x20-\uD799]|[\x22\x5c]/.test(value)) {
-            return JSON.stringify(value);
+            return wellformedStringStringify(value);
         }
 
         return '"' + value + '"';
@@ -250,7 +261,9 @@ class JsonStringifyStream extends Readable {
             case OBJECT_STREAM:
                 callback.call(this, key);
 
-                if (value.readableEnded) {
+                // TODO: Remove when drop support for Node.js 10
+                // Used `_readableState.endEmitted` as fallback, since Node.js 10 has no `readableEnded` getter
+                if (value.readableEnded || value._readableState.endEmitted) {
                     return this.destroy(new Error('Readable Stream has ended before it was serialized. All stream data have been lost'));
                 }
 
