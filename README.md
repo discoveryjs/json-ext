@@ -23,7 +23,7 @@ npm install @discoveryjs/json-ext
 
 ## API
 
-- [parseChunked(chunkEmitter)](#parsechunked-chunkemitter)
+- [parseChunked(chunkEmitter)](#parsechunkedchunkemitter)
 - [stringifyStream(value[, replacer[, space]])](#stringifystreamvalue-replacer-space)
 - [stringifyInfo(value[, replacer[, space[, options]]])](#stringifyinfovalue-replacer-space-options)
     - [Options](#options)
