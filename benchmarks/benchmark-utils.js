@@ -44,7 +44,17 @@ function runBenchmark(name, argv = process.argv.slice(2)) {
     });
 }
 
-async function benchmark(name, fn, output = true) {
+function sanitizeErrorOutput(error) {
+    const home = path.join(__dirname, '../..');
+    const rx = new RegExp(home.replace(/\[\]\(\)\{\}\.\+\*\?/g, '\\$1'), 'g');
+    const text = String(error.stack || error);
+
+    return home ? text.replace(rx, '~') : text;
+}
+
+async function benchmark(name, fn, beforeFn, output = true) {
+    const data = typeof beforeFn === 'function' ? await beforeFn() : undefined;
+
     await collectGarbage();
 
     const mem = traceMem(10);
@@ -57,7 +67,7 @@ async function benchmark(name, fn, output = true) {
         }
 
         // run test and catch a result
-        let result = await fn();
+        let result = await fn(data);
 
         // compute metrics
         const time = Date.now() - startTime;
@@ -99,14 +109,16 @@ async function benchmark(name, fn, output = true) {
         mem.stop();
 
         if (output) {
-            console.error(e);
+            console.error(sanitizeErrorOutput(e));
             console.error();
         }
+
+        let code = e.message === 'Invalid string length' ? 'ERR_STRING_TOO_LONG' : e.code || false;
 
         return {
             name,
             error: e.name + ': ' + e.message,
-            code: e.code
+            code
         };
     }
 }

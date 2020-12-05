@@ -14,6 +14,18 @@ const fixtures = [
 const fixtureIndex = process.argv[2] || 0;
 const filename = fixtureIndex in fixtures ? path.join(__dirname, fixtures[fixtureIndex]) : false;
 
+if (!filename) {
+    console.error('Fixture is not selected!');
+    console.error();
+    console.error('Run script:', chalk.green(`node ${path.relative(process.cwd(), process.argv[1])} [fixture]`));
+    console.error();
+    console.error(`where ${chalk.yellow('[fixture]')} is a number:`);
+    fixtures.forEach((fixture, idx) =>
+        console.log(idx, fixture)
+    );
+    process.exit();
+}
+
 const chunkSize = 512 * 1024; // chunk size for generator
 const tests = module.exports = {
     'JSON.parse()': () =>
@@ -31,17 +43,13 @@ const tests = module.exports = {
         })
 };
 
-if (!filename) {
-    console.error('Fixture is not selected!');
-    console.error();
-    console.error('Run script:', chalk.green(`node --expose-gc ${path.relative(process.cwd(), process.argv[1])} [fixture]`));
-    console.error('where [fixture] is a number:');
-    fixtures.forEach((fixture, idx) =>
-        console.log(idx, fixture)
-    );
-    process.exit();
+if (require.main === module) {
+    run();
 }
 
+//
+// Run benchmarks
+//
 async function run() {
     if (!fs.existsSync(filename)) {
         // auto-generate fixture
@@ -73,8 +81,4 @@ async function run() {
     if (process.env.README) {
         updateReadmeTable(benchmarkName, fixtureIndex, fixtures, results);
     }
-}
-
-if (require.main === module) {
-    run();
 }

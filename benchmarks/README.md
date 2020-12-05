@@ -39,7 +39,7 @@ Where `[fixture]` is number of fixture:
 | Solution | S (~2Mb) | M (~13.7Mb) | L (~100Mb) | 500Mb | 1Gb |
 | -------- | -------: | ----------: | ---------: | ----: | --: |
 | JSON.parse() | 29ms | 85ms | 928ms | 5769ms | ERR_STRING_TOO_LONG |
-| parse fs#ReadableStream | 62ms | 165ms | 1366ms | 6511ms | 13573ms |
+| parse fs#ReadableStream | 62ms | 165ms | 1366ms | 6511ms | 12946ms |
 | parse generator | 58ms | 174ms | 1403ms | 7828ms | ERR_STRING_TOO_LONG |
 <!--/parse-chunked-table:time-->
 
@@ -49,7 +49,7 @@ Where `[fixture]` is number of fixture:
 | Solution | S (~2Mb) | M (~13.7Mb) | L (~100Mb) | 500Mb | 1Gb |
 | -------- | -------: | ----------: | ---------: | ----: | --: |
 | JSON.parse() | 26ms | 84ms | 1170ms | 7255ms | ERR_STRING_TOO_LONG |
-| parse fs#ReadableStream | 57ms | 159ms | 1536ms | 7460ms | 15570ms |
+| parse fs#ReadableStream | 57ms | 159ms | 1536ms | 7460ms | 14932ms |
 | parse generator | 52ms | 162ms | 1429ms | 7945ms | ERR_STRING_TOO_LONG |
 <!--/parse-chunked-table:cpu-->
 
@@ -59,7 +59,7 @@ Where `[fixture]` is number of fixture:
 | Solution | S (~2Mb) | M (~13.7Mb) | L (~100Mb) | 500Mb | 1Gb |
 | -------- | -------: | ----------: | ---------: | ----: | --: |
 | JSON.parse() | 6.62MB | 46.41MB | 413.43MB | 2.07GB | ERR_STRING_TOO_LONG |
-| parse fs#ReadableStream | 12.06MB | 40.71MB | 162.35MB | 640.27MB | 1.21GB |
+| parse fs#ReadableStream | 12.06MB | 40.71MB | 162.35MB | 640.27MB | 1.22GB |
 | parse generator | 8.35MB | 57.43MB | 339.55MB | 1.63GB | ERR_STRING_TOO_LONG |
 <!--/parse-chunked-table:memory-->
 
@@ -200,38 +200,34 @@ mem impact:  rss +611.27MB | heapTotal +611.88MB | heapUsed +569.52MB | external
 ```
 Benchmark: parseChunked() (parse chunked JSON)
 Node version: 15.3.0
-Fixture: benchmarks/fixture/1gb.json 1000MB / chunk size 524kB
-
-# parse fs#ReadableStream
-time: 13573 ms
-cpu: 15570 ms
-mem impact:  rss   +1.20GB | heapTotal   +1.19GB | heapUsed   +1.14GB | external    +524kB
-       max:  rss   +1.24GB | heapTotal   +1.22GB | heapUsed   +1.18GB | external  +34.08MB
-
-# parse generator
-Error: Cannot create a string longer than 0x1fffffe8 characters
-    at Object.slice (node:buffer:592:37)
-    at Buffer.toString (node:buffer:789:14)
-    at Object.readFileSync (node:fs:433:41)
-    at /Users/rdvornov/git/json-ext/benchmarks/parse-chunked.js:24:27
-    at Generator.next (<anonymous>)
-    at Async-from-Sync Iterator.next (<anonymous>)
-    at /Users/rdvornov/git/json-ext/src/parse-chunked.js:57:38
-    at new Promise (<anonymous>)
-    at module.exports (/Users/rdvornov/git/json-ext/src/parse-chunked.js:55:20)
-    at parse generator (/Users/rdvornov/git/json-ext/benchmarks/parse-chunked.js:23:9) {
-  code: 'ERR_STRING_TOO_LONG'
-}
+Fixture: fixture/1gb.json 1000MB / chunk size 524kB
 
 # JSON.parse()
 Error: Cannot create a string longer than 0x1fffffe8 characters
     at Object.slice (node:buffer:592:37)
     at Buffer.toString (node:buffer:789:14)
     at Object.readFileSync (node:fs:433:41)
-    at JSON.parse() (/Users/rdvornov/git/json-ext/benchmarks/parse-chunked.js:31:23)
-    at benchmark (/Users/rdvornov/git/json-ext/benchmarks/benchmark-utils.js:60:28) {
-  code: 'ERR_STRING_TOO_LONG'
-}
+    at JSON.parse() (~/json-ext/benchmarks/parse-chunked.js:32:23)
+    at benchmark (~/json-ext/benchmarks/benchmark-utils.js:70:28)
+
+# parse fs#ReadableStream
+time: 12946 ms
+cpu: 14932 ms
+mem impact:  rss   +1.21GB | heapTotal   +1.19GB | heapUsed   +1.14GB | external    +524kB
+       max:  rss   +1.25GB | heapTotal   +1.22GB | heapUsed   +1.18GB | external  +35.65MB
+
+# parse generator
+Error: Cannot create a string longer than 0x1fffffe8 characters
+    at Object.slice (node:buffer:592:37)
+    at Buffer.toString (node:buffer:789:14)
+    at Object.readFileSync (node:fs:433:41)
+    at ~/json-ext/benchmarks/parse-chunked.js:39:27
+    at Generator.next (<anonymous>)
+    at Async-from-Sync Iterator.next (<anonymous>)
+    at ~/json-ext/src/parse-chunked.js:57:38
+    at new Promise (<anonymous>)
+    at module.exports (~/json-ext/src/parse-chunked.js:55:20)
+    at parse generator (~/json-ext/benchmarks/parse-chunked.js:38:9)
 ```
 <!--/parse-chunked-output:4-->
 </details>
@@ -251,38 +247,40 @@ Where `[fixture]` is number of fixture:
 * `0` – fixture/small.json (~2Mb)
 * `1` – fixture/medium.json (~13.7Mb)
 * `2` – fixture/big.json (~100Mb)
+* `3` – fixture/500mb.json (500Mb, auto-generated from big.json x 5 + padding strings)
+* `4` – fixture/1gb.json (1gb, auto-generated from big.json x 10 + padding strings)
 
 ### Time
 
 <!--stringify-stream-table:time-->
-| Solution | S (~2Mb) | M (~13.7Mb) | L (~100Mb) |
-| ------- | -------: | ----------: | ---------: |
-| JSON.stringify() | 28ms | 77ms | 910ms |
-| @discoveryjs/json-ext | 65ms | 140ms | 2341ms |
-| bfj | 1309ms | 3613ms | 71793ms |
-| json-stream-stringify | 2087ms | 6025ms | 154884ms |
+| Solution | S (~2Mb) | M (~13.7Mb) | L (~100Mb) | 500Mb | 1Gb |
+| -------- | -------: | ----------: | ---------: | ----: | --: |
+| JSON.stringify() | 28ms | 77ms | 910ms | 5545ms | ERR_STRING_TOO_LONG |
+| @discoveryjs/json-ext | 65ms | 140ms | 2341ms | 12266ms | 25951ms |
+| bfj | 1309ms | 3613ms | 71793ms | 435437ms | ERR_RUN_TOO_LONG |
+| json-stream-stringify | 2087ms | 6025ms | 154884ms | ERR_RUN_TOO_LONG | ERR_RUN_TOO_LONG |
 <!--/stringify-stream-table:time-->
 
 ### CPU usage
 
 <!--stringify-stream-table:cpu-->
-| Solution | S (~2Mb) | M (~13.7Mb) | L (~100Mb) |
-| ------- | -------: | ----------: | ---------: |
-| JSON.stringify() | 24ms | 66ms | 957ms |
-| @discoveryjs/json-ext | 71ms | 148ms | 2296ms |
-| bfj | 1048ms | 1933ms | 55743ms |
-| json-stream-stringify | 1871ms | 5132ms | 135951ms |
+| Solution | S (~2Mb) | M (~13.7Mb) | L (~100Mb) | 500Mb | 1Gb |
+| -------- | -------: | ----------: | ---------: | ----: | --: |
+| JSON.stringify() | 24ms | 66ms | 957ms | 5645ms | ERR_STRING_TOO_LONG |
+| @discoveryjs/json-ext | 71ms | 148ms | 2296ms | 11748ms | 24671ms |
+| bfj | 1048ms | 1933ms | 55743ms | 388914ms | ERR_RUN_TOO_LONG |
+| json-stream-stringify | 1871ms | 5132ms | 135951ms | ERR_RUN_TOO_LONG | ERR_RUN_TOO_LONG |
 <!--/stringify-stream-table:cpu-->
 
 ### Max memory usage
 
 <!--stringify-stream-table:memory-->
-| Solution | S (~2Mb) | M (~13.7Mb) | L (~100Mb) |
-| ------- | -------: | ----------: | ---------: |
-| JSON.stringify() | 10.20MB | 55.77MB | 401.66MB |
-| @discoveryjs/json-ext | 4.10MB | 15.40MB | 112.06MB |
-| bfj | 16.44MB | 18.84MB | 367.35MB |
-| json-stream-stringify | 5.14MB | 14.67MB | 140.43MB |
+| Solution | S (~2Mb) | M (~13.7Mb) | L (~100Mb) | 500Mb | 1Gb |
+| -------- | -------: | ----------: | ---------: | ----: | --: |
+| JSON.stringify() | 10.20MB | 55.77MB | 401.66MB | 2.40GB | ERR_STRING_TOO_LONG |
+| @discoveryjs/json-ext | 4.10MB | 15.40MB | 112.06MB | 506.72MB | 993.97MB |
+| bfj | 16.44MB | 18.84MB | 367.35MB | 725.17MB | ERR_RUN_TOO_LONG |
+| json-stream-stringify | 5.14MB | 14.67MB | 140.43MB | ERR_RUN_TOO_LONG | ERR_RUN_TOO_LONG |
 <!--/stringify-stream-table:memory-->
 
 ### Output for fixtures
@@ -394,4 +392,88 @@ mem impact:  rss   +3.62MB | heapTotal    +532kB | heapUsed    +189kB | external
        max:  rss +134.52MB | heapTotal +129.25MB | heapUsed +140.32MB | external    +115kB
 ```
 <!--/stringify-stream-output:2-->
+</details>
+
+<details>
+<summary><pre>&gt; node benchmarks/stringify-stream 3  # use benchmarks/fixture/500mb.json</pre></summary>
+<!--stringify-stream-output:3-->
+
+```
+Benchmark: stringifyStream() (JSON.stringify() as a stream)
+Node version: 15.3.0
+Fixture: fixture/500mb.json 500MB
+
+# JSON.stringify()
+time: 5545 ms
+cpu: 5645 ms
+mem impact:  rss  +12.45MB | heapTotal         0 | heapUsed     +59kB | external     -65kB
+       max:  rss   +2.44GB | heapTotal   +2.01GB | heapUsed   +1.90GB | external +499.93MB
+
+# @discoveryjs/json-ext
+time: 12266 ms
+cpu: 11748 ms
+mem impact:  rss  +24.12MB | heapTotal    +795kB | heapUsed    +399kB | external     -65kB
+       max:  rss +508.44MB | heapTotal +500.97MB | heapUsed +505.97MB | external    +754kB
+
+# bfj
+time: 435437 ms
+cpu: 388914 ms
+mem impact:  rss  +34.20MB | heapTotal   +1.84MB | heapUsed   +1.12MB | external     -37kB
+       max:  rss +734.84MB | heapTotal +720.64MB | heapUsed +724.48MB | external    +692kB
+
+# json-stream-stringify
+Error: Run takes too long time
+    at sizeLessThan (~/json-ext/benchmarks/stringify-stream.js:45:19)
+    at json-stream-stringify (~/json-ext/benchmarks/stringify-stream.js:60:38)
+    at ~/json-ext/benchmarks/stringify-stream.js:70:9
+    at new Promise (<anonymous>)
+    at tests.<computed> (~/json-ext/benchmarks/stringify-stream.js:69:29)
+    at benchmark (~/json-ext/benchmarks/benchmark-utils.js:70:28)
+```
+<!--/stringify-stream-output:3-->
+</details>
+
+<details>
+<summary><pre>&gt; node benchmarks/stringify-stream 4  # use benchmarks/fixture/1gb.json</pre></summary>
+<!--stringify-stream-output:4-->
+
+```
+Benchmark: stringifyStream() (JSON.stringify() as a stream)
+Node version: 15.3.0
+Fixture: fixture/1gb.json 1000MB
+
+# JSON.stringify()
+RangeError: Invalid string length
+    at JSON.stringify (<anonymous>)
+    at JSON.stringify() (~/json-ext/benchmarks/stringify-stream.js:52:31)
+    at ~/json-ext/benchmarks/stringify-stream.js:70:9
+    at new Promise (<anonymous>)
+    at tests.<computed> (~/json-ext/benchmarks/stringify-stream.js:69:29)
+    at benchmark (~/json-ext/benchmarks/benchmark-utils.js:70:28)
+
+# @discoveryjs/json-ext
+time: 25951 ms
+cpu: 24671 ms
+mem impact:  rss  +23.08MB | heapTotal    +795kB | heapUsed    +295kB | external     -65kB
+       max:  rss   +1.01GB | heapTotal   +1.00GB | heapUsed +993.17MB | external    +801kB
+
+# bfj
+Error: Run takes too long time
+    at sizeLessThan (~/json-ext/benchmarks/stringify-stream.js:45:19)
+    at bfj (~/json-ext/benchmarks/stringify-stream.js:57:20)
+    at ~/json-ext/benchmarks/stringify-stream.js:70:9
+    at new Promise (<anonymous>)
+    at tests.<computed> (~/json-ext/benchmarks/stringify-stream.js:69:29)
+    at benchmark (~/json-ext/benchmarks/benchmark-utils.js:70:28)
+
+# json-stream-stringify
+Error: Run takes too long time
+    at sizeLessThan (~/json-ext/benchmarks/stringify-stream.js:45:19)
+    at json-stream-stringify (~/json-ext/benchmarks/stringify-stream.js:60:38)
+    at ~/json-ext/benchmarks/stringify-stream.js:70:9
+    at new Promise (<anonymous>)
+    at tests.<computed> (~/json-ext/benchmarks/stringify-stream.js:69:29)
+    at benchmark (~/json-ext/benchmarks/benchmark-utils.js:70:28)
+```
+<!--/stringify-stream-output:4-->
 </details>
