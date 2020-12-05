@@ -1,4 +1,4 @@
-## next
+## 0.5.0 (2020-12-05)
 
 - Added support for Node.js 10
 
