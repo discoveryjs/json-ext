@@ -66,7 +66,7 @@ Parameter `chunkEmitter` can be:
 const fs = require('fs');
 const { parseChunked } = require('@discoveryjs/json-ext');
 
-parseChunked(fs.createReadableStream('path/to/file.json'))
+parseChunked(fs.createReadStream('path/to/file.json'))
 ```
 - Generator, async generator or function that returns iterable (chunks). Chunk might be a `string`, `Uint8Array` or `Buffer` (Node.js only):
 ```js
@@ -163,7 +163,7 @@ const { stringifyStream } = require('@discoveryjs/json-ext');
 stringifyStream({
     name: 'example',
     willSerializeResolvedValue: Promise.resolve(42),
-    fromFile: fs.createReadbleStream('path/to/file.json'), // support file content is "[1, 2, 3]", it'll be inserted as it
+    fromFile: fs.createReadStream('path/to/file.json'), // support file content is "[1, 2, 3]", it'll be inserted as it
     at: {
         any: {
             level: new Promise(resolve => setTimeout(() => resolve('promise!'), 100))
@@ -191,7 +191,7 @@ stringifyStream(data)
 
 // pipe into a file
 stringifyStream(data)
-    .pipe(fs.createWritableStream('path/to/file.json'));
+    .pipe(fs.createWriteStream('path/to/file.json'));
 
 // wrapping into a Promise
 new Promise((resolve, reject) => {
