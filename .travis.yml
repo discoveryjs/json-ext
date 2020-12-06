@@ -4,5 +4,6 @@ os:
   - windows
 script: "npm run travis"
 node_js:
+  - "10"
   - "12"
   - "node"
