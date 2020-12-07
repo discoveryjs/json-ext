@@ -43,7 +43,7 @@ function stringLength(str) {
             continue;
         } else if (isTrailingSurrogate(code)) {
             len = prevLeadingSurrogate
-                ? len - 2  // surrogate pair (4 bytes), since we calulate prev leading surrogate as 6 bytes, substruct 2 bytes
+                ? len - 2  // surrogate pair (4 bytes), since we calculate prev leading surrogate as 6 bytes, substruct 2 bytes
                 : len + 6; // \uXXXX
         } else {
             len += 3; // code >= 2048 is 3 bytes length for UTF8
@@ -71,7 +71,7 @@ function primitiveLength(value) {
             return 4; /* null */
 
         default:
-            throw new TypeError(`Do not know how to serialize a ${typeof value}`);
+            return 0;
     }
 }
 
@@ -81,12 +81,12 @@ function spaceLength(space) {
 }
 
 module.exports = function jsonStringifyInfo(value, replacer, space, options) {
-    function walk(key, value) {
+    function walk(holder, key, value) {
         if (stop) {
             return;
         }
 
-        value = replaceValue(this, key, value, replacer);
+        value = replaceValue(holder, key, value, replacer);
 
         let type = getType(value);
 
@@ -104,9 +104,9 @@ module.exports = function jsonStringifyInfo(value, replacer, space, options) {
 
         switch (type) {
             case PRIMITIVE:
-                if (value !== undefined || Array.isArray(this)) {
+                if (value !== undefined || Array.isArray(holder)) {
                     length += primitiveLength(value);
-                } else if (this === root) {
+                } else if (holder === root) {
                     length += 9; // FIXME: that's the length of undefined, should we normalize behaviour to convert it to null?
                 }
                 break;
@@ -128,7 +128,7 @@ module.exports = function jsonStringifyInfo(value, replacer, space, options) {
                 for (const property in value) {
                     if (hasOwnProperty.call(value, property)) {
                         const prevLength = length;
-                        walk.call(value, property, value[property]);
+                        walk(value, property, value[property]);
 
                         if (prevLength !== length) {
                             // value is printed
@@ -168,7 +168,7 @@ module.exports = function jsonStringifyInfo(value, replacer, space, options) {
                 stack.add(value);
 
                 for (let i = 0; i < value.length; i++) {
-                    walk.call(value, String(i), value[i]);
+                    walk(value, i, value[i]);
                 }
 
                 if (value.length > 1) {
@@ -213,7 +213,7 @@ module.exports = function jsonStringifyInfo(value, replacer, space, options) {
     let stop = false;
     let length = 0;
 
-    walk.call(root, '', value);
+    walk(root, '', value);
 
     return {
         minLength: isNaN(length) ? Infinity : length,

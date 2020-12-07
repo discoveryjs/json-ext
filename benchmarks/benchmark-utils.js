@@ -1,4 +1,6 @@
 const fs = require('fs');
+const path = require('path');
+const { fork } = require('child_process');
 const chalk = require('chalk');
 const { Readable } = require('stream');
 const ANSI_REGEXP = /([\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><])/g;
@@ -19,12 +21,115 @@ class StringStream extends Readable {
     }
 }
 
+function runBenchmark(name, argv = process.argv.slice(2)) {
+    return new Promise((resolve, reject) => {
+        const child = fork(__dirname + '/run-test.js', [
+            require.main.filename,
+            name,
+            ...argv
+        ], {
+            stdio: ['inherit', 'pipe', 'pipe', 'ipc'],
+            execArgv: ['--expose-gc'],
+            env: {
+                ...process.env,
+                FORCE_COLOR: chalk.supportsColor ? chalk.supportsColor.level : 0
+            }
+        })
+            .on('message', resolve)
+            .on('error', reject)
+            .on('close', code => code ? reject(new Error('Exit code ' + code)) : resolve());
+
+        child.stdout.pipe(process.stdout);
+        child.stderr.pipe(process.stderr);
+    });
+}
+
+function sanitizeErrorOutput(error) {
+    const home = path.join(__dirname, '../..');
+    const rx = new RegExp(home.replace(/\[\]\(\)\{\}\.\+\*\?/g, '\\$1'), 'g');
+    const text = String(error.stack || error);
+
+    return home ? text.replace(rx, '~') : text;
+}
+
+async function benchmark(name, fn, beforeFn, output = true) {
+    const data = typeof beforeFn === 'function' ? await beforeFn() : undefined;
+
+    await collectGarbage();
+
+    const mem = traceMem(10);
+    const startCpu = process.cpuUsage();
+    const startTime = Date.now();
+
+    try {
+        if (output) {
+            console.log('#', chalk.cyan(name));
+        }
+
+        // run test and catch a result
+        let result = await fn(data);
+
+        // compute metrics
+        const time = Date.now() - startTime;
+        const cpu = parseInt(process.cpuUsage(startCpu).user / 1000);
+        const currentMem = mem.stop();
+        const maxMem = memDelta(mem.base, mem.max);
+
+        if (output) {
+            console.log('time:', time, 'ms');
+            console.log('cpu:', cpu, 'ms');
+        }
+
+        await collectGarbage();
+
+        if (output) {
+            console.log('mem impact: ', String(memDelta(currentMem.base)));
+            console.log('       max: ', String(maxMem));
+            console.log();
+        }
+
+        // release mem
+        // eslint-disable-next-line no-unused-vars
+        result = null;
+        await collectGarbage();
+
+        // fs.writeFileSync(outputPath('mem-' + name), JSON.stringify(mem.series()));
+
+        return {
+            name,
+            time,
+            cpu,
+            rss: maxMem.delta.rss,
+            heapTotal: maxMem.delta.heapTotal,
+            heapUsed: maxMem.delta.heapUsed,
+            external: maxMem.delta.external,
+            arrayBuffers: maxMem.delta.arrayBuffers
+        };
+    } catch (e) {
+        mem.stop();
+
+        if (output) {
+            console.error(sanitizeErrorOutput(e));
+            console.error();
+        }
+
+        let code = e.message === 'Invalid string length' ? 'ERR_STRING_TOO_LONG' : e.code || false;
+
+        return {
+            name,
+            error: e.name + ': ' + e.message,
+            code
+        };
+    }
+}
+
 function stripAnsi(str) {
     return str.replace(ANSI_REGEXP, '');
 }
 
-function prettySize(size, signed, pad) {
+function prettySize(size, options) {
     const unit = ['', 'kB', 'MB', 'GB'];
+    const { signed, pad, preserveZero } = options || {};
 
     while (Math.abs(size) > 1000) {
         size /= 1000;
@@ -33,12 +138,12 @@ function prettySize(size, signed, pad) {
 
     return (
         (signed && size > 0 ? '+' : '') +
-        size.toFixed(unit.length > 2 ? 0 : 2) +
+        size.toFixed(unit.length > 2 ? 0 : 2).replace(/\.0+$/, preserveZero ? '$&' : '') +
         unit[0]
     ).padStart(pad || 0);
 }
 
-function memDelta(_base, cur) {
+function memDelta(_base, cur, skip = ['arrayBuffers']) {
     const current = cur || process.memoryUsage();
     const delta = {};
     const base = { ..._base };
@@ -56,8 +161,12 @@ function memDelta(_base, cur) {
             const res = [];
 
             for (const [k, v] of Object.entries(delta)) {
+                if (skip.includes(k)) {
+                    continue;
+                }
+
                 const rel = _base && k in _base;
-                res.push(`${k} ${(rel && v > 0 ? chalk.yellow : chalk.green)(prettySize(v, rel, 9))}`);
+                res.push(`${k} ${(rel && v > 0 ? chalk.yellow : chalk.green)(prettySize(v, { signed: rel, pad: 9, preserveZero: true }))}`);
             }
 
             return res.join(' | ') || 'No changes';
@@ -135,17 +244,42 @@ function traceMem(resolutionMs, sample = false) {
     };
 }
 
-function captureStdout(callback) {
-    const oldWrite = process.stdout.write;
-    const cancelCapture = () => process.stdout.write = oldWrite;
-    let buffer = [];
+let exposeGcShowed = false;
+async function collectGarbage() {
+    if (typeof global.gc === 'function') {
+        global.gc();
 
-    process.stdout.write = (chunk, encondig, fd) => {
-        oldWrite.call(process.stdout, chunk, encondig, fd);
+        // double sure
+        await timeout(100);
+        global.gc();
+    } else if (!exposeGcShowed) {
+        exposeGcShowed = true;
+        console.warn(chalk.magenta('Looks like script is forcing GC to collect garbage, but corresponding API is not enabled'));
+        console.warn(chalk.magenta('Run node with --expose-gc flag to enable API and get precise measurements'));
+    }
+}
+
+function captureStdio(stream, buffer) {
+    const oldWrite = stream.write;
+
+    stream.write = (chunk, encoding, fd) => {
         buffer.push(chunk);
+        return oldWrite.call(stream, chunk, encoding, fd);
     };
 
-    process.on('exit', () => {
+    return () => stream.write = oldWrite;
+}
+
+function captureOutput(callback) {
+    let buffer = [];
+    const cancelCapture = () => captures.forEach(fn => fn());
+    debugger;
+    const captures = [
+        captureStdio(process.stdout, buffer),
+        captureStdio(process.stderr, buffer)
+    ];
+
+    process.once('exit', () => {
         cancelCapture();
         callback(buffer.join(''));
         buffer = null;
@@ -155,7 +289,8 @@ function captureStdout(callback) {
 }
 
 function replaceInReadme(start, end, replace) {
-    const content = fs.readFileSync('README.md', 'utf8');
+    const filename = path.join(__dirname, '/README.md');
+    const content = fs.readFileSync(filename, 'utf8');
     const mstart = content.match(start);
 
     if (!mstart) {
@@ -173,23 +308,78 @@ function replaceInReadme(start, end, replace) {
 
     const endOffset = mend.index;
 
-    fs.writeFileSync('README.md',
+    fs.writeFileSync(filename,
         content.slice(0, startOffset) +
         (typeof replace === 'function' ? replace(content.slice(startOffset, endOffset)) : replace) +
         content.slice(endOffset), 'utf8');
 }
 
-function outputToReadme(start, end, fmt = output => output) {
-    captureStdout(content => replaceInReadme(start, end, fmt(stripAnsi(content))));
+function outputToReadme(benchmarkName, fixtureIndex) {
+    captureOutput(output => replaceInReadme(
+        new RegExp(`<!--${benchmarkName}-output:${fixtureIndex}-->`),
+        new RegExp(`<!--/${benchmarkName}-output:${fixtureIndex}-->`),
+        '\n\n```\n' + stripAnsi(output || '').trim() + '\n```\n'
+    ));
+}
+
+function updateReadmeTable(benchmarkName, fixtureIndex, fixtures, results) {
+    for (const type of ['time', 'cpu', 'memory']) {
+        replaceInReadme(
+            new RegExp(`<!--${benchmarkName}-table:${type}-->`),
+            new RegExp(`<!--/${benchmarkName}-table:${type}-->`),
+            content => {
+                const lines = content.trim().split(/\n/);
+                const current = Object.create(null);
+                const newValues = Object.fromEntries(results.map(item =>
+                    [item.name, item.error
+                        ? item.code || 'ERROR'
+                        : type === 'memory'
+                            ? prettySize(item.heapUsed + item.external)
+                            : item[type] + 'ms'
+                    ]
+                ));
+
+                for (const line of lines.slice(2)) {
+                    const cells = line.trim().replace(/^\|\s*|\s*\|$/g, '').split(/\s*\|\s*/);
+                    current[cells[0]] = cells.slice(1);
+                }
+
+                for (const [k, v] of Object.entries(newValues)) {
+                    if (k in current === false) {
+                        current[k] = [];
+                    }
+                    current[k][fixtureIndex] = v;
+                }
+
+                // normalize
+                for (const array of Object.values(current)) {
+                    for (let i = 0; i < fixtures.length; i++) {
+                        if (!array[i]) {
+                            array[i] = '–';
+                        }
+                    }
+                }
+
+                return '\n' + [
+                    ...lines.slice(0, 2),
+                    ...Object.entries(current).map(([k, v]) => '| ' + [k, ...v].join(' | ') + ' |')
+                ].join('\n') + '\n';
+            }
+        );
+    }
 }
 
 module.exports = {
     StringStream,
+    runBenchmark,
+    benchmark,
     prettySize,
     memDelta,
     traceMem,
+    collectGarbage,
     timeout,
-    captureStdout,
+    captureOutput,
     replaceInReadme,
-    outputToReadme
+    outputToReadme,
+    updateReadmeTable
 };

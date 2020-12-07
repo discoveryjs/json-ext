@@ -1,6 +1,6 @@
 {
     "name": "@discoveryjs/json-ext",
-    "version": "0.3.2",
+    "version": "0.5.0",
     "description": "A set of utilities that extend the use of JSON",
     "keywords": [
         "json",
@@ -16,7 +16,8 @@
     "repository": "discoveryjs/json-ext",
     "main": "./src/index",
     "browser": {
-        "./src/stringify-stream.js": "./src/browser-method-is-not-supported.js"
+        "./src/stringify-stream.js": "./src/stringify-stream-browser.js",
+        "./src/text-decoder.js": "./src/text-decoder-browser.js"
     },
     "scripts": {
         "test": "mocha --reporter progress",
@@ -46,7 +47,7 @@
         "rollup-plugin-terser": "^7.0.2"
     },
     "engines": {
-        "node": ">=12.0.0"
+        "node": ">=10.0.0"
     },
     "files": [
         "dist",

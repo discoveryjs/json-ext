@@ -5,6 +5,7 @@ const path = require('path');
 const { Readable, Transform } = require('stream');
 const { inspect } = require('util');
 const { stringifyStream } = require('./helpers/lib');
+const wellformedStringify = require('./helpers/well-formed-stringify');
 const FIXTURE1 = 'fixture/stringify-stream-small.json';
 const FIXTURE2 = 'fixture/stringify-stream-medium.json';
 const {
@@ -98,12 +99,12 @@ class TestStreamTimeout extends Readable {
 describe('stringifyStream()', () => {
     describe('base', () => {
         for (const value of tests) {
-            const expected = JSON.stringify(value);
+            const expected = wellformedStringify(value);
             it(`${testTitleWithValue(value)} should be ${testTitleWithValue(expected)}`,
                 createStringifyCompareFn(value, expected));
         }
 
-        // exceptions
+        // special cases
         it('Symbol("test") should be null', createStringifyCompareFn(Symbol('test'), 'null'));
         it('undefined should be null', createStringifyCompareFn(undefined, 'null'));
     });
@@ -116,7 +117,7 @@ describe('stringifyStream()', () => {
         ];
 
         for (const value of values) {
-            const expected = JSON.stringify(value);
+            const expected = wellformedStringify(value);
             it(`${testTitleWithValue(value)} should be ${testTitleWithValue(expected)}`,
                 createStringifyCompareFn(value, expected));
         }
@@ -238,7 +239,6 @@ describe('stringifyStream()', () => {
             return assert.rejects(
                 createStringifyCompareFn(new Promise(resolve => stream.once('end', () => resolve(stream)).resume()), '[1,2,3,4,5,6,7]')(),
                 (err) => {
-                    // console.log(err);
                     assert.strictEqual(err.message, 'Readable Stream has ended before it was serialized. All stream data have been lost');
                     return true;
                 }
@@ -298,7 +298,7 @@ describe('stringifyStream()', () => {
         ];
 
         for (const [value, replacer] of entries) {
-            const expected = JSON.stringify(value, replacer);
+            const expected = wellformedStringify(value, replacer);
             it(`${testTitleWithValue(value)} should be ${testTitleWithValue(expected)}`,
                 createStringifyCompareFn(value, expected, replacer));
         }
@@ -315,7 +315,7 @@ describe('stringifyStream()', () => {
             let currentLog;
 
             currentLog = expected;
-            res = JSON.stringify(data, replacer);
+            res = wellformedStringify(data, replacer);
 
             currentLog = actual;
             return createStringifyCompareFn(data, res, replacer)()
@@ -332,9 +332,9 @@ describe('stringifyStream()', () => {
 
     describe('space option', () => {
         for (const space of spaces) {
-            describe('space ' + JSON.stringify(space), () => {
+            describe('space ' + wellformedStringify(space), () => {
                 for (const value of spaceTests) {
-                    it(inspect(value), createStringifyCompareFn(value, JSON.stringify(value, null, space), null, space));
+                    it(inspect(value), createStringifyCompareFn(value, wellformedStringify(value, null, space), null, space));
                 }
 
                 it('[Number, Array, Promise, ReadableStream, ReadableStream]',
@@ -346,7 +346,7 @@ describe('stringifyStream()', () => {
                             new TestStream(5),
                             new TestStream('6')
                         ],
-                        JSON.stringify([1, [2, 3], 4, [5], 6], null, space),
+                        wellformedStringify([1, [2, 3], 4, [5], 6], null, space),
                         null,
                         space
                     )
@@ -356,12 +356,51 @@ describe('stringifyStream()', () => {
     });
 
     describe('circular structure', () => {
-        it('{ a: $ } should emit error', () => {
-            const cyclicData0 = {};
-            cyclicData0.a = cyclicData0;
+        it('{ a: $ } should emit error when object refers to ancestor object', () => {
+            const circularRef = {};
+            circularRef.a = circularRef;
 
             assert.rejects(
-                createStringifyCompareFn(cyclicData0, '')(),
+                createStringifyCompareFn(circularRef, '')(),
+                (err) => {
+                    assert.strictEqual(err.message, 'Converting circular structure to JSON');
+                    return true;
+                }
+            );
+        });
+
+        it('[{ a: $ }] should emit error when object refers to ancestor array', () => {
+            const circularRef = [];
+            circularRef.push({ a: circularRef });
+
+            assert.rejects(
+                createStringifyCompareFn(circularRef, '')(),
+                (err) => {
+                    assert.strictEqual(err.message, 'Converting circular structure to JSON');
+                    return true;
+                }
+            );
+        });
+
+        it('{ a: [$] } should emit error when array\'s element refers to ancestor object', () => {
+            const circularRef = {};
+            circularRef.a = [circularRef];
+
+            assert.rejects(
+                createStringifyCompareFn(circularRef, '')(),
+                (err) => {
+                    assert.strictEqual(err.message, 'Converting circular structure to JSON');
+                    return true;
+                }
+            );
+        });
+
+        it('[[$]] should emit error when array\'s element refers to ancestor object', () => {
+            const circularRef = [];
+            circularRef.push(circularRef);
+
+            assert.rejects(
+                createStringifyCompareFn(circularRef, '')(),
                 (err) => {
                     assert.strictEqual(err.message, 'Converting circular structure to JSON');
                     return true;
@@ -395,14 +434,31 @@ describe('stringifyStream()', () => {
             );
         });
 
-        const obj = {};
-        const obj2 = { a: 1 };
-        const arr = [];
-        const arr2 = [1];
-        const noCycle = {
-            o1: obj, o2: obj, o3: obj2, o4: obj2,
-            a1: arr, a2: arr, a3: arr2, a4: arr2
-        };
-        it('should not fail on reuse empty object/array', createStringifyCompareFn(noCycle, JSON.stringify(noCycle)));
+        it('should not fail on reuse empty object/array', () => {
+            const obj = {};
+            const obj2 = { a: 1 };
+            const arr = [];
+            const arr2 = [1];
+            const noCycle = {
+                o1: obj, o2: obj, o3: obj2, o4: obj2,
+                a1: arr, a2: arr, a3: arr2, a4: arr2
+            };
+
+            return createStringifyCompareFn(noCycle, wellformedStringify(noCycle));
+        });
+    });
+
+    describe('errors', () => {
+        it('"Do not know how to serialize" error', () => assert.rejects(
+            createStringifyCompareFn({ test: 1n }, '')(),
+            /TypeError: Do not know how to serialize a BigInt/
+        ));
+
+        it('should catch errors on value resolving', () => assert.rejects(
+            createStringifyCompareFn({ toJSON() {
+                throw new Error('test');
+            } }, '')(),
+            /Error: test/
+        ));
     });
 });
