@@ -300,6 +300,22 @@ class ChunkParser {
             }
         }
 
+        if (last && this.pendingChunk) {
+            let preservePendingChunk = false;
+
+            for (let i = 0; i < this.pendingChunk.length; i++) {
+                const c = this.pendingChunk[i];
+                if (c !== ' ' && c !== '\t' && c !== '\n' && c !== '\r') {
+                    preservePendingChunk = true;
+                    break;
+                }
+            }
+
+            if (!preservePendingChunk) {
+                this.pendingChunk = null;
+            }
+        }
+
         if (flushPoint > lastFlushPoint || (last && (chunkLength > 0 || this.pendingChunk !== null))) {
             this.flush(chunk, lastFlushPoint, last ? chunkLength : flushPoint);
         }
