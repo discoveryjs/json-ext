@@ -1,4 +1,4 @@
-## next
+## 0.5.1 (2020-12-18)
 
 - Fixed `parseChunked()` crash when input has trailing whitespaces
 
