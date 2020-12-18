@@ -103,6 +103,17 @@ describe('parseChunked()', () => {
         });
     }
 
+    describe('trailing whitespaces', () => {
+        const expected = {};
+        const json = '{} \r\n\t';
+
+        for (let len = 0; len <= json.length; len++) {
+            it(len ? len + ' char(s) length chunks' : 'parse full', async () =>
+                assert.deepStrictEqual(await parse(len ? split(json, len) : [json]), expected)
+            );
+        }
+    });
+
     describe('errors', () => {
         it('abs pos across chunks', () =>
             assert.rejects(

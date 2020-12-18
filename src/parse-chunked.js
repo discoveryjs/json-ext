@@ -192,7 +192,7 @@ class ChunkParser {
         this.lastFlushDepth = this.flushDepth;
     }
 
-    push(chunk, last = false) {
+    push(chunk) {
         if (typeof chunk !== 'string') {
             // Suppose chunk is Buffer or Uint8Array
 
@@ -208,7 +208,7 @@ class ChunkParser {
             // In case Buffer/Uint8Array, an input is encoded in UTF8
             // Seek for parts of uncompleted UTF8 symbol on the ending
             // This makes sense only if we expect more chunks and last char is not multi-bytes
-            if (!last && chunk[chunk.length - 1] > 127) {
+            if (chunk[chunk.length - 1] > 127) {
                 for (let seqLength = 0; seqLength < chunk.length; seqLength++) {
                     const byte = chunk[chunk.length - 1 - seqLength];
 
@@ -300,28 +300,12 @@ class ChunkParser {
             }
         }
 
-        if (last && this.pendingChunk) {
-            let preservePendingChunk = false;
-
-            for (let i = 0; i < this.pendingChunk.length; i++) {
-                const c = this.pendingChunk[i];
-                if (c !== ' ' && c !== '\t' && c !== '\n' && c !== '\r') {
-                    preservePendingChunk = true;
-                    break;
-                }
-            }
-
-            if (!preservePendingChunk) {
-                this.pendingChunk = null;
-            }
-        }
-
-        if (flushPoint > lastFlushPoint || (last && (chunkLength > 0 || this.pendingChunk !== null))) {
-            this.flush(chunk, lastFlushPoint, last ? chunkLength : flushPoint);
+        if (flushPoint > lastFlushPoint) {
+            this.flush(chunk, lastFlushPoint, flushPoint);
         }
 
         // Produce pendingChunk if any
-        if (!last && flushPoint < chunkLength) {
+        if (flushPoint < chunkLength) {
             const newPending = chunk.slice(flushPoint, chunkLength);
 
             this.pendingChunk = this.pendingChunk !== null
@@ -331,7 +315,13 @@ class ChunkParser {
     }
 
     finish() {
-        this.push('', true);
+        if (this.pendingChunk !== null) {
+            if (/[^ \t\r\n]/.test(this.pendingChunk)) {
+                this.flush('', 0, 0);
+            }
+
+            this.pendingChunk = null;
+        }
 
         return this.value;
     }
