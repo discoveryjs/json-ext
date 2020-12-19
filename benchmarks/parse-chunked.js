@@ -4,6 +4,7 @@ const chalk = require('chalk');
 const parseChunked = require('../src/parse-chunked');
 const { runBenchmark, prettySize, outputToReadme, updateReadmeTable } = require('./benchmark-utils');
 const benchmarkName = 'parse-chunked';
+const defaultChunkSize = 10 * 1024 * 1024; // chunk size for generator
 const fixtures = [
     './fixture/small.json',
     './fixture/medium.json',
@@ -12,7 +13,8 @@ const fixtures = [
     './fixture/1gb.json'    // 4 | auto-generate from big.json
 ];
 const fixtureIndex = process.argv[2] || 0;
-const filename = fixtureIndex in fixtures ? path.join(__dirname, fixtures[fixtureIndex]) : false;
+const chunkSize = Number(process.argv[3]) || defaultChunkSize;
+const filename = fixtureIndex//fixtureIndex in fixtures ? path.join(__dirname, fixtures[fixtureIndex]) : false;
 
 if (!filename) {
     console.error('Fixture is not selected!');
@@ -26,7 +28,6 @@ if (!filename) {
     process.exit();
 }
 
-const chunkSize = 512 * 1024; // chunk size for generator
 const tests = module.exports = {
     'JSON.parse()': () =>
         JSON.parse(fs.readFileSync(filename, 'utf8')),

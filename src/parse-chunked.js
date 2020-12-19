@@ -9,6 +9,59 @@ function isObject(value) {
     return value !== null && typeof value === 'object';
 }
 
+function pushWithSpread(to, elements) {
+    to.push(...elements);
+    return to;
+}
+
+function pushWithSpreadByChunks(to, elements, chunkSize) {
+    for (let i = 0; i < elements.length; i += chunkSize) {
+        const chunk = elements.slice(i, i + (elements.length - i < chunkSize ? elements.length : chunkSize));
+        to.push(...chunk);
+    }
+
+    return to;
+}
+
+function pushByElement(to, elements) {
+    for (let i = 0; i < elements.length; i++) {
+        to.push(elements[i]);
+    }
+
+    return to;
+}
+
+
+function pushByElementWithLengthInc(to, elements) {
+    for (let i = 0; i < elements.length; i++) {
+        to[to.length] = elements[i];
+    }
+
+    return to;
+}
+
+function pushByElementWithLengthIncImp(to, elements) {
+    let startWithLength = to.length;
+    to.length = to.length + elements.length;
+    for (let i = 0; i < elements.length; i++) {
+        to[startWithLength++] = elements[i];
+    }
+
+    return to;
+}
+
+function pushByConcat(to, elements) {
+    return to.concat(elements);
+}
+
+function push(to, elements) {
+    // return pushWithSpreadByChunks(to, elements, 30);
+    // return pushByElement(to, elements);
+    // return pushByElementWithLengthInc(to, elements);
+    // return pushByElementWithLengthIncImp(to, elements);
+    return pushByConcat(to, elements);
+}
+
 function adjustPosition(error, parser) {
     if (error.name === 'SyntaxError' && parser.jsonParseOffset) {
         error.message = error.message.replace(/at position (\d+)/, (_, pos) =>
@@ -116,7 +169,7 @@ class ChunkParser {
                 if (this.stack[this.flushDepth - 1] === STACK_OBJECT) {
                     Object.assign(this.valueStack.value, JSON.parse('{' + fragment + '}'));
                 } else {
-                    this.valueStack.value.push(...JSON.parse('[' + fragment + ']'));
+                    this.valueStack.value = push(this.valueStack.value, JSON.parse('[' + fragment + ']'));
                 }
             } else {
                 // That's an entire value on a top level
@@ -146,7 +199,7 @@ class ChunkParser {
                 if (this.stack[this.lastFlushDepth - 1] === STACK_OBJECT) {
                     Object.assign(this.valueStack.value, JSON.parse('{' + fragment + '}'));
                 } else {
-                    this.valueStack.value.push(...JSON.parse('[' + fragment + ']'));
+                    this.valueStack.value = push(this.valueStack.value, JSON.parse('[' + fragment + ']'));
                 }
             }
 
@@ -180,7 +233,7 @@ class ChunkParser {
             if (this.stack[this.lastFlushDepth - 1] === STACK_OBJECT) {
                 Object.assign(this.valueStack.value, JSON.parse(fragment));
             } else {
-                this.valueStack.value.push(...JSON.parse(fragment));
+                this.valueStack.value = push(this.valueStack.value, JSON.parse(fragment));
             }
 
             for (let i = this.lastFlushDepth - 1; i >= this.flushDepth; i--) {
