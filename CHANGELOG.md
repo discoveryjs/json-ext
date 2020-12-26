@@ -1,3 +1,7 @@
+## next
+
+- Fixed `RangeError: Maximum call stack size exceeded` in `parseChunked()` on very long arrays (corner case)
+
 ## 0.5.1 (2020-12-18)
 
 - Fixed `parseChunked()` crash when input has trailing whitespaces

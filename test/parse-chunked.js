@@ -155,17 +155,6 @@ describe('parseChunked()', () => {
 
             assert.deepStrictEqual(actual, expected);
         });
-
-        // it('Uint8Array', async () => {
-        //     const encoded = new TextEncoder().encode('[1,{"🤓\\uD800\\uDC00":2}]');
-        //     const p = 9;
-        //     const actual = await parseChunked(() => [
-        //         encoded.slice(0, p),
-        //         encoded.slice(p)
-        //     ]);
-
-        //     assert.deepStrictEqual(actual, [1, {"🤓\uD800\uDC00":2}]);
-        // });
     });
 
     describe('use with stream', () => {
@@ -307,5 +296,23 @@ describe('parseChunked()', () => {
                 )
             );
         }
+    });
+
+    describe('should not fail on very long arrays (stack overflow)', () => {
+        it('the save depth', async () => {
+            const size = 150000;
+            const actual = await parseChunked(() => ['[1', ',2'.repeat(size - 1), ']']);
+            assert.deepStrictEqual(actual.length, size);
+        });
+        it('increment depth', async () => {
+            const size = 150000;
+            const actual = await parseChunked(() => ['[', '2,'.repeat(size - 1) + '{"a":1', '}]']);
+            assert.deepStrictEqual(actual.length, size);
+        });
+        it('decrement depth', async () => {
+            const size = 150000;
+            const actual = await parseChunked(() => ['[1', ',2'.repeat(size - 1) + ']']);
+            assert.deepStrictEqual(actual.length, size);
+        });
     });
 });

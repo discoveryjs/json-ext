@@ -19,6 +19,17 @@ function adjustPosition(error, parser) {
     return error;
 }
 
+function append(array, elements) {
+    // Note: Avoid to use array.push(...elements) since it may lead to
+    // "RangeError: Maximum call stack size exceeded" for a long arrays
+    const initialLength = array.length;
+    array.length += elements.length;
+
+    for (let i = 0; i < elements.length; i++) {
+        array[initialLength + i] = elements[i];
+    }
+}
+
 module.exports = function(chunkEmitter) {
     let parser = new ChunkParser();
 
@@ -116,7 +127,7 @@ class ChunkParser {
                 if (this.stack[this.flushDepth - 1] === STACK_OBJECT) {
                     Object.assign(this.valueStack.value, JSON.parse('{' + fragment + '}'));
                 } else {
-                    this.valueStack.value.push(...JSON.parse('[' + fragment + ']'));
+                    append(this.valueStack.value, JSON.parse('[' + fragment + ']'));
                 }
             } else {
                 // That's an entire value on a top level
@@ -146,7 +157,7 @@ class ChunkParser {
                 if (this.stack[this.lastFlushDepth - 1] === STACK_OBJECT) {
                     Object.assign(this.valueStack.value, JSON.parse('{' + fragment + '}'));
                 } else {
-                    this.valueStack.value.push(...JSON.parse('[' + fragment + ']'));
+                    append(this.valueStack.value, JSON.parse('[' + fragment + ']'));
                 }
             }
 
@@ -180,7 +191,7 @@ class ChunkParser {
             if (this.stack[this.lastFlushDepth - 1] === STACK_OBJECT) {
                 Object.assign(this.valueStack.value, JSON.parse(fragment));
             } else {
-                this.valueStack.value.push(...JSON.parse(fragment));
+                append(this.valueStack.value, JSON.parse(fragment));
             }
 
             for (let i = this.lastFlushDepth - 1; i >= this.flushDepth; i--) {
