@@ -299,7 +299,7 @@ describe('parseChunked()', () => {
     });
 
     describe('should not fail on very long arrays (stack overflow)', () => {
-        it('the save depth', async () => {
+        it('the same depth', async () => {
             const size = 150000;
             const actual = await parseChunked(() => ['[1', ',2'.repeat(size - 1), ']']);
             assert.deepStrictEqual(actual.length, size);
