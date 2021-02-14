@@ -27,16 +27,16 @@ node benchmarks/parse-chunked [fixture]
 
 Where `[fixture]` is number of fixture:
 
-* `0` – fixture/small.json (~2Mb)
-* `1` – fixture/medium.json (~13.7Mb)
-* `2` – fixture/big.json (~100Mb)
-* `3` – fixture/500mb.json (500Mb, auto-generated from big.json x 5 + padding strings)
+* `0` – fixture/small.json (~2MB)
+* `1` – fixture/medium.json (~13.7MB)
+* `2` – fixture/big.json (~100MB)
+* `3` – fixture/500mb.json (500MB, auto-generated from big.json x 5 + padding strings)
 * `4` – fixture/1gb.json (1gb, auto-generated from big.json x 10 + padding strings)
 
 ### Time
 
 <!--parse-chunked-table:time-->
-| Solution | S (~2Mb) | M (~13.7Mb) | L (~100Mb) | 500Mb | 1Gb |
+| Solution | S (~2MB) | M (~13.7MB) | L (~100MB) | 500MB | 1GB |
 | -------- | -------: | ----------: | ---------: | ----: | --: |
 | JSON.parse() | 29ms | 85ms | 928ms | 5769ms | ERR_STRING_TOO_LONG |
 | parse fs#ReadableStream | 62ms | 165ms | 1366ms | 6511ms | 12946ms |
@@ -46,7 +46,7 @@ Where `[fixture]` is number of fixture:
 ### CPU usage
 
 <!--parse-chunked-table:cpu-->
-| Solution | S (~2Mb) | M (~13.7Mb) | L (~100Mb) | 500Mb | 1Gb |
+| Solution | S (~2MB) | M (~13.7MB) | L (~100MB) | 500MB | 1GB |
 | -------- | -------: | ----------: | ---------: | ----: | --: |
 | JSON.parse() | 26ms | 84ms | 1170ms | 7255ms | ERR_STRING_TOO_LONG |
 | parse fs#ReadableStream | 57ms | 159ms | 1536ms | 7460ms | 14932ms |
@@ -56,7 +56,7 @@ Where `[fixture]` is number of fixture:
 ### Max memory usage
 
 <!--parse-chunked-table:memory-->
-| Solution | S (~2Mb) | M (~13.7Mb) | L (~100Mb) | 500Mb | 1Gb |
+| Solution | S (~2MB) | M (~13.7MB) | L (~100MB) | 500MB | 1GB |
 | -------- | -------: | ----------: | ---------: | ----: | --: |
 | JSON.parse() | 6.62MB | 46.41MB | 413.43MB | 2.07GB | ERR_STRING_TOO_LONG |
 | parse fs#ReadableStream | 12.06MB | 40.71MB | 162.35MB | 640.27MB | 1.22GB |
@@ -66,7 +66,7 @@ Where `[fixture]` is number of fixture:
 ### Output for fixtures
 
 <details>
-<summary><pre>&gt; node benchmarks/parse-chunked    # use benchmarks/fixture/small.json (~2Mb)</pre></summary>
+<summary><pre>&gt; node benchmarks/parse-chunked    # use benchmarks/fixture/small.json (~2MB)</pre></summary>
 <!--parse-chunked-output:0-->
 
 ```
@@ -103,7 +103,7 @@ Waiting for the debugger to disconnect...
 </details>
 
 <details>
-<summary><pre>&gt; node benchmarks/parse-chunked 1  # use benchmarks/fixture/medium.json (~13.7Mb)</pre></summary>
+<summary><pre>&gt; node benchmarks/parse-chunked 1  # use benchmarks/fixture/medium.json (~13.7MB)</pre></summary>
 <!--parse-chunked-output:1-->
 
 ```
@@ -134,7 +134,7 @@ mem impact:  rss  +50.29MB | heapTotal  +51.97MB | heapUsed  +19.28MB | external
 
 
 <details>
-<summary><pre>&gt; node benchmarks/parse-chunked 2  # use benchmarks/fixture/big.json (~100Mb)</pre></summary>
+<summary><pre>&gt; node benchmarks/parse-chunked 2  # use benchmarks/fixture/big.json (~100MB)</pre></summary>
 <!--parse-chunked-output:2-->
 
 ```
@@ -244,16 +244,16 @@ node benchmarks/stringify-stream [fixture]
 
 Where `[fixture]` is number of fixture:
 
-* `0` – fixture/small.json (~2Mb)
-* `1` – fixture/medium.json (~13.7Mb)
-* `2` – fixture/big.json (~100Mb)
-* `3` – fixture/500mb.json (500Mb, auto-generated from big.json x 5 + padding strings)
+* `0` – fixture/small.json (~2MB)
+* `1` – fixture/medium.json (~13.7MB)
+* `2` – fixture/big.json (~100MB)
+* `3` – fixture/500mb.json (500MB, auto-generated from big.json x 5 + padding strings)
 * `4` – fixture/1gb.json (1gb, auto-generated from big.json x 10 + padding strings)
 
 ### Time
 
 <!--stringify-stream-table:time-->
-| Solution | S (~2Mb) | M (~13.7Mb) | L (~100Mb) | 500Mb | 1Gb |
+| Solution | S (~2MB) | M (~13.7MB) | L (~100MB) | 500MB | 1GB |
 | -------- | -------: | ----------: | ---------: | ----: | --: |
 | JSON.stringify() | 28ms | 77ms | 910ms | 5545ms | ERR_STRING_TOO_LONG |
 | @discoveryjs/json-ext | 65ms | 140ms | 2341ms | 12266ms | 25951ms |
@@ -264,7 +264,7 @@ Where `[fixture]` is number of fixture:
 ### CPU usage
 
 <!--stringify-stream-table:cpu-->
-| Solution | S (~2Mb) | M (~13.7Mb) | L (~100Mb) | 500Mb | 1Gb |
+| Solution | S (~2MB) | M (~13.7MB) | L (~100MB) | 500MB | 1GB |
 | -------- | -------: | ----------: | ---------: | ----: | --: |
 | JSON.stringify() | 24ms | 66ms | 957ms | 5645ms | ERR_STRING_TOO_LONG |
 | @discoveryjs/json-ext | 71ms | 148ms | 2296ms | 11748ms | 24671ms |
@@ -275,7 +275,7 @@ Where `[fixture]` is number of fixture:
 ### Max memory usage
 
 <!--stringify-stream-table:memory-->
-| Solution | S (~2Mb) | M (~13.7Mb) | L (~100Mb) | 500Mb | 1Gb |
+| Solution | S (~2MB) | M (~13.7MB) | L (~100MB) | 500MB | 1GB |
 | -------- | -------: | ----------: | ---------: | ----: | --: |
 | JSON.stringify() | 10.20MB | 55.77MB | 401.66MB | 2.40GB | ERR_STRING_TOO_LONG |
 | @discoveryjs/json-ext | 4.10MB | 15.40MB | 112.06MB | 506.72MB | 993.97MB |
@@ -286,7 +286,7 @@ Where `[fixture]` is number of fixture:
 ### Output for fixtures
 
 <details>
-<summary><pre>&gt; node benchmarks/stringify-stream    # use benchmarks/fixture/small.json (~2Mb)</pre></summary>
+<summary><pre>&gt; node benchmarks/stringify-stream    # use benchmarks/fixture/small.json (~2MB)</pre></summary>
 <!--stringify-stream-output:0-->
 
 ```
@@ -322,7 +322,7 @@ mem impact:  rss   +8.92MB | heapTotal    +795kB | heapUsed    +526kB | external
 </details>
 
 <details>
-<summary><pre>&gt; node benchmarks/stringify-stream 1  # use benchmarks/fixture/medium.json (~13.7Mb)</pre></summary>
+<summary><pre>&gt; node benchmarks/stringify-stream 1  # use benchmarks/fixture/medium.json (~13.7MB)</pre></summary>
 <!--stringify-stream-output:1-->
 
 ```
@@ -359,7 +359,7 @@ mem impact:  rss  +18.72MB | heapTotal    +532kB | heapUsed    +277kB | external
 
 
 <details>
-<summary><pre>&gt; node benchmarks/stringify-stream 2  # use benchmarks/fixture/big.json (~100Mb)</pre></summary>
+<summary><pre>&gt; node benchmarks/stringify-stream 2  # use benchmarks/fixture/big.json (~100MB)</pre></summary>
 <!--stringify-stream-output:2-->
 
 ```
