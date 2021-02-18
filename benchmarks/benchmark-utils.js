@@ -260,7 +260,6 @@ function captureStdio(stream, buffer) {
 function captureOutput(callback) {
     let buffer = [];
     const cancelCapture = () => captures.forEach(fn => fn());
-    debugger;
     const captures = [
         captureStdio(process.stdout, buffer),
         captureStdio(process.stderr, buffer)
