@@ -1,11 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const chalk = require('chalk');
+const { Readable } = require('stream');
 const bfj = require('bfj');
 const JsonStreamStringify = require('json-stream-stringify');
 const jsonExt = require('../src');
 const {
-    StringStream,
     runBenchmark,
     prettySize,
     outputToReadme,
@@ -49,7 +49,7 @@ function sizeLessThan(limit) {
 
 const tests = module.exports = {
     'JSON.stringify()': data =>
-        new StringStream(JSON.stringify(data)),
+        Readable.from(JSON.stringify(data)),
 
     [require('../package.json').name]: data =>
         jsonExt.stringifyStream(data),

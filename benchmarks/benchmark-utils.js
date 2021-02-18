@@ -2,24 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { fork } = require('child_process');
 const chalk = require('chalk');
-const { Readable } = require('stream');
 const ANSI_REGEXP = /([\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><])/g;
-
-class StringStream extends Readable {
-    constructor(str) {
-        let pushed = null;
-        super({
-            read() {
-                if (!pushed) {
-                    pushed = setTimeout(() => {
-                        this.push(str);
-                        this.push(null);
-                    }, 1);
-                }
-            }
-        });
-    }
-}
 
 function runBenchmark(name, argv = process.argv.slice(2)) {
     return new Promise((resolve, reject) => {
@@ -374,7 +357,6 @@ function updateReadmeTable(benchmarkName, fixtureIndex, fixtures, results) {
 }
 
 module.exports = {
-    StringStream,
     runBenchmark,
     benchmark,
     prettySize,
