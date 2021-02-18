@@ -183,6 +183,7 @@ function traceMem(resolutionMs, sample = false) {
     const max = { ...base };
     const startTime = Date.now();
     const samples = [];
+    const timer = null;
     const takeSample = () => {
         const mem = process.memoryUsage();
 
@@ -199,10 +200,13 @@ function traceMem(resolutionMs, sample = false) {
             }
         }
     };
-    const timer = setInterval(
-        takeSample,
-        isFinite(resolutionMs) && parseInt(resolutionMs) > 0 ? parseInt(resolutionMs) : 16
-    );
+
+    if (sample) {
+        setInterval(
+            takeSample,
+            isFinite(resolutionMs) && parseInt(resolutionMs) > 0 ? parseInt(resolutionMs) : 16
+        );
+    }
 
     return {
         base,
