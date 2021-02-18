@@ -31,10 +31,10 @@ const tests = module.exports = {
     'JSON.parse()': () =>
         JSON.parse(fs.readFileSync(filename, 'utf8')),
 
-    'parse fs#ReadableStream': () =>
+    [require('../package.json').name + ' fs.createReadStream()']: () =>
         parseChunked(fs.createReadStream(filename, { highWaterMark: chunkSize })),
 
-    'parse generator': () =>
+    [require('../package.json').name + ' fs.readFileSync()']: () =>
         parseChunked(function*() {
             let json = fs.readFileSync(filename, 'utf8');
             for (let i = 0; i < json.length; i += chunkSize) {
