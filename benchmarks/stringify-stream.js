@@ -47,9 +47,28 @@ function sizeLessThan(limit) {
     throw error;
 }
 
+class ChunkedStringStream extends Readable {
+    constructor(str) {
+        let offset = 0;
+
+        super({
+            read(size) {
+                size = 512 * 1024;
+                if (offset < str.length) {
+                    this.push(str.substr(offset, size));
+                    offset += size;
+                    return;
+                }
+
+                this.push(null);
+            }
+        });
+    }
+}
+
 const tests = module.exports = {
     'JSON.stringify()': data =>
-        Readable.from(JSON.stringify(data)),
+        new ChunkedStringStream(JSON.stringify(data)),
 
     [require('../package.json').name]: data =>
         jsonExt.stringifyStream(data),
