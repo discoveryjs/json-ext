@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "bfj": "^7.0.2",
+    "cbor": "^7.0.3",
     "chalk": "^4.1.0",
     "json-stream-stringify": "^2.0.2"
   }

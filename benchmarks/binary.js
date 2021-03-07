@@ -1,7 +1,17 @@
-const { encode, decode } = require('../src/binary');
-const { gzipSync, brotliCompressSync } = require('zlib');
+const jsonExt = require('../src/binary');
+const v8 = require('v8');
+const cbor = require('cbor');
+const { gzipSync, gunzipSync, brotliCompressSync } = require('zlib');
+const stringToBuffer = s => new TextEncoder().encode(s);
+const ensureBuffer = v => typeof v === 'string' ? stringToBuffer(v) : v;
+
+// FIXTURE
 const filename = process.argv[2];
-const mockData = {
+const raw = filename
+    ? require('fs').readFileSync(filename)
+    : null;
+const fixture = raw !== null ? JSON.parse(raw) : {
+    // mock data
     foo: 1,
     bar: [1,2,3],
     a: ['aaa', 'bbb', 'aaa', 'foo'],
@@ -9,58 +19,137 @@ const mockData = {
     baz: {foo: 2, a: 'asd', baz: true},
     qux: {foo: 3, a: 'asd', baz: false}
 };
-const stringToBuffer = s => new TextEncoder().encode(s);
-const gzip = true;
-const brotli = false;
 
-// console.log(TYPE);
-const times = {};
-const time = (name, fn) => {
-    console.log(name);
-    const t = Date.now();
-    const res = fn();
-    times[name] = Date.now() - t;
-    console.log(name, times[name]);
-    return res;
+// BENCHMARK solutions & features
+const features = new Set([
+    // 'brotli',
+    'gzip'
+]);
+const solutions = {
+    'native': {
+        encode: {
+            name: 'JSON.strigify()',
+            fn: data => JSON.stringify(data)
+        },
+        decode: {
+            name: 'JSON.parse()',
+            fn: encoded => JSON.parse(encoded)
+        }
+    },
+    'Node.js v8': {
+        encode: {
+            name: 'serialize()',
+            fn: data => v8.serialize(data)
+        },
+        decode: {
+            name: 'deserialize()',
+            fn: encoded => v8.deserialize(encoded)
+        }
+    },
+    'json-ext': {
+        encode: {
+            name: 'encode()',
+            fn: data => jsonExt.encode(data)
+        },
+        decode: {
+            name: 'decode()',
+            fn: encoded => jsonExt.decode(encoded)
+        }
+    },
+    'cbor': {
+        encode: {
+            name: 'encode()',
+            fn(data) {
+                // return cbor.encode(data);
+                return new Promise((resolve) => {
+                    const buf = [];
+                    const enc = new cbor.Encoder();
+                    enc.on('data', chunk => buf.push(chunk));
+                    enc.on('error', console.error);
+                    enc.on('finish', () => resolve(Buffer.concat(buf)));
+
+                    enc.end(data);
+                });
+            }
+        },
+        decode: {
+            name: 'decode()',
+            fn: encoded => cbor.decode(encoded)
+        }
+    }
 };
-const raw = filename
-    ? require('fs').readFileSync(filename)
-    : null;
 
-const data = raw !== null
-    ? time('jsonParse', () => JSON.parse(raw))
-    : mockData;
-const jsonStringified = time('jsonStringify', () => JSON.stringify(data));
-const jsonStringifiedBuffer = stringToBuffer(jsonStringified);
-if (!raw || jsonStringifiedBuffer.length !== raw.length) {
-    time('jsonParse', () => JSON.parse(jsonStringified));
+function addTotal(times, encodeName, decodeName) {
+    let total = 0;
+
+    for (const t of Object.values(times)) {
+        total += t || 0;
+    }
+
+    return {
+        ...times,
+        encodeDecode: times[encodeName] + times[decodeName],
+        total
+    };
 }
-const stringifiedGzipSize = gzip ? time('jsonGzip', () => gzipSync(jsonStringified).length) : null;
-const stringifiedBrotliSize = brotli ? time('jsonBrotli', () => brotliCompressSync(jsonStringified).length) : null;
-const encodedData = time('binaryEncode', () => encode(data));
-const encodedGzipSize = gzip ? time('binaryGzip', () => gzipSync(encodedData).length) : null;
-const encodedBrotliSize = brotli ? time('binaryBrotli', () => brotliCompressSync(encodedData).length) : null;
-const decodedData = time('binaryDecode', () => decode(encodedData));
-const size = {
-    raw: raw !== null ? raw.length : jsonStringifiedBuffer.length,
-    stringified: jsonStringifiedBuffer.length,
-    stringifiedGzip: stringifiedGzipSize,
-    stringifiedBrotli: stringifiedBrotliSize,
-    binaryEncoded: encodedData.length,
-    binaryEncodedGzip: encodedGzipSize,
-    binaryEncodedBrotli: encodedBrotliSize,
-    binaryDecoded: stringToBuffer(JSON.stringify(decodedData)).length
-};
 
-console.log(`===[${filename || 'raw'}]===`);
-console.log({ times, size });
-// console.log(encodedData);
-// console.log(decodedData);
-// console.log(decode(encodedData));
-// require('fs').writeFileSync('./t.bjson', encodedData);
-// require('fs').writeFileSync('./t.json', jsonStringify);
+async function runSolution(name, data) {
+    const solution = solutions[name];
+    const { encode, decode } = solution;
+    const times = {};
+    const time = async (tname, fn) => {
+        console.log(name, tname);
+        const t = Date.now();
+        const res = await fn();
+        times[tname] = Date.now() - t;
+        console.log(name, tname, times[tname]);
+        return res;
+    };
 
-// data.repos = data.repos.slice(0, 2);
-// require('fs').writeFileSync('./registy-test.json', JSON.stringify(data, null, 1).slice(0, 1000000));
-// decodedData.repos = decodedData.repos.slice(0, 2);
-// require('fs').writeFileSync('./registy-test-encode-decode.json', JSON.stringify(decodedData, null, 1).slice(0, 1000000));
+    const encoded = await time(encode.name, () => encode.fn(data));
+    const encodedBuffer = ensureBuffer(encoded);
+    let gzip = null;
+    let brotli = null;
+
+    if (features.has('gzip')) {
+        gzip = await time('gzip', () => gzipSync(encoded));
+        await time('gunzip', () => gunzipSync(gzip));
+    }
+
+    if (features.has('brotli')) {
+        brotli = await time('brotli compress', () => brotliCompressSync(encoded));
+        // await time('gunzip', () => gunzipSync(gzip));
+    }
+
+    const decoded = await time(decode.name, () => decode.fn(encoded));
+    require('assert').deepStrictEqual(decoded, data);
+
+    return {
+        name,
+        size: {
+            encoded: encoded.length,
+            encodedBuffer: encodedBuffer.length,
+            ...gzip ? { gzip: gzip.length } : null,
+            ...brotli ? { brotli: brotli.length } : null
+        },
+        time: addTotal(times, encode.name, decode.name)
+    };
+}
+
+async function runBenchmarks() {
+    const results = [];
+
+    for (const solutionName of Object.keys(solutions)) {
+        results.push(await runSolution(solutionName, fixture));
+    }
+
+    console.log(`===[${filename || 'raw'}]===`);
+    console.log(`===[size: ${filename ? raw.length : JSON.stringify(fixture).length}]`);
+    console.log(results);
+
+    for (const { name, size, time } of results) {
+        console.log([name, ...Object.values(size), ...Object.values(time)].join(';'));
+    }
+}
+
+setTimeout(runBenchmarks, 250);
