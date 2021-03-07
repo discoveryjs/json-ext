@@ -1,6 +1,7 @@
 const jsonExt = require('../src/binary');
 const v8 = require('v8');
 const cbor = require('cbor');
+const bson = require('bson');
 const { gzipSync, gunzipSync, brotliCompressSync } = require('zlib');
 const stringToBuffer = s => new TextEncoder().encode(s);
 const ensureBuffer = v => typeof v === 'string' ? stringToBuffer(v) : v;
@@ -26,13 +27,13 @@ const features = new Set([
     'gzip'
 ]);
 const solutions = {
-    'native': {
+    'native JSON': {
         encode: {
-            name: 'JSON.strigify()',
+            name: 'strigify()',
             fn: data => JSON.stringify(data)
         },
         decode: {
-            name: 'JSON.parse()',
+            name: 'parse()',
             fn: encoded => JSON.parse(encoded)
         }
     },
@@ -76,6 +77,16 @@ const solutions = {
             name: 'decode()',
             fn: encoded => cbor.decode(encoded)
         }
+    },
+    'bson': {
+        encode: {
+            name: 'serialize()',
+            fn: data => bson.serialize(data)
+        },
+        decode: {
+            name: 'deserialize()',
+            fn: encoded => bson.deserialize(encoded)
+        }
     }
 };
 
@@ -111,6 +122,14 @@ async function runSolution(name, data) {
     let gzip = null;
     let brotli = null;
 
+    try {
+        const decoded = await time(decode.name, () => decode.fn(encoded));
+        require('assert').deepStrictEqual(decoded, data);
+    } catch (e) {
+        times[decode.name] = 'ERROR';
+        console.error(e);
+    }
+
     if (features.has('gzip')) {
         gzip = await time('gzip', () => gzipSync(encoded));
         await time('gunzip', () => gunzipSync(gzip));
@@ -120,9 +139,6 @@ async function runSolution(name, data) {
         brotli = await time('brotli compress', () => brotliCompressSync(encoded));
         // await time('gunzip', () => gunzipSync(gzip));
     }
-
-    const decoded = await time(decode.name, () => decode.fn(encoded));
-    require('assert').deepStrictEqual(decoded, data);
 
     return {
         name,
