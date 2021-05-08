@@ -308,6 +308,15 @@ class ChunkParser {
                     }
 
                     break;
+                case 0x09: /* \t */
+                case 0x0A: /* \n */
+                case 0x0D: /* \r */
+                case 0x20: /* space */
+                    // prevent passing trailing whitespaces to the next flush(..) call
+                    if (lastFlushPoint === i) {
+                        ++lastFlushPoint;
+                    }
+                    break;
             }
         }
 
@@ -317,11 +326,17 @@ class ChunkParser {
 
         // Produce pendingChunk if any
         if (flushPoint < chunkLength) {
-            const newPending = chunk.slice(flushPoint, chunkLength);
+            let newPending = chunk.slice(flushPoint, chunkLength);
 
-            this.pendingChunk = this.pendingChunk !== null
-                ? this.pendingChunk + newPending
-                : newPending;
+            if (this.pendingChunk === null && !this.stateString) {
+                newPending = newPending.trimStart();
+            }
+
+            if (newPending.length) {
+                this.pendingChunk = this.pendingChunk !== null
+                    ? this.pendingChunk + newPending
+                    : newPending;
+            }
         }
     }
 
