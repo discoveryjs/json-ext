@@ -342,10 +342,7 @@ class ChunkParser {
 
     finish() {
         if (this.pendingChunk !== null) {
-            if (/[^ \t\r\n]/.test(this.pendingChunk)) {
-                this.flush('', 0, 0);
-            }
-
+            this.flush('', 0, 0);
             this.pendingChunk = null;
         }
 
