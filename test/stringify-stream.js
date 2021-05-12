@@ -17,7 +17,9 @@ const {
 } = require('./fixture/stringify-cases');
 
 // Not supported in dist mode
-if (typeof stringifyStream === 'string') {
+try {
+    stringifyStream();
+} catch (e) {
     return;
 }
 
