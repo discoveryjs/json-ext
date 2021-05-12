@@ -1,6 +1,8 @@
 ## next
 
-- Fixed wrong parse error when chunks are splitted on a whitespace inside an object or array (#6, @alexei-vedder)
+- `parseChunked()`
+    - Fixed wrong parse error when chunks are splitted on a whitespace inside an object or array (#6, @alexei-vedder)
+    - Fixed corner cases when wrong placed or missed comma doesn't cause to parsing failure
 
 ## 0.5.2 (2020-12-26)
 

@@ -102,6 +102,55 @@ class ChunkParser {
         this.jsonParseOffset = 0;
     }
 
+    parseAndAppend(fragment, wrap) {
+        // Append new entries or elements
+        if (this.stack[this.lastFlushDepth - 1] === STACK_OBJECT) {
+            if (wrap) {
+                this.jsonParseOffset--;
+                fragment = '{' + fragment + '}';
+            }
+
+            Object.assign(this.valueStack.value, JSON.parse(fragment));
+        } else {
+            if (wrap) {
+                this.jsonParseOffset--;
+                fragment = '[' + fragment + ']';
+            }
+
+            append(this.valueStack.value, JSON.parse(fragment));
+        }
+    }
+
+    prepareAddition(fragment) {
+        if (this.valueStack !== null) {
+            const { value } = this.valueStack;
+            const expectComma = Array.isArray(value)
+                ? value.length !== 0
+                : Object.keys(value).length !== 0;
+
+            if (expectComma) {
+                // Skip a comma at the beginning of fragment, otherwise it would
+                // fail to parse
+                if (fragment[0] === ',') {
+                    this.jsonParseOffset++;
+                    return fragment.slice(1);
+                }
+
+                // When value (an object or array) is not empty and a fragment
+                // doesn't start with a comma, a single valid fragment starting
+                // is a closing bracket. If it's not, a prefix is adding to fail
+                // parsing. Otherwise, the sequence of chunks can be successfully
+                // parsed, although it should not, e.g. ["[{}", "{}]"]
+                if (fragment[0] !== '}' && fragment[0] !== ']') {
+                    this.jsonParseOffset -= 3;
+                    return '[[]' + fragment;
+                }
+            }
+        }
+
+        return fragment;
+    }
+
     flush(chunk, start, end) {
         let fragment = chunk.slice(start, end);
 
@@ -115,23 +164,10 @@ class ChunkParser {
             this.pendingChunk = null;
         }
 
-        // Skip a comma at the beginning if any
-        if (fragment[0] === ',') {
-            fragment = fragment.slice(1);
-            this.jsonParseOffset++;
-        }
-
         if (this.flushDepth === this.lastFlushDepth) {
             // Depth didn't changed, so it's a root value or entry/element set
             if (this.flushDepth > 0) {
-                this.jsonParseOffset--;
-
-                // Append new entries or elements
-                if (this.stack[this.flushDepth - 1] === STACK_OBJECT) {
-                    Object.assign(this.valueStack.value, JSON.parse('{' + fragment + '}'));
-                } else {
-                    append(this.valueStack.value, JSON.parse('[' + fragment + ']'));
-                }
+                this.parseAndAppend(this.prepareAddition(fragment), true);
             } else {
                 // That's an entire value on a top level
                 this.value = JSON.parse(fragment);
@@ -154,14 +190,7 @@ class ChunkParser {
                     prev: null
                 };
             } else {
-                this.jsonParseOffset--;
-
-                // Parse fragment and append to current value
-                if (this.stack[this.lastFlushDepth - 1] === STACK_OBJECT) {
-                    Object.assign(this.valueStack.value, JSON.parse('{' + fragment + '}'));
-                } else {
-                    append(this.valueStack.value, JSON.parse('[' + fragment + ']'));
-                }
+                this.parseAndAppend(this.prepareAddition(fragment), true);
             }
 
             // Move down to the depths to the last object/array, which is current now
@@ -184,18 +213,16 @@ class ChunkParser {
                     prev: this.valueStack
                 };
             }
-        } else { // this.flushDepth < this.lastFlushDepth
+        } else /* this.flushDepth < this.lastFlushDepth */ {
+            fragment = this.prepareAddition(fragment);
+
             // Add missed opening brackets/parentheses
             for (let i = this.lastFlushDepth - 1; i >= this.flushDepth; i--) {
                 this.jsonParseOffset--;
                 fragment = (this.stack[i] === STACK_OBJECT ? '{' : '[') + fragment;
             }
 
-            if (this.stack[this.lastFlushDepth - 1] === STACK_OBJECT) {
-                Object.assign(this.valueStack.value, JSON.parse(fragment));
-            } else {
-                append(this.valueStack.value, JSON.parse(fragment));
-            }
+            this.parseAndAppend(fragment, false);
 
             for (let i = this.lastFlushDepth - 1; i >= this.flushDepth; i--) {
                 this.valueStack = this.valueStack.prev;

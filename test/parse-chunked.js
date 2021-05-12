@@ -146,6 +146,30 @@ describe('parseChunked()', () => {
                 /Unexpected token , in JSON at position 24/
             )
         );
+        it('should fail when starts with a comma', () =>
+            assert.rejects(
+                async () => await parse([',{}']),
+                /Unexpected token , in JSON at position 0/
+            )
+        );
+        it('should fail when starts with a comma #2', () =>
+            assert.rejects(
+                async () => await parse([',', '{}']),
+                /Unexpected token , in JSON at position 0/
+            )
+        );
+        it('should fail when no comma', () =>
+            assert.rejects(
+                async () => await parse(['[1 ', ' 2]']),
+                /Unexpected number in JSON at position 4/
+            )
+        );
+        it('should fail when no comma #2', () =>
+            assert.rejects(
+                async () => await parse(['[{}', '{}]']),
+                /Unexpected token { in JSON at position 3/
+            )
+        );
     });
 
     describe('use with buffers', () => {
