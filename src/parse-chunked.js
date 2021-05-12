@@ -98,17 +98,20 @@ class ChunkParser {
         this.stateStringEscape = false;
         this.pendingByteSeq = null;
         this.pendingChunk = null;
-        this.pos = 0;
+        this.chunkOffset = 0;
         this.jsonParseOffset = 0;
     }
 
     flush(chunk, start, end) {
         let fragment = chunk.slice(start, end);
-        this.jsonParseOffset = this.pos; // using for position correction in JSON.parse() error if any
+
+        // Save position correction an error in JSON.parse() if any
+        this.jsonParseOffset = this.chunkOffset + start;
 
         // Prepend pending chunk if any
         if (this.pendingChunk !== null) {
             fragment = this.pendingChunk + fragment;
+            this.jsonParseOffset -= this.pendingChunk.length;
             this.pendingChunk = null;
         }
 
@@ -199,7 +202,6 @@ class ChunkParser {
             }
         }
 
-        this.pos += end - start;
         this.lastFlushDepth = this.flushDepth;
     }
 
@@ -285,20 +287,20 @@ class ChunkParser {
                     break;
 
                 case 0x7B: /* { */
-                    // begin object
+                    // Open an object
                     flushPoint = i + 1;
                     this.stack[this.flushDepth++] = STACK_OBJECT;
                     break;
 
                 case 0x5B: /* [ */
-                    // begin array
+                    // Open an array
                     flushPoint = i + 1;
                     this.stack[this.flushDepth++] = STACK_ARRAY;
                     break;
 
                 case 0x5D: /* ] */
                 case 0x7D: /* } */
-                    // end object or array
+                    // Close an object or array
                     flushPoint = i + 1;
                     this.flushDepth--;
 
@@ -308,14 +310,20 @@ class ChunkParser {
                     }
 
                     break;
+
                 case 0x09: /* \t */
                 case 0x0A: /* \n */
                 case 0x0D: /* \r */
                 case 0x20: /* space */
-                    // prevent passing trailing whitespaces to the next flush(..) call
+                    // Move points forward when they points on current position and it's a whitespace
                     if (lastFlushPoint === i) {
-                        ++lastFlushPoint;
+                        lastFlushPoint++;
                     }
+
+                    if (flushPoint === i) {
+                        flushPoint++;
+                    }
+
                     break;
             }
         }
@@ -324,20 +332,20 @@ class ChunkParser {
             this.flush(chunk, lastFlushPoint, flushPoint);
         }
 
-        // Produce pendingChunk if any
+        // Produce pendingChunk if something left
         if (flushPoint < chunkLength) {
-            let newPending = chunk.slice(flushPoint, chunkLength);
-
-            if (this.pendingChunk === null && !this.stateString) {
-                newPending = newPending.trimStart();
-            }
-
-            if (newPending.length) {
-                this.pendingChunk = this.pendingChunk !== null
-                    ? this.pendingChunk + newPending
-                    : newPending;
+            if (this.pendingChunk !== null) {
+                // When there is already a pending chunk then no flush happened,
+                // appending entire chunk to pending one
+                this.pendingChunk += chunk;
+            } else {
+                // Create a pending chunk, it will start with non-whitespace since
+                // flushPoint was moved forward away from whitespaces on scan
+                this.pendingChunk = chunk.slice(flushPoint, chunkLength);
             }
         }
+
+        this.chunkOffset += chunkLength;
     }
 
     finish() {

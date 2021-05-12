@@ -1,3 +1,7 @@
+## next
+
+- Fixed wrong parse error when chunks are splitted on a whitespace inside an object or array (#6, @alexei-vedder)
+
 ## 0.5.2 (2020-12-26)
 
 - Fixed `RangeError: Maximum call stack size exceeded` in `parseChunked()` on very long arrays (corner case)

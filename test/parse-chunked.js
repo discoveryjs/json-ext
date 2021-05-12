@@ -103,10 +103,10 @@ describe('parseChunked()', () => {
         });
     }
 
-    describe('trailing whitespaces', () => {
-        describe('at the end', () => {
-            const expected = {};
-            const json = '{} \r\n\t';
+    describe('splitting on whitespaces', () => {
+        describe('inside an object and strings', () => {
+            const expected = { ' \r\n\t': ' \r\n\t', a: [1, 2] };
+            const json = ' \r\n\t{ \r\n\t" \\r\\n\\t" \r\n\t: \r\n\t" \\r\\n\\t" \r\n\t, \r\n\t"a": \r\n\t[ \r\n\t1 \r\n\t, \r\n\t2 \r\n\t] \r\n\t} \r\n\t';
 
             for (let len = 0; len <= json.length; len++) {
                 it(len ? len + ' char(s) length chunks' : 'parse full', async () =>
@@ -138,6 +138,12 @@ describe('parseChunked()', () => {
             assert.rejects(
                 async () => await parse(['[{"test":"hello"},', ',}']),
                 /Unexpected token , in JSON at position 18/
+            )
+        );
+        it('abs pos across chunks #3 (whitespaces)', () =>
+            assert.rejects(
+                async () => await parse(['[{"test" ', ' ', ' :"hello"} ', ' ', ',', ' ', ',}']),
+                /Unexpected token , in JSON at position 24/
             )
         );
     });
