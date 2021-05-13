@@ -1,4 +1,4 @@
-## next
+## 0.5.3 (2021-05-13)
 
 - Fixed `stringifyStream()` and `stringifyInfo()` to work properly when replacer is an allowlist
 - `parseChunked()`
