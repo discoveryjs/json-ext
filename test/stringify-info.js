@@ -36,6 +36,14 @@ describe('stringifyInfo()', () => {
         }
     });
 
+    describe('replacer option', () => {
+        // various values for a replace as an allowlist
+        createInfoTest(
+            { '3': 'ok', b: [2, 3, { c: 5, a: 4 }, 7, { d: 1 }], 2: 'fail', 1: 'ok', a: 1, c: 6, '': 'fail' },
+            ['a', 'a', new String('b'), { toString: () => 'c' }, 1, '2', new Number(3), null, () => {}, Symbol(), false]
+        );
+    });
+
     describe('space option', () => {
         for (const space of spaces) {
             describe('space ' + wellformedStringify(space), () => {

@@ -14,6 +14,7 @@ const {
     }
 } = require('./utils');
 const noop = () => {};
+const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 // TODO: Remove when drop support for Node.js 10
 // Node.js 10 has no well-formed JSON.stringify()
@@ -154,7 +155,16 @@ class JsonStringifyStream extends Readable {
             autoDestroy: true
         });
 
+        this.getKeys = Object.keys;
         this.replacer = normalizeReplacer(replacer);
+
+        if (Array.isArray(this.replacer)) {
+            const allowlist = this.replacer;
+
+            this.getKeys = (value) => allowlist.filter(key => hasOwnProperty.call(value, key));
+            this.replacer = null;
+        }
+
         this.space = normalizeSpace(space);
         this._depth = 0;
 
@@ -217,7 +227,7 @@ class JsonStringifyStream extends Readable {
                     value,
                     index: 0,
                     first: false,
-                    keys: Object.keys(value)
+                    keys: this.getKeys(value)
                 });
                 break;
 

@@ -97,14 +97,15 @@ function normalizeReplacer(replacer) {
     }
 
     if (Array.isArray(replacer)) {
-        const whitelist = new Set(replacer
-            .map(item => typeof item === 'string' || typeof item === 'number' ? String(item) : null)
+        const allowlist = new Set(replacer
+            .map(item => {
+                const cls = item && item.constructor;
+                return cls === String || cls === Number ? String(item) : null;
+            })
             .filter(item => typeof item === 'string')
         );
 
-        whitelist.add('');
-
-        return (key, value) => whitelist.has(key) ? value : undefined;
+        return [...allowlist];
     }
 
     return null;

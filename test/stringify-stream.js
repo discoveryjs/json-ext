@@ -269,7 +269,7 @@ describe('stringifyStream()', () => {
                 return v;
             }],
 
-            // replacer as a whitelist of keys
+            // replacer as an allowlist of keys
             [{ a: 1, b: 2 }, ['b']],
             [{ 1: 1, b: 2 }, [1]],
 
@@ -329,6 +329,22 @@ describe('stringifyStream()', () => {
                         assert.strictEqual(actual[i], expected[i]);
                     }
                 });
+        });
+
+        it('various values for a replace as an allowlist', () => {
+            // NOTE: There is no way to iterate keys in order of addition
+            // in case of numeric keys, such keys are always going first sorted
+            // in asceding numeric order disregarding of actual position.
+            // Therefore, the result is not the same as for JSON.stringify()
+            // where keys goes in order of definition, e.g. "1" key goes last.
+            const value = { '3': 'ok', b: [2, 3, { c: 5, a: 4 }, 7, { d: 1 }], 2: 'fail', 1: 'ok', a: 1, c: 6, '': 'fail' };
+            const replacer = ['a', 'a', new String('b'), { toString: () => 'c' }, 1, '2', new Number(3), null, () => {}, Symbol(), false];
+
+            return createStringifyCompareFn(
+                value,
+                JSON.stringify(value, replacer),
+                replacer
+            )();
         });
     });
 

@@ -125,14 +125,14 @@ module.exports = function jsonStringifyInfo(value, replacer, space, options) {
 
                 stack.add(value);
 
-                for (const property in value) {
-                    if (hasOwnProperty.call(value, property)) {
+                for (const key in value) {
+                    if (hasOwnProperty.call(value, key) && (allowlist === null || allowlist.has(key))) {
                         const prevLength = length;
-                        walk(value, property, value[property]);
+                        walk(value, key, value[key]);
 
                         if (prevLength !== length) {
                             // value is printed
-                            length += stringLength(property) + 1; // "property":
+                            length += stringLength(key) + 1; // "key":
                             entries++;
                         }
                     }
@@ -199,7 +199,14 @@ module.exports = function jsonStringifyInfo(value, replacer, space, options) {
         }
     }
 
+    let allowlist = null;
     replacer = normalizeReplacer(replacer);
+
+    if (Array.isArray(replacer)) {
+        allowlist = new Set(replacer);
+        replacer = null;
+    }
+
     space = spaceLength(space);
     options = options || {};
 
