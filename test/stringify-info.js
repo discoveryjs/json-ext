@@ -157,4 +157,22 @@ describe('stringifyInfo()', () => {
             );
         }
     });
+
+    it('infinite size', () => {
+        const value = [];
+        const str = 'str'.repeat(100);
+
+        for (var i = 0; i < 1100; i++) {
+            value.push({
+                foo: str,
+                bar: 12312313,
+                baz: [str, 123, str, new Date(2021, 05, 15), str],
+                [str]: str,
+                prev: value[i - 1] || null,
+                a: value[i - 1] || null
+            });
+        }
+
+        assert.strictEqual(stringifyInfo(value).minLength, Infinity);
+    });
 });
