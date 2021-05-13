@@ -2,7 +2,7 @@ const chalk = require('chalk');
 const libPaths = {
     'src': 'src/index.js',
     'dist': 'dist/json-ext.js',
-    'dist-min': 'dist/json-ext.min.js'
+    'distMin': 'dist/json-ext.min.js'
 };
 const mode = process.env.MODE || 'src';
 const libPath = libPaths[mode];
