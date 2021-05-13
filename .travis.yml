@@ -7,3 +7,5 @@ node_js:
   - "10"
   - "12"
   - "node"
+env:
+  - REPORTER=min

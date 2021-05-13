@@ -20,7 +20,7 @@
         "./src/text-decoder.js": "./src/text-decoder-browser.js"
     },
     "scripts": {
-        "test": "mocha --reporter progress",
+        "test": "mocha --reporter ${REPORTER:-progress}",
         "lint": "eslint src test",
         "lint-and-test": "npm run lint && npm test",
         "build": "rollup --config",
