@@ -122,29 +122,27 @@ class ChunkParser {
     }
 
     prepareAddition(fragment) {
-        if (this.valueStack !== null) {
-            const { value } = this.valueStack;
-            const expectComma = Array.isArray(value)
-                ? value.length !== 0
-                : Object.keys(value).length !== 0;
+        const { value } = this.valueStack;
+        const expectComma = Array.isArray(value)
+            ? value.length !== 0
+            : Object.keys(value).length !== 0;
 
-            if (expectComma) {
-                // Skip a comma at the beginning of fragment, otherwise it would
-                // fail to parse
-                if (fragment[0] === ',') {
-                    this.jsonParseOffset++;
-                    return fragment.slice(1);
-                }
+        if (expectComma) {
+            // Skip a comma at the beginning of fragment, otherwise it would
+            // fail to parse
+            if (fragment[0] === ',') {
+                this.jsonParseOffset++;
+                return fragment.slice(1);
+            }
 
-                // When value (an object or array) is not empty and a fragment
-                // doesn't start with a comma, a single valid fragment starting
-                // is a closing bracket. If it's not, a prefix is adding to fail
-                // parsing. Otherwise, the sequence of chunks can be successfully
-                // parsed, although it should not, e.g. ["[{}", "{}]"]
-                if (fragment[0] !== '}' && fragment[0] !== ']') {
-                    this.jsonParseOffset -= 3;
-                    return '[[]' + fragment;
-                }
+            // When value (an object or array) is not empty and a fragment
+            // doesn't start with a comma, a single valid fragment starting
+            // is a closing bracket. If it's not, a prefix is adding to fail
+            // parsing. Otherwise, the sequence of chunks can be successfully
+            // parsed, although it should not, e.g. ["[{}", "{}]"]
+            if (fragment[0] !== '}' && fragment[0] !== ']') {
+                this.jsonParseOffset -= 3;
+                return '[[]' + fragment;
             }
         }
 
