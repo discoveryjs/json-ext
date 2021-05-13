@@ -12,6 +12,10 @@ if (!libPaths.hasOwnProperty(mode)) {
     process.exit(1);
 }
 
+if (mode !== 'src' && typeof TextDecoder === 'undefined') {
+    global.TextDecoder = require('util').TextDecoder;
+}
+
 console.info('Test lib entry:', chalk.yellow(libPath));
 
 module.exports = require('../../' + libPath);
