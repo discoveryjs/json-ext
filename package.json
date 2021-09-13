@@ -19,6 +19,7 @@
         "./src/stringify-stream.js": "./src/stringify-stream-browser.js",
         "./src/text-decoder.js": "./src/text-decoder-browser.js"
     },
+    "types": "./index.d.ts",
     "scripts": {
         "test": "mocha --reporter progress",
         "lint": "eslint src test",
