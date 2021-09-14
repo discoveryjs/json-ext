@@ -1,3 +1,7 @@
+## next
+
+- Added missed TypeScript typings file into the npm package
+
 ## 0.5.4 (2021-09-14)
 
 - Added TypeScript typings (#7, @lexich)
