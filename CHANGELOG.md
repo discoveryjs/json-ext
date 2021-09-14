@@ -1,4 +1,4 @@
-## next
+## 0.5.5 (2021-09-14)
 
 - Added missed TypeScript typings file into the npm package
 
