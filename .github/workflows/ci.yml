@@ -10,21 +10,39 @@ on:
 jobs:
   lint-coverage:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node_version:
+          - 10
+          - 16
     steps:
       - uses: actions/checkout@v2
-      - name: Setup node
+      - name: Setup node ${{ matrix.node_version }}
         uses: actions/setup-node@v2
         with:
-          node-version: 16
+          node-version: ${{ matrix.node_version }}
           cache: 'npm'
       - run: npm ci
       - run: npm run ci
         env:
           REPORTER: 'min'
-      - name: Send coverage to Coveralls
+      - name: Coveralls Parallel
         uses: coverallsapp/github-action@1.1.3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          flag-name: node-${{ matrix.node_version }}
+          parallel: true
+
+  coveralls:
+    needs: lint-coverage
+    runs-on: ubuntu-latest
+    name: Send coverage to Coveralls
+    steps:
+    - name: Send coverage to Coveralls
+      uses: coverallsapp/github-action@1.1.3
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        parallel-finished: true
 
   test:
     needs: lint-coverage
