@@ -33,4 +33,4 @@ jobs:
       - run: npm ci
       - run: npm run ci
         env:
-          - REPORTER: min
+          - REPORTER: 'min'
