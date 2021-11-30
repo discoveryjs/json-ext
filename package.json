@@ -1,6 +1,6 @@
 {
     "name": "@discoveryjs/json-ext",
-    "version": "0.5.5",
+    "version": "0.5.6",
     "description": "A set of utilities that extend the use of JSON",
     "keywords": [
         "json",

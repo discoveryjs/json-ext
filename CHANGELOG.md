@@ -1,3 +1,7 @@
+## 0.5.6 (2021-11-30)
+
+- Fixed `stringifyStream()` hang when last element in a stream takes a long time to process (#9, @kbrownlees)
+
 ## 0.5.5 (2021-09-14)
 
 - Added missed TypeScript typings file into the npm package
