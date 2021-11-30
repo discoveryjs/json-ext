@@ -130,7 +130,7 @@ function createStreamReader(fn) {
             current.first = false;
             fn.call(this, data, current);
         } else {
-            if (current.first && !current.value._readableState.reading) {
+            if ((current.first && !current.value._readableState.reading) || current.ended) {
                 this.popStack();
             } else {
                 current.first = true;
@@ -295,6 +295,7 @@ class JsonStringifyStream extends Readable {
                     value,
                     index: 0,
                     first: false,
+                    ended: false,
                     awaiting: !value.readable || value.readableLength === 0
                 });
                 const continueProcessing = () => {
@@ -305,7 +306,10 @@ class JsonStringifyStream extends Readable {
                 };
 
                 value.once('error', error => this.destroy(error));
-                value.once('end', continueProcessing);
+                value.once('end', () => {
+                    self.ended = true;
+                    continueProcessing();
+                });
                 value.on('readable', continueProcessing);
                 break;
         }

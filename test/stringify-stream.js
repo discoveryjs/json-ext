@@ -172,7 +172,8 @@ describe('stringifyStream()', () => {
             [{ a: new StreamClass(1, 2, 3) }, '{"a":[1,2,3]}'],
             [{ a: new StreamClass({ name: 'name', date }) }, `{"a":[{"name":"name","date":"${date.toJSON()}"}]}`],
             [{ a: new StreamClass({ name: 'name', arr: [], obj: {}, date }) }, `{"a":[{"name":"name","arr":[],"obj":{},"date":"${date.toJSON()}"}]}`],
-            [Promise.resolve(new StreamClass(1)), '[1]']
+            [Promise.resolve(new StreamClass(1)), '[1]'],
+            [new StreamClass({ foo: 1 }, { bar: new Promise(resolve => setTimeout(() => resolve(2), 100)) }), '[{"foo":1},{"bar":2}]']
         ];
 
         describe('test cases w/o timeout', () => {
