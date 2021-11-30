@@ -8,7 +8,32 @@ on:
   pull_request:
 
 jobs:
-  build:
+  lint-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup node
+        uses: actions/setup-node@v2
+        with:
+          node-version: 16
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run ci
+        env:
+          REPORTER: 'min'
+
+  coveralls:
+    needs: lint-coverage
+    runs-on: ubuntu-latest
+
+    name: Send coverage to Coveralls
+    steps:
+      - uses: coverallsapp/github-action@1.1.3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    needs: lint-coverage
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -31,6 +56,6 @@ jobs:
           node-version: ${{ matrix.node_version }}
           cache: 'npm'
       - run: npm ci
-      - run: npm run ci
+      - run: npm test
         env:
           REPORTER: 'min'

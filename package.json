@@ -21,7 +21,7 @@
     },
     "types": "./index.d.ts",
     "scripts": {
-        "test": "mocha --reporter progress",
+        "test": "mocha --reporter ${REPORTER:-progress}",
         "lint": "eslint src test",
         "lint-and-test": "npm run lint && npm test",
         "build": "rollup --config",
@@ -30,8 +30,7 @@
         "test:dist": "cross-env MODE=dist npm test && cross-env MODE=dist-min npm test",
         "build-and-test": "npm run build && npm run test:dist",
         "coverage": "nyc npm test",
-        "ci": "nyc npm run lint-and-test && npm run build-and-test && npm run coveralls",
-        "coveralls": "nyc report --reporter=text-lcov | coveralls",
+        "ci": "nyc npm run lint-and-test && npm run build-and-test && nyc report --reporter=lcovonly",
         "prepublishOnly": "npm run build"
     },
     "dependencies": {},
