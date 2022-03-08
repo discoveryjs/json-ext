@@ -29,9 +29,8 @@
         "test:src": "npm test",
         "test:dist": "cross-env MODE=dist npm test && cross-env MODE=dist-min npm test",
         "build-and-test": "npm run build && npm run test:dist",
-        "coverage": "c8 npm test",
-        "ci": "c8 npm run lint-and-test && npm run build-and-test && c8 report --reporter=lcovonly",
-        "prepublishOnly": "npm run build"
+        "coverage": "c8 --reporter=lcovonly npm test",
+        "prepublishOnly": "npm run lint && npm test && npm run build-and-test"
     },
     "devDependencies": {
         "@rollup/plugin-commonjs": "^15.1.0",
