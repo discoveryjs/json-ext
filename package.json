@@ -39,7 +39,6 @@
         "@rollup/plugin-node-resolve": "^9.0.0",
         "c8": "^7.10.0",
         "chalk": "^4.1.0",
-        "coveralls": "^3.1.0",
         "cross-env": "^7.0.3",
         "eslint": "^7.6.0",
         "mocha": "^8.1.1",
