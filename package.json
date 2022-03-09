@@ -17,7 +17,8 @@
     "main": "./src/index",
     "browser": {
         "./src/stringify-stream.js": "./src/stringify-stream-browser.js",
-        "./src/text-decoder.js": "./src/text-decoder-browser.js"
+        "./src/text-decoder.js": "./src/text-decoder-browser.js",
+        "./src/version.js": "./dist/version.js"
     },
     "types": "./index.d.ts",
     "scripts": {

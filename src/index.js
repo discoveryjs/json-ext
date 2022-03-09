@@ -1,5 +1,5 @@
 module.exports = {
-    version: require('../package.json').version,
+    version: require('./version'),
     stringifyInfo: require('./stringify-info'),
     stringifyStream: require('./stringify-stream'),
     parseChunked: require('./parse-chunked')

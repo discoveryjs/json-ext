@@ -1,3 +1,7 @@
+## next
+
+- Fixed adding entire `package.json` content to a bundle when target is a browser
+
 ## 0.5.6 (2021-11-30)
 
 - Fixed `stringifyStream()` hang when last element in a stream takes a long time to process (#9, @kbrownlees)
