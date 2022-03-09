@@ -1,4 +1,4 @@
-## next
+## 0.5.7 (2022-03-09)
 
 - Fixed adding entire `package.json` content to a bundle when target is a browser
 
