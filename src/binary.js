@@ -120,14 +120,42 @@ function getType(value) {
 }
 
 class Writer {
-    constructor(initialSize) {
-        this.bytes = new Uint8Array(initialSize || 100000000);
-        this.view = new DataView(this.bytes.buffer);
-        this.pos = 0;
+    constructor(chinkSize = 1 * 1024 * 1024 /* 1mb */) {
+        this.chunks = [];
+        this.totalSize = 0;
         this.stringEncoder = new TextEncoder();
+        this.chunkSize = chinkSize;
+        this.createChunk();
     }
     get value() {
-        return this.bytes.subarray(0, this.pos);
+        if (this.pos > 0) {
+            this.flushChunk();
+        }
+
+        const resultBuff = new Uint8Array(this.totalSize);
+        let pos = 0;
+
+        for (const chunk of this.chunks) {
+            resultBuff.set(chunk, pos);
+            pos += chunk.length;
+        }
+
+        return resultBuff;
+    }
+    createChunk() {
+        this.bytes = new Uint8Array(this.chunkSize);
+        this.view = new DataView(this.bytes.buffer);
+        this.pos = 0;
+    }
+    flushChunk() {
+        this.chunks.push(this.bytes.subarray(0, this.pos));
+        this.totalSize += this.pos;
+    }
+    ensureCapacity(bytes) {
+        if (this.pos + bytes > this.bytes.length) {
+            this.flushChunk();
+            this.createChunk();
+        }
     }
     writeAdaptiveNumber(num) {
         //  8: num << 1 |   0  –  7 bits data | xxxx xxx0
@@ -155,46 +183,57 @@ class Writer {
 
         this.writeAdaptiveNumber(strBuffer.length << 1);
 
+        this.ensureCapacity(strBuffer.length);
         this.bytes.set(strBuffer, this.pos);
         this.pos += strBuffer.length;
     }
-    writeInt8(value, littleEndian) {
-        this.view.setInt8(this.pos, value, littleEndian);
+    writeInt8(value) {
+        this.ensureCapacity(1);
+        this.view.setInt8(this.pos, value);
         this.pos += 1;
     }
     writeInt16(value, littleEndian) {
+        this.ensureCapacity(2);
         this.view.setInt16(this.pos, value, littleEndian);
         this.pos += 2;
     }
     writeInt32(value, littleEndian) {
+        this.ensureCapacity(4);
         this.view.setInt32(this.pos, value, littleEndian);
         this.pos += 4;
     }
     writeBigInt64(value, littleEndian) {
+        this.ensureCapacity(8);
         this.view.setBigInt64(this.pos, BigInt(value), littleEndian);
         this.pos += 8;
     }
-    writeUint8(value, littleEndian) {
-        this.view.setUint8(this.pos, value, littleEndian);
+    writeUint8(value) {
+        this.ensureCapacity(1);
+        this.view.setUint8(this.pos, value);
         this.pos += 1;
     }
     writeUint16(value, littleEndian) {
+        this.ensureCapacity(2);
         this.view.setUint16(this.pos, value, littleEndian);
         this.pos += 2;
     }
     writeUint32(value, littleEndian) {
+        this.ensureCapacity(4);
         this.view.setUint32(this.pos, value, littleEndian);
         this.pos += 4;
     }
     writeBigUint64(value, littleEndian) {
+        this.ensureCapacity(8);
         this.view.setBigUint64(this.pos, BigInt(value), littleEndian);
         this.pos += 8;
     }
     writeFloat32(value, littleEndian) {
+        this.ensureCapacity(4);
         this.view.setFloat32(this.pos, value, littleEndian);
         this.pos += 4;
     }
     writeFloat64(value, littleEndian) {
+        this.ensureCapacity(8);
         this.view.setFloat64(this.pos, value, littleEndian);
         this.pos += 8;
     }
