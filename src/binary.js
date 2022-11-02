@@ -140,6 +140,10 @@ class Writer {
             pos += chunk.length;
         }
 
+        this.chunks = [];
+        this.totalSize = 0;
+        this.createChunk();
+
         return resultBuff;
     }
     createChunk() {
@@ -535,6 +539,7 @@ function decode(bytes) {
 }
 
 module.exports = {
+    Writer,
     encode,
     decode
 };

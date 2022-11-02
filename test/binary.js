@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { encode, decode } = require('../src/binary');
+const { encode, decode, Writer} = require('../src/binary');
 
 describe.only('binary', () => {
     describe('atoms', () => {
@@ -106,5 +106,48 @@ describe.only('binary', () => {
         for (const value of values) {
             it(JSON.stringify(value), () => assert.deepStrictEqual(decode(encode(value)), value));
         }
+    });
+
+    describe('writer', () => {
+        describe('dynamic size', ()=>{
+            describe('raw', ()=>{
+                it('on size', ()=>{
+                    const writer = new Writer(7);
+                    writer.writeInt32(0xffffffff);
+                    assert.deepStrictEqual(writer.value, new Uint8Array([255, 255, 255, 255]));
+                });
+
+                it('over size', ()=>{
+                    const writer = new Writer(7);
+                    writer.writeInt32(0xffffffff);
+                    writer.writeInt32(0xffffffff);
+                    assert.deepStrictEqual(writer.value, new Uint8Array([255, 255, 255, 255, 255, 255, 255, 255]));
+                });
+
+                it('lear after getting value', ()=>{
+                    const writer = new Writer(7);
+                    writer.writeInt32(0xffffffff);
+                    assert.deepStrictEqual(writer.value, new Uint8Array([255, 255, 255, 255]));
+                    writer.writeInt32(0xffffffff);
+                    assert.deepStrictEqual(writer.value, new Uint8Array([255, 255, 255, 255]));
+                });
+            });
+
+            describe('string', ()=>{
+                it('on size', ()=>{
+                    const writer = new Writer(7);
+                    writer.writeString('123');
+                    assert.deepStrictEqual(writer.value, new Uint8Array([12, 49, 50, 51]));
+                });
+
+                it('over size', ()=>{
+                    const writer = new Writer(7);
+                    writer.writeString('123');
+                    writer.writeString('123');
+                    writer.writeString('123');
+                    assert.deepStrictEqual(writer.value, new Uint8Array([12, 49, 50, 51, 12, 49, 50, 51, 12, 49, 50, 51]));
+                });
+            });
+        });
     });
 });
