@@ -119,30 +119,19 @@ function getType(value) {
     }
 }
 
+const minChinkSize = 8;
+
 class Writer {
-    constructor(chinkSize = 1 * 1024 * 1024 /* 1mb */) {
+    constructor(chunkSize = 64000) {
         this.chunks = [];
-        this.totalSize = 0;
         this.stringEncoder = new TextEncoder();
-        this.chunkSize = chinkSize;
+        this.chunkSize = chunkSize < minChinkSize ? minChinkSize : chunkSize;
         this.createChunk();
     }
     get value() {
-        if (this.pos > 0) {
-            this.flushChunk();
-        }
-
-        const resultBuff = new Uint8Array(this.totalSize);
-        let pos = 0;
-
-        for (const chunk of this.chunks) {
-            resultBuff.set(chunk, pos);
-            pos += chunk.length;
-        }
-
-        this.chunks = [];
-        this.totalSize = 0;
-        this.createChunk();
+        this.flushChunk();
+        const resultBuff = new Uint8Array(Buffer.concat(this.chunks));
+        this.chunks = this.bytes = null;
 
         return resultBuff;
     }
@@ -153,7 +142,8 @@ class Writer {
     }
     flushChunk() {
         this.chunks.push(this.bytes.subarray(0, this.pos));
-        this.totalSize += this.pos;
+        this.bytes = this.view = null;
+        this.pos = 0;
     }
     ensureCapacity(bytes) {
         if (this.pos + bytes > this.bytes.length) {
@@ -187,9 +177,24 @@ class Writer {
 
         this.writeAdaptiveNumber(strBuffer.length << 1);
 
-        this.ensureCapacity(strBuffer.length);
-        this.bytes.set(strBuffer, this.pos);
-        this.pos += strBuffer.length;
+        if (!strBuffer.length) {
+            return;
+        }
+
+        if (strBuffer.length > this.chunkSize) {
+            this.flushChunk();
+
+            for (let i = 0; i < strBuffer.length / this.chunkSize; i++) {
+                const from = i * this.chunkSize;
+                this.chunks.push(strBuffer.subarray(from, from + this.chunkSize));
+            }
+
+            this.createChunk();
+        } else {
+            this.ensureCapacity(strBuffer.length);
+            this.bytes.set(strBuffer, this.pos);
+            this.pos += strBuffer.length;
+        }
     }
     writeInt8(value) {
         this.ensureCapacity(1);
@@ -243,7 +248,7 @@ class Writer {
     }
 }
 
-function encode(rootValue) {
+function encode(rootValue, chunkSize) {
     function writeValue(type, value) {
         switch (type) {
             case TYPE.STRING:
@@ -344,7 +349,7 @@ function encode(rootValue) {
         writeValue(type, value);
     }
 
-    const writer = new Writer();
+    const writer = new Writer(chunkSize);
     const defs = new Map();
     let defCount = 0;
 
