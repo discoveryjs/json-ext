@@ -114,26 +114,26 @@ describe.only('binary', () => {
                 it('on size', () => {
                     const writer = new Writer(7);
                     writer.writeInt32(0x01020304);
-                    assert.deepStrictEqual(writer.value, new Uint8Array([1, 2, 3, 4]));
+                    assert.deepStrictEqual(writer.value, Buffer.from([1, 2, 3, 4]));
                 });
 
                 it('over size', () => {
                     const writer = new Writer(7);
                     writer.writeInt32(0x01020304);
                     writer.writeInt32(0x01020304);
-                    assert.deepStrictEqual(writer.value, new Uint8Array([1, 2, 3, 4, 1, 2, 3, 4]));
+                    assert.deepStrictEqual(writer.value, Buffer.from([1, 2, 3, 4, 1, 2, 3, 4]));
                 });
 
                 it('default size', () => {
                     const writer = new Writer(5);
                     writer.writeBigInt64(0x0102030405060708);
-                    assert.deepStrictEqual(writer.value, new Uint8Array([1, 2, 3, 4, 5, 6, 7, 0]));
+                    assert.deepStrictEqual(writer.value, Buffer.from([1, 2, 3, 4, 5, 6, 7, 0]));
                 });
 
                 it('fail after second getting value', () => {
                     const writer = new Writer(7);
                     writer.writeInt32(0x01020304);
-                    assert.deepStrictEqual(writer.value, new Uint8Array([1, 2, 3, 4]));
+                    assert.deepStrictEqual(writer.value, Buffer.from([1, 2, 3, 4]));
                     assert.throws(() => writer.value);
                 });
             });
@@ -142,7 +142,7 @@ describe.only('binary', () => {
                 it('fit to chunk size', () => {
                     const writer = new Writer(7);
                     writer.writeString('123');
-                    assert.deepStrictEqual(writer.value, new Uint8Array([12, 49, 50, 51]));
+                    assert.deepStrictEqual(writer.value, Buffer.from([12, 49, 50, 51]));
                 });
 
                 it('over size', () => {
@@ -152,7 +152,7 @@ describe.only('binary', () => {
                     writer.writeString('1234567');
                     writer.writeString('123456789');
                     const a = writer.value;
-                    assert.deepStrictEqual(a, new Uint8Array([
+                    assert.deepStrictEqual(a, Buffer.from([
                         12, 49, 50, 51, // 123
                         12, 49, 50, 51, // 123
                         28, 49, 50, 51, 52, 53, 54, 55, // 1234567 (without tail)

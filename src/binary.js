@@ -131,10 +131,11 @@ class Writer {
     }
     get value() {
         this.flushChunk();
-        const resultBuff = new Uint8Array(Buffer.concat(this.chunks));
+
+        const resultBuffer = Buffer.concat(this.chunks);
         this.chunks = null;
 
-        return resultBuff;
+        return resultBuffer;
     }
     createChunk() {
         this.bytes = new Uint8Array(this.chunkSize);
@@ -421,7 +422,7 @@ function decode(bytes) {
 
                 // definition
                 const len = num >> 1;
-                const value = stringDecoder.decode(bytes.buffer.slice(pos, pos + len));
+                const value = stringDecoder.decode(bytes.subarray(pos, pos + len));
 
                 pos += len;
                 defs.push(value);
@@ -547,7 +548,7 @@ function decode(bytes) {
     }
 
     const stringDecoder = new TextDecoder();
-    const view = new DataView(bytes.buffer);
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const defs = [];
     let pos = 0;
 
