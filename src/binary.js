@@ -203,7 +203,7 @@ class Writer {
         // write the rest
         this.createChunk();
 
-        if (strPos < strBuffer.length - 1) {
+        if (strPos < strBuffer.length) {
             this.bytes.set(strBuffer.subarray(strPos), this.pos);
             this.pos += strBuffer.length - strPos;
         }
