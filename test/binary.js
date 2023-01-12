@@ -150,13 +150,15 @@ describe.only('binary', () => {
                     writer.writeString('123');
                     writer.writeString('123');
                     writer.writeString('1234567');
-                    writer.writeString('123456789');
+                    writer.writeString('12345678');
+                    writer.writeString('123456789999999999999999');
                     const a = writer.value;
                     assert.deepStrictEqual(a, Buffer.from([
                         12, 49, 50, 51, // 123
                         12, 49, 50, 51, // 123
                         28, 49, 50, 51, 52, 53, 54, 55, // 1234567 (without tail)
-                        36, 49, 50, 51, 52, 53, 54, 55, 56, 57 // 123456789 (write tail into another chunk)
+                        32, 49, 50, 51, 52, 53, 54, 55, 56, // 12345678 (write tail (8) into another chunk)
+                        96, 49, 50, 51, 52, 53, 54, 55, 56, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57 // 123456789999999999999999 (write tail into another chunks)
                     ]));
                 });
             });
