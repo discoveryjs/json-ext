@@ -119,19 +119,20 @@ function getType(value) {
     }
 }
 
-const minChinkSize = 8;
+const minChunkSize = 8;
+const initialChunkSize = 64 * 1024;
 
 class Writer {
-    constructor(chunkSize = 64000) {
+    constructor(chunkSize = initialChunkSize) {
         this.chunks = [];
         this.stringEncoder = new TextEncoder();
-        this.chunkSize = chunkSize < minChinkSize ? minChinkSize : chunkSize;
+        this.chunkSize = chunkSize < minChunkSize ? minChunkSize : chunkSize;
         this.createChunk();
     }
     get value() {
         this.flushChunk();
         const resultBuff = new Uint8Array(Buffer.concat(this.chunks));
-        this.chunks = this.bytes = null;
+        this.chunks = null;
 
         return resultBuff;
     }
@@ -181,19 +182,29 @@ class Writer {
             return;
         }
 
-        if (strBuffer.length > this.chunkSize) {
-            this.flushChunk();
+        let strPos = Math.min(strBuffer.length, this.bytes.length - this.pos);
 
-            for (let i = 0; i < strBuffer.length / this.chunkSize; i++) {
-                const from = i * this.chunkSize;
-                this.chunks.push(strBuffer.subarray(from, from + this.chunkSize));
-            }
+        // set to the current chunk as many bytes as possible
+        this.bytes.set(strBuffer.subarray(0, strPos), this.pos);
+        this.pos += strPos;
 
-            this.createChunk();
-        } else {
-            this.ensureCapacity(strBuffer.length);
-            this.bytes.set(strBuffer, this.pos);
-            this.pos += strBuffer.length;
+        if (strPos === strBuffer.length) {
+            return;
+        }
+
+        this.flushChunk();
+
+        // create chunks from str buffer with a length equals to chunk size
+        while ((strBuffer.length - strPos) >= this.chunkSize) {
+            this.chunks.push(strBuffer.subarray(strPos, strPos += this.chunkSize));
+        }
+
+        // write the rest
+        this.createChunk();
+
+        if (strPos < strBuffer.length - 1) {
+            this.bytes.set(strBuffer.subarray(strPos), this.pos);
+            this.pos += strBuffer.length - strPos;
         }
     }
     writeInt8(value) {

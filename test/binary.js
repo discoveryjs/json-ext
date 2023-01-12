@@ -149,9 +149,15 @@ describe.only('binary', () => {
                     const writer = new Writer(4);
                     writer.writeString('123');
                     writer.writeString('123');
+                    writer.writeString('1234567');
                     writer.writeString('123456789');
                     const a = writer.value;
-                    assert.deepStrictEqual(a, new Uint8Array([12, 49, 50, 51, 12, 49, 50, 51, 36, 49, 50, 51, 52, 53, 54, 55, 56, 57]));
+                    assert.deepStrictEqual(a, new Uint8Array([
+                        12, 49, 50, 51, // 123
+                        12, 49, 50, 51, // 123
+                        28, 49, 50, 51, 52, 53, 54, 55, // 1234567 (without tail)
+                        36, 49, 50, 51, 52, 53, 54, 55, 56, 57 // 123456789 (write tail into another chunk)
+                    ]));
                 });
             });
         });
