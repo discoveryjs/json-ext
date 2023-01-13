@@ -1,3 +1,4 @@
+const hasOwnProperty = Object.hasOwnProperty;
 const MAX_INT_32 = 2147483647;
 const MAX_UINT_32 = 4294967295;
 const MAX_ADAPTIVE_8 = 0x7f;
@@ -110,7 +111,7 @@ function getType(value) {
             }
 
             for (const key in value) {
-                if (Object.hasOwnProperty.call(value, key)) {
+                if (hasOwnProperty.call(value, key)) {
                     return TYPE.OBJECT;
                 }
             }
@@ -175,37 +176,25 @@ class Writer {
         this.writeAdaptiveNumber(ref << 1 | 1);
     }
     writeString(str) {
-        const strBuffer = this.stringEncoder.encode(str);
+        this.writeAdaptiveNumber(Buffer.byteLength(str) << 1);
 
-        this.writeAdaptiveNumber(strBuffer.length << 1);
+        let strPos = 0;
 
-        if (!strBuffer.length) {
-            return;
-        }
+        while (strPos < str.length) {
+            const { read, written } = this.stringEncoder.encodeInto(
+                strPos > 0 ? str.slice(strPos) : str,
+                this.pos > 0 ? this.bytes.subarray(this.pos) : this.bytes
+            );
 
-        let strPos = Math.min(strBuffer.length, this.bytes.length - this.pos);
+            strPos += read;
+            this.pos += written;
 
-        // set to the current chunk as many bytes as possible
-        this.bytes.set(strBuffer.subarray(0, strPos), this.pos);
-        this.pos += strPos;
-
-        if (strPos === strBuffer.length) {
-            return;
-        }
-
-        this.flushChunk();
-
-        // create chunks from str buffer with a length equals to chunk size
-        while ((strBuffer.length - strPos) >= this.chunkSize) {
-            this.chunks.push(strBuffer.subarray(strPos, strPos += this.chunkSize));
-        }
-
-        // write the rest
-        this.createChunk();
-
-        if (strPos < strBuffer.length) {
-            this.bytes.set(strBuffer.subarray(strPos), this.pos);
-            this.pos += strBuffer.length - strPos;
+            if (strPos < str.length) {
+                this.flushChunk();
+                this.createChunk();
+            } else {
+                break;
+            }
         }
     }
     writeInt8(value) {
@@ -314,7 +303,7 @@ function encode(rootValue, options = {}) {
 
             case TYPE.OBJECT:
                 for (const key in value) {
-                    if (Object.hasOwnProperty.call(value, key)) {
+                    if (hasOwnProperty.call(value, key)) {
                         const type = getType(value[key]);
 
                         if (defs.has(key) && defs.get(key).has(type)) {

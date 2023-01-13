@@ -1,7 +1,7 @@
 const assert = require('assert');
 const {encode, decode, Writer} = require('../src/binary');
 
-describe.only('binary', () => {
+describe('binary', () => {
     describe('atoms', () => {
         const values = [
             null,

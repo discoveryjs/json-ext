@@ -37,16 +37,6 @@ const solutions = {
             fn: encoded => JSON.parse(encoded)
         }
     },
-    'Node.js v8': {
-        encode: {
-            name: 'serialize()',
-            fn: data => v8.serialize(data)
-        },
-        decode: {
-            name: 'deserialize()',
-            fn: encoded => v8.deserialize(encoded)
-        }
-    },
     'json-ext': {
         encode: {
             name: 'encode()',
@@ -55,6 +45,16 @@ const solutions = {
         decode: {
             name: 'decode()',
             fn: encoded => jsonExt.decode(encoded)
+        }
+    },
+    'Node.js v8': {
+        encode: {
+            name: 'serialize()',
+            fn: data => v8.serialize(data)
+        },
+        decode: {
+            name: 'deserialize()',
+            fn: encoded => v8.deserialize(encoded)
         }
     },
     'cbor': {
@@ -109,11 +109,13 @@ async function runSolution(name, data) {
     const { encode, decode } = solution;
     const times = {};
     const time = async (tname, fn) => {
-        console.log(name, tname);
+        // console.log(name, tname);
         const t = Date.now();
         const res = await fn();
         times[tname] = Date.now() - t;
-        console.log(name, tname, times[tname]);
+        const size = res.byteLength || res.length;
+        console.log(' ', tname, times[tname],
+            ...typeof size === 'number' ? [`(size: ${String(res.byteLength || res.length).replace(/\.\d+(eE[-+]?\d+)?|\B(?=(\d{3})+(\D|$))/g, m => m || '_')})`] : []);
         return res;
     };
 
@@ -156,7 +158,9 @@ async function runBenchmarks() {
     const results = [];
 
     for (const solutionName of Object.keys(solutions)) {
+        console.log(solutionName);
         results.push(await runSolution(solutionName, fixture));
+        console.log();
     }
 
     console.log(`===[${filename || 'raw'}]===`);
