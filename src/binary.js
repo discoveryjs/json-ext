@@ -120,10 +120,10 @@ function getType(value) {
 }
 
 const minChunkSize = 8;
-const initialChunkSize = 64 * 1024;
+const defaultChunkSize = 64 * 1024;
 
 class Writer {
-    constructor(chunkSize = initialChunkSize) {
+    constructor(chunkSize = defaultChunkSize) {
         this.chunks = [];
         this.stringEncoder = new TextEncoder();
         this.chunkSize = chunkSize < minChunkSize ? minChunkSize : chunkSize;
@@ -260,7 +260,7 @@ class Writer {
     }
 }
 
-function encode(rootValue, chunkSize) {
+function encode(rootValue, options = {}) {
     function writeValue(type, value) {
         switch (type) {
             case TYPE.STRING:
@@ -361,7 +361,7 @@ function encode(rootValue, chunkSize) {
         writeValue(type, value);
     }
 
-    const writer = new Writer(chunkSize);
+    const writer = new Writer(options.chunkSize);
     const defs = new Map();
     let defCount = 0;
 
