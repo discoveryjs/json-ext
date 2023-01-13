@@ -1,7 +1,7 @@
 const assert = require('assert');
-const { encode, decode } = require('../src/binary');
+const {encode, decode, Writer} = require('../src/binary');
 
-describe.only('binary', () => {
+describe('binary', () => {
     describe('atoms', () => {
         const values = [
             null,
@@ -89,7 +89,7 @@ describe.only('binary', () => {
         const values = [
             {},
             { foo: 'bar' },
-            { num8: 123, num16: 12345, num32: 123456, float: 1 / 3, str: 'str', bool: false, bool: true, null: null },
+            { num8: 123, num16: 12345, num32: 123456, float: 1 / 3, str: 'str', bool: false, bool2: true, null: null },
             { array: [1, 1000, 1000000], obj: { foo: 123 } }
         ];
 
@@ -106,5 +106,62 @@ describe.only('binary', () => {
         for (const value of values) {
             it(JSON.stringify(value), () => assert.deepStrictEqual(decode(encode(value)), value));
         }
+    });
+
+    describe('writer', () => {
+        describe('dynamic size', () => {
+            describe('raw', () => {
+                it('on size', () => {
+                    const writer = new Writer(7);
+                    writer.writeInt32(0x01020304);
+                    assert.deepStrictEqual(writer.value, Buffer.from([1, 2, 3, 4]));
+                });
+
+                it('over size', () => {
+                    const writer = new Writer(7);
+                    writer.writeInt32(0x01020304);
+                    writer.writeInt32(0x01020304);
+                    assert.deepStrictEqual(writer.value, Buffer.from([1, 2, 3, 4, 1, 2, 3, 4]));
+                });
+
+                it('default size', () => {
+                    const writer = new Writer(5);
+                    writer.writeBigInt64(0x0102030405060708);
+                    assert.deepStrictEqual(writer.value, Buffer.from([1, 2, 3, 4, 5, 6, 7, 0]));
+                });
+
+                it('fail after second getting value', () => {
+                    const writer = new Writer(7);
+                    writer.writeInt32(0x01020304);
+                    assert.deepStrictEqual(writer.value, Buffer.from([1, 2, 3, 4]));
+                    assert.throws(() => writer.value);
+                });
+            });
+
+            describe('string', () => {
+                it('fit to chunk size', () => {
+                    const writer = new Writer(7);
+                    writer.writeString('123');
+                    assert.deepStrictEqual(writer.value, Buffer.from([12, 49, 50, 51]));
+                });
+
+                it('over size', () => {
+                    const writer = new Writer(4);
+                    writer.writeString('123');
+                    writer.writeString('123');
+                    writer.writeString('1234567');
+                    writer.writeString('12345678');
+                    writer.writeString('123456789999999999999999');
+                    const a = writer.value;
+                    assert.deepStrictEqual(a, Buffer.from([
+                        12, 49, 50, 51, // 123
+                        12, 49, 50, 51, // 123
+                        28, 49, 50, 51, 52, 53, 54, 55, // 1234567 (without tail)
+                        32, 49, 50, 51, 52, 53, 54, 55, 56, // 12345678 (write tail (8) into another chunk)
+                        96, 49, 50, 51, 52, 53, 54, 55, 56, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57 // 123456789999999999999999 (write tail into another chunks)
+                    ]));
+                });
+            });
+        });
     });
 });

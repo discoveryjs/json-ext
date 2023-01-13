@@ -1,3 +1,4 @@
+const hasOwnProperty = Object.hasOwnProperty;
 const MAX_INT_32 = 2147483647;
 const MAX_UINT_32 = 4294967295;
 const MAX_ADAPTIVE_8 = 0x7f;
@@ -110,7 +111,7 @@ function getType(value) {
             }
 
             for (const key in value) {
-                if (Object.hasOwnProperty.call(value, key)) {
+                if (hasOwnProperty.call(value, key)) {
                     return TYPE.OBJECT;
                 }
             }
@@ -119,15 +120,39 @@ function getType(value) {
     }
 }
 
+const minChunkSize = 8;
+const defaultChunkSize = 64 * 1024;
+
 class Writer {
-    constructor(initialSize) {
-        this.bytes = new Uint8Array(initialSize || 100000000);
-        this.view = new DataView(this.bytes.buffer);
-        this.pos = 0;
+    constructor(chunkSize = defaultChunkSize) {
+        this.chunks = [];
         this.stringEncoder = new TextEncoder();
+        this.chunkSize = chunkSize < minChunkSize ? minChunkSize : chunkSize;
+        this.createChunk();
     }
     get value() {
-        return this.bytes.subarray(0, this.pos);
+        this.flushChunk();
+
+        const resultBuffer = Buffer.concat(this.chunks);
+        this.chunks = null;
+
+        return resultBuffer;
+    }
+    createChunk() {
+        this.bytes = new Uint8Array(this.chunkSize);
+        this.view = new DataView(this.bytes.buffer);
+        this.pos = 0;
+    }
+    flushChunk() {
+        this.chunks.push(this.bytes.subarray(0, this.pos));
+        this.bytes = this.view = null;
+        this.pos = 0;
+    }
+    ensureCapacity(bytes) {
+        if (this.pos + bytes > this.bytes.length) {
+            this.flushChunk();
+            this.createChunk();
+        }
     }
     writeAdaptiveNumber(num) {
         //  8: num << 1 |   0  –  7 bits data | xxxx xxx0
@@ -151,56 +176,80 @@ class Writer {
         this.writeAdaptiveNumber(ref << 1 | 1);
     }
     writeString(str) {
-        const strBuffer = this.stringEncoder.encode(str);
+        this.writeAdaptiveNumber(Buffer.byteLength(str) << 1);
 
-        this.writeAdaptiveNumber(strBuffer.length << 1);
+        let strPos = 0;
 
-        this.bytes.set(strBuffer, this.pos);
-        this.pos += strBuffer.length;
+        while (strPos < str.length) {
+            const { read, written } = this.stringEncoder.encodeInto(
+                strPos > 0 ? str.slice(strPos) : str,
+                this.pos > 0 ? this.bytes.subarray(this.pos) : this.bytes
+            );
+
+            strPos += read;
+            this.pos += written;
+
+            if (strPos < str.length) {
+                this.flushChunk();
+                this.createChunk();
+            } else {
+                break;
+            }
+        }
     }
-    writeInt8(value, littleEndian) {
-        this.view.setInt8(this.pos, value, littleEndian);
+    writeInt8(value) {
+        this.ensureCapacity(1);
+        this.view.setInt8(this.pos, value);
         this.pos += 1;
     }
     writeInt16(value, littleEndian) {
+        this.ensureCapacity(2);
         this.view.setInt16(this.pos, value, littleEndian);
         this.pos += 2;
     }
     writeInt32(value, littleEndian) {
+        this.ensureCapacity(4);
         this.view.setInt32(this.pos, value, littleEndian);
         this.pos += 4;
     }
     writeBigInt64(value, littleEndian) {
+        this.ensureCapacity(8);
         this.view.setBigInt64(this.pos, BigInt(value), littleEndian);
         this.pos += 8;
     }
-    writeUint8(value, littleEndian) {
-        this.view.setUint8(this.pos, value, littleEndian);
+    writeUint8(value) {
+        this.ensureCapacity(1);
+        this.view.setUint8(this.pos, value);
         this.pos += 1;
     }
     writeUint16(value, littleEndian) {
+        this.ensureCapacity(2);
         this.view.setUint16(this.pos, value, littleEndian);
         this.pos += 2;
     }
     writeUint32(value, littleEndian) {
+        this.ensureCapacity(4);
         this.view.setUint32(this.pos, value, littleEndian);
         this.pos += 4;
     }
     writeBigUint64(value, littleEndian) {
+        this.ensureCapacity(8);
         this.view.setBigUint64(this.pos, BigInt(value), littleEndian);
         this.pos += 8;
     }
     writeFloat32(value, littleEndian) {
+        this.ensureCapacity(4);
         this.view.setFloat32(this.pos, value, littleEndian);
         this.pos += 4;
     }
     writeFloat64(value, littleEndian) {
+        this.ensureCapacity(8);
         this.view.setFloat64(this.pos, value, littleEndian);
         this.pos += 8;
     }
 }
 
-function encode(rootValue) {
+function encode(rootValue, options = {}) {
     function writeValue(type, value) {
         switch (type) {
             case TYPE.STRING:
@@ -254,7 +303,7 @@ function encode(rootValue) {
 
             case TYPE.OBJECT:
                 for (const key in value) {
-                    if (Object.hasOwnProperty.call(value, key)) {
+                    if (hasOwnProperty.call(value, key)) {
                         const type = getType(value[key]);
 
                         if (defs.has(key) && defs.get(key).has(type)) {
@@ -301,7 +350,7 @@ function encode(rootValue) {
         writeValue(type, value);
     }
 
-    const writer = new Writer();
+    const writer = new Writer(options.chunkSize);
     const defs = new Map();
     let defCount = 0;
 
@@ -362,7 +411,7 @@ function decode(bytes) {
 
                 // definition
                 const len = num >> 1;
-                const value = stringDecoder.decode(bytes.buffer.slice(pos, pos + len));
+                const value = stringDecoder.decode(bytes.subarray(pos, pos + len));
 
                 pos += len;
                 defs.push(value);
@@ -488,7 +537,7 @@ function decode(bytes) {
     }
 
     const stringDecoder = new TextDecoder();
-    const view = new DataView(bytes.buffer);
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const defs = [];
     let pos = 0;
 
@@ -496,6 +545,7 @@ function decode(bytes) {
 }
 
 module.exports = {
+    Writer,
     encode,
     decode
 };
