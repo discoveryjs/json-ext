@@ -1,45 +1,35 @@
 const hasOwnProperty = Object.hasOwnProperty;
-const MAX_UINT_8  = 0x0000_00ff;
-const MAX_UINT_16 = 0x0000_ffff;
-const MAX_UINT_24 = 0x00ff_ffff;
-const MAX_UINT_28 = 0x0fff_ffff;
-const MAX_UINT_32 = 0xffff_ffff;
-const MAX_VLQ_8   = 0x0000_007f;
-const MAX_VLQ_16  = 0x0000_3fff;
-const MAX_VLQ_24  = 0x001f_ffff;
+const MAX_UINT_8  = 0x000000ff;
+const MAX_UINT_16 = 0x0000ffff;
+const MAX_UINT_24 = 0x00ffffff;
+const MAX_UINT_28 = 0x0fffffff;
+const MAX_UINT_32 = 0xffffffff;
+const MAX_VLQ_8   = 0x0000007f;
+const MAX_VLQ_16  = 0x00003fff;
+const MAX_VLQ_24  = 0x001fffff;
 
-const TYPE_TRUE = 0;         // value-containing type
-const TYPE_FALSE = 1;        // value-containing type
+const TYPE_TRUE = 0;      // value-containing type
+const TYPE_FALSE = 1;     // value-containing type
 const TYPE_STRING = 2;
-const TYPE_UINT_8 = 3;       // [0 ... 255 (0xff)]
-const TYPE_UINT_16 = 4;      // [0 ... 65535 (0xffff)]
-const TYPE_UINT_24 = 5;      // [0 ... 16777215 (0xffffff)]
-const TYPE_UINT_32 = 6;      // [0 ... 4294967295 (0xffffffff)]
-const TYPE_UINT_32_VAR = 7;  // [4294967296 ... ]
+const TYPE_UINT_8 = 3;
+const TYPE_UINT_16 = 4;
+const TYPE_UINT_24 = 5;
+const TYPE_UINT_32 = 6;
+const TYPE_UINT_32_VAR = 7;
 const TYPE_NEG_INT = 8;
 const TYPE_FLOAT_32 = 9;
 const TYPE_FLOAT_64 = 10;
 const TYPE_OBJECT = 11;
 const TYPE_ARRAY = 12;
-const TYPE_NULL = 13;        // value-containing type
-// type 14 is reserved
-// type 15 is reserved
-const TYPE_UNDEF = 16;       // non-storable & value-containing type
-const STORABLE_TYPES = 0xffff;
+const TYPE_NULL = 13;     // value-containing type
+// 14 reserved
+// 15 reserved
+const TYPE_UNDEF = 16;    // non-storable & value-containing type
 const VALUE_CONTAINING_TYPE =
     (1 << TYPE_TRUE) |
     (1 << TYPE_FALSE) |
     (1 << TYPE_NULL) |
     (1 << TYPE_UNDEF);
-
-const TEST_FLOAT_32 = new Float32Array(1);
-const EMPTY_MAP = new Map();
-const LOW_BITS_TYPE = 0;
-const LOW_BITS_FLAGS = 1;
-const MIN_CHUNK_SIZE = 8;
-const DEFAULT_CHUNK_SIZE = 64 * 1024;
-const typeIndex = new Uint8Array(32);
-
 
 // const TYPE_NAME = Object.fromEntries(Object.entries({
 //     TYPE_TRUE, TYPE_FALSE,
@@ -52,8 +42,18 @@ const typeIndex = new Uint8Array(32);
 //     TYPE_NULL,
 //     TYPE_UNDEF
 // }).map(([k, v]) => [v, k]));
+const TEST_FLOAT_32 = new Float32Array(1);
+const EMPTY_MAP = new Map();
+const LOW_BITS_TYPE = 0;
+const LOW_BITS_FLAGS = 1;
+const ARRAY_NO_LENGTH = 0b001;
+const ARRAY_PRESERVE_UNDEF = 0b010;
 
 function getType(value) {
+    if (value === null) {
+        return TYPE_NULL;
+    }
+
     switch (typeof value) {
         case 'undefined':
             return TYPE_UNDEF;
@@ -93,19 +93,23 @@ function getType(value) {
             );
 
         case 'object':
-            return Array.isArray(value)
-                ? TYPE_ARRAY
-                : value !== null
-                    ? TYPE_OBJECT
-                    : TYPE_NULL;
+            if (Array.isArray(value)) {
+                return TYPE_ARRAY;
+            }
+
+            return TYPE_OBJECT;
     }
 }
 
+const minChunkSize = 8;
+const defaultChunkSize = 64 * 1024;
+const typeIndex = new Uint8Array(32);
+
 class Writer {
-    constructor(chunkSize = DEFAULT_CHUNK_SIZE) {
+    constructor(chunkSize = defaultChunkSize) {
         this.chunks = [];
         this.stringEncoder = new TextEncoder();
-        this.chunkSize = chunkSize < MIN_CHUNK_SIZE ? MIN_CHUNK_SIZE : chunkSize;
+        this.chunkSize = chunkSize < minChunkSize ? minChunkSize : chunkSize;
         this.createChunk();
     }
     get value() {
@@ -154,7 +158,7 @@ class Writer {
             }
         }
     }
-    writeReference(ref) {
+    writeStringReference(ref) {
         this.writeVlq((ref << 1) | 1);
     }
     writeString(str, shift = 1) {
@@ -281,28 +285,23 @@ class Writer {
 }
 
 function encode(input, options = {}) {
-    function findCommonSubstring(prev, value) {
-        const maxLength = Math.max(prev.length, value.length);
+    function getStringCluster(str) {
+        const firstCharCode = str.charCodeAt(0);
+        const stringClusterId = firstCharCode > 127 ? 128 : firstCharCode;
+        let stringCluster = stringClusters.get(stringClusterId);
 
-        if (maxLength > 4) {
-            for (let i = 0; i < maxLength; i++) {
-                if (prev[i] !== value[i]) {
-                    if (i > 4) {
-                        return i;
-                    }
-                    break;
-                }
-            }
+        if (stringCluster === undefined) {
+            stringClusters.set(stringClusterId, stringCluster = new Map());
         }
 
-        return 0;
+        return stringCluster;
     }
 
-    function writeStringReference(str) {
-        const ref = strings.get(str);
+    function writeStringReference(stringCluster, str) {
+        const ref = stringCluster.get(str);
 
         if (ref !== undefined) {
-            writer.writeReference(ref);
+            writer.writeStringReference(ref);
 
             return true;
         }
@@ -312,221 +311,203 @@ function encode(input, options = {}) {
 
     function writeString(value) {
         if (value === '') {
-            writer.writeReference(0); // empty string reference
+            writer.writeStringReference(0); // empty string reference
             return;
         }
 
-        if (!writeStringReference(value)) {
-            const prevStringCommonLength = findCommonSubstring(prevString, value);
+        const stringCluster = getStringCluster(value);
 
-            if (prevStringCommonLength > 0) {
+        if (!writeStringReference(stringCluster, value)) {
+            stringCluster.set(value, stringIdx++);
+
+            const maxLength = Math.max(prevString.length, value.length);
+            let maxCommonLength = 0;
+            for (let i = 0; i < maxLength; i++) {
+                if (prevString[i] !== value[i]) {
+                    if (i > 4) {
+                        maxCommonLength = i;
+                    }
+                    break;
+                }
+            }
+
+            if (maxCommonLength > 0) {
                 writer.writeUint8(0);
-                writer.writeVlq(prevStringCommonLength);
-                writer.writeString(value.slice(prevStringCommonLength), 0);
+                writer.writeVlq(maxCommonLength);
+                writer.writeString(value.slice(maxCommonLength), 0);
             } else {
                 writer.writeString(value);
             }
 
-            strings.set(value, stringIdx++);
             prevString = value;
         }
     }
 
-    function writeObject(object, ignoreFields = EMPTY_MAP) {
+    function writeObject(value, ignoreFields = EMPTY_MAP) {
         let entryIdx = 0;
 
-        for (const key in object) {
-            if (hasOwnProperty.call(object, key) && !ignoreFields.has(key)) {
-                const entryValue = object[key];
-
-                if (entryValue === undefined) {
-                    continue;
-                }
-
-                const entryType = getType(entryValue);
-                let keyId = objectKeys.get(key);
-
-                if (keyId === undefined) {
-                    objectKeys.set(key, keyId = objectKeys.size);
-                }
+        for (const key in value) {
+            if (hasOwnProperty.call(value, key) && !ignoreFields.has(key) && value[key] !== undefined) {
+                const entryType = getType(value[key]);
 
                 if (entryIdx >= objectEntryDefs.length) {
                     objectEntryDefs[entryIdx] = new Map();
+                }
+
+                let keyId = objectKeys.get(key);
+
+                if (keyId === undefined) {
+                    keyId = objectKeys.size;
+                    objectKeys.set(key, keyId);
                 }
 
                 const defId = (keyId << 4) | entryType;
                 const refId = objectEntryDefs[entryIdx].get(defId);
 
                 if (refId !== undefined) {
-                    // def reference
-                    writer.writeReference(refId);
+                    // ref
+                    writer.writeStringReference(refId);
                 } else {
                     writer.writeVlq(2);
-                    writeString(key);
+                    writeTypedValue(TYPE_STRING, key);
                     writer.writeUint8(entryType);
                     objectEntryDefs[entryIdx].set(defId, objectEntryDefs[entryIdx].size);
                 }
 
-                writeTypedValue[entryType](object[key]);
                 entryIdx++;
+                writeTypedValue(entryType, value[key]);
             }
         }
 
         writer.writeUint8(0);
     }
 
-    function arrayTypeCount(elemTypes, type) {
-        let count = 0;
-
-        for (let i = 0; i < elemTypes.length; i++) {
-            if (elemTypes[i] === type) {
-                count++;
-            }
-        }
-
-        return count;
-    }
-
-    function collectArrayObjectInfo(array, elemTypes, typeBitmap) {
-        let hasInlinedObjectKeys = false;
-        let objectKeyColumns = EMPTY_MAP;
-
-        if (typeBitmap & (1 << TYPE_OBJECT)) {
-            hasInlinedObjectKeys = true;
-
-            // count objects
-            let objectCount = typeBitmap === (1 << TYPE_OBJECT)
-                ? array.length // when TYPE_OBJECT is a single type in an array
-                : arrayTypeCount(elemTypes, TYPE_OBJECT);
-
-            if (objectCount > 1) {
-                hasInlinedObjectKeys = false;
-                objectKeyColumns = new Map();
-
-                // collect a condidate keys for a column representation
-                for (let i = 0, objIdx = 0; i < elemTypes.length; i++) {
-                    if (elemTypes[i] === TYPE_OBJECT) {
-                        const object = array[i];
-
-                        for (const key of Object.keys(object)) {
-                            const value = object[key];
-
-                            if (value === undefined) {
-                                continue;
-                            }
-
-                            let column = objectKeyColumns.get(key);
-                            const valueType = getType(value);
-                            const valueTypeBit = 1 << valueType;
-
-                            if (column === undefined) {
-                                column = Object.create(null);
-                                column.key = key;
-                                column.values = new Array(objectCount);
-                                column.types = new Uint8Array(objectCount).fill(TYPE_UNDEF);
-                                column.typeBitmap = 0;
-                                column.typeCount = 0;
-                                column.valueCount = 0;
-                                column.valueContainedCount = 0;
-                                objectKeyColumns.set(key, column);
-                            }
-
-                            if ((column.typeBitmap & valueTypeBit) === 0) {
-                                column.typeBitmap |= valueTypeBit;
-                                column.typeCount++;
-                            }
-
-                            column.values[objIdx] = value;
-                            column.types[objIdx] = valueType;
-                            column.valueCount++;
-
-                            if (valueTypeBit & VALUE_CONTAINING_TYPE) {
-                                column.valueContainedCount++;
-                            }
-                        }
-
-                        objIdx++;
-                    }
-                }
-
-                // exclude keys for which the column representation is not byte efficient
-                for (const column of objectKeyColumns.values()) {
-                    const hasUndef = column.valueCount !== array.length;
-                    const typeCount = column.typeCount + hasUndef;
-
-                    if (typeCount > 1) {
-                        const bitsPerType = 32 - Math.clz32(typeCount - 1);
-                        const typeBitmapIndexSize = Math.ceil((bitsPerType * array.length) / 8);
-
-                        const valueCount = column.valueCount - column.valueContainedCount;
-                        const columnSize =
-                            1 + /* min key reprentation size */
-                            1 + /* min array header size */
-                            typeBitmapIndexSize +
-                            valueCount;
-                        const rawObjectSize = column.valueCount * (1 + !hasInlinedObjectKeys) + valueCount;
-
-                        if (columnSize <= rawObjectSize) {
-                            // use column representation
-                            if (hasUndef) {
-                                column.typeBitmap |= 1 << TYPE_UNDEF;
-                                column.typeCount++;
-                            }
-                        } else {
-                            // drop
-                            hasInlinedObjectKeys = true;
-                            objectKeyColumns.delete(column.key);
-                        }
-                    }
-                }
-            }
-        }
-
-        return {
-            objectKeyColumns,
-            hasInlinedObjectKeys
-        };
-    }
-
-    function writeArray(array, column = null) {
-        // an empty array
-        if (array.length === 0) {
+    function writeArray(value, flags = 0) {
+        // empty array
+        if (value.length === 0) {
             writer.writeUint8(0);
             return;
         }
 
-        // collect array element types
-        let elemTypes = null;
-        let typeBitmap = 0;
+        const elemTypes = new Uint8Array(value.length);
+        let elemIdx = 0;
         let typeCount = 0;
+        let typeBitmap = 0;
+        let typeList = 0;
+        let typeMax = 0;
+        let hasUndef = false;
+        let seenNonObject = false;
+        let seenObject = false;
+        let objectCount = 0;
+        let objects = value;
 
-        if (column !== null) {
-            elemTypes = column.types;
-            typeBitmap = column.typeBitmap;
-            typeCount = column.typeCount;
-        } else {
-            elemTypes = new Uint8Array(array.length);
-            for (let i = 0; i < array.length; i++) {
-                const elem = array[i];
-                const elemType = elem === undefined
-                    ? TYPE_NULL
-                    : getType(elem);
-                const elemTypeBit = 1 << elemType;
+        for (const elem of value) {
+            const elemType = elem === undefined && !(flags & ARRAY_PRESERVE_UNDEF)
+                ? TYPE_NULL
+                : getType(elem);
+            const elemTypeBit = 1 << elemType;
 
-                elemTypes[i] = elemType;
+            elemTypes[elemIdx++] = elemType;
 
-                if ((typeBitmap & elemTypeBit) === 0) {
-                    typeCount++;
-                    typeBitmap |= elemTypeBit;
+            if (elemType === TYPE_UNDEF) {
+                hasUndef = true;
+            } else if ((typeBitmap & elemTypeBit) === 0) {
+                typeCount++;
+                typeBitmap |= elemTypeBit;
+                typeList |= (typeList << 4) | elemType;
+                if (typeMax < elemType) {
+                    typeMax = elemType;
                 }
+            }
+
+            // avoid build objects array until non-object value is found
+            if (elemType === TYPE_OBJECT) {
+                if (seenNonObject) {
+                    objects[objectCount] = elem;
+                }
+
+                seenObject = true;
+                objectCount++;
+            } else if (!seenNonObject) {
+                seenNonObject = true;
+                objects = seenObject
+                    ? value.slice(0, objectCount)
+                    : [];
             }
         }
 
-        // try to apply column representation for objects
-        const {
-            objectKeyColumns,
-            hasInlinedObjectKeys
-        } = collectArrayObjectInfo(array, elemTypes, typeBitmap);
+        if ((flags & ARRAY_NO_LENGTH) === 0) {
+            writer.writeVlq(value.length);
+        }
+
+        // choose a most optimal way to write elements depends on array.length
+
+        let hasObjectInlineKeys = objectCount > 0;
+        let objectColumnKeys = EMPTY_MAP;
+
+        // attempt to apply column representation for objects
+        if (objectCount > 1) {
+            hasObjectInlineKeys = false;
+            objectColumnKeys = new Map();
+
+            // collect a condidate keys for a column representation
+            for (let i = 0; i < objectCount; i++) {
+                for (const key of Object.keys(objects[i])) {
+                    const value = objects[i][key];
+
+                    if (value === undefined) {
+                        continue;
+                    }
+
+                    let vals = objectColumnKeys.get(key);
+
+                    if (vals === undefined) {
+                        vals = new Array(objectCount);
+                        vals.count = 0;
+                        vals.typeBitmap = 0;
+                        vals.typeCount = 0;
+                        vals.selfValueCount = 0;
+                        objectColumnKeys.set(key, vals);
+                    }
+
+                    vals[i] = value;
+                    vals.count++;
+
+                    const valueTypeBit = 1 << getType(value);
+                    if ((vals.typeBitmap & valueTypeBit) === 0) {
+                        vals.typeBitmap |= valueTypeBit;
+                        vals.typeCount++;
+                    }
+                    if (valueTypeBit & VALUE_CONTAINING_TYPE) {
+                        vals.selfValueCount++;
+                    }
+                }
+            }
+
+            // exclude keys for which the column representation is not byte efficient
+            for (const [key, vals] of objectColumnKeys.entries()) {
+                const hasUndef = vals.count !== value.length;
+                const typeCount = vals.typeCount + hasUndef;
+
+                if (typeCount > 1) {
+                    const bitsPerType = 32 - Math.clz32(typeCount - 1);
+                    const typeBitmapIndexSize = Math.ceil((bitsPerType * value.length) / 8);
+
+                    const valueCount = vals.count - vals.selfValueCount;
+                    const columnSize =
+                        1 + /* min key reprentation size */
+                        1 + /* min array header size */
+                        typeBitmapIndexSize +
+                        valueCount;
+                    const rawObjectSize = vals.count * (1 + !hasObjectInlineKeys) + valueCount;
+
+                    if (columnSize > rawObjectSize) {
+                        hasObjectInlineKeys = true;
+                        objectColumnKeys.delete(key);
+                    }
+                }
+            }
+        }
 
         // array header prelude (1 byte)
         // =====================
@@ -562,7 +543,7 @@ function encode(input, options = {}) {
         //   1) 0 00 0 xxxx
         //             ─┬──
         //              └ TYPE_OBJECT or TYPE_ARRAY or TYPE_NULL - can be reserved for a special cases
-        //                since having these types can be represented with "0 00 1 flags" notation
+        //                since such cases can be represented with "0 00 1 flags" notation
         //
         //   2) 0 01 0 xxxx
         //        ┬─   ─┬──
@@ -578,30 +559,28 @@ function encode(input, options = {}) {
         //            1 type  -> type byte: type0 | type0
         //            2 types -> type byte: type1 | type0
         //
-        const hasUndef = (typeBitmap >> TYPE_UNDEF) & 1;
-        const hasNulls = (typeBitmap >> TYPE_NULL) & 1;
-        const hasObjectColumnKeys = objectKeyColumns.size !== 0;
+        const hasObjectColumnKeys = objectColumnKeys.size !== 0;
         const encodedArrays = 0; // TBD
+        const hasNulls = (typeBitmap >> TYPE_NULL) & 1;
         const lowBitsFlags =
             (hasObjectColumnKeys << 3) |
-            (hasInlinedObjectKeys << 2) |
+            (hasObjectInlineKeys << 2) |
             (encodedArrays << 1) |
             (hasNulls << 0);
-        const lowBitsKind = lowBitsFlags !== 0 || (typeCount === 1 && hasUndef) // has any flag or all elements are undefined and ARRAY_PRESERVE_UNDEF=true
+        const lowBitsType = lowBitsFlags !== 0 || typeCount === 0 // typeCount=0 possible when all elements are undefined and ARRAY_PRESERVE_UNDEF
             ? LOW_BITS_FLAGS // flags
             : LOW_BITS_TYPE; // type
-        const lowBitsType = lowBitsKind === LOW_BITS_TYPE ? 31 - Math.clz32(typeBitmap & STORABLE_TYPES) : 0;
         const headerTypeBitmap =
-            typeBitmap & (STORABLE_TYPES ^ // switch off type bits used in lowBitsFlags
-                (lowBitsKind === LOW_BITS_TYPE ? 1 << lowBitsType : 0) ^
-                ((hasObjectColumnKeys || hasInlinedObjectKeys) << TYPE_OBJECT) ^
+            typeBitmap & (0xffff ^ // switch off type bits used in lowBitsFlags
+                (lowBitsType === LOW_BITS_TYPE ? 1 << typeMax : 0) ^
+                ((hasObjectColumnKeys || hasObjectInlineKeys) << TYPE_OBJECT) ^
                 (encodedArrays << TYPE_ARRAY) ^
                 (hasNulls << TYPE_NULL)
             );
-        const extraTypeCount = typeCount - hasUndef - (
-            lowBitsKind === LOW_BITS_TYPE
+        const extraTypeCount = typeCount - (
+            lowBitsType === LOW_BITS_TYPE
                 ? 1
-                : (hasObjectColumnKeys || hasInlinedObjectKeys) + encodedArrays + hasNulls
+                : (hasObjectColumnKeys || hasObjectInlineKeys) + encodedArrays + hasNulls
         );
         const extraTypesBits =
             extraTypeCount <= 0
@@ -619,29 +598,20 @@ function encode(input, options = {}) {
             // bb
             (extraTypesBits << 5) |
             // c
-            (lowBitsKind << 4) |
+            (lowBitsType << 4) |
             // dddd
-            (lowBitsKind === LOW_BITS_TYPE ? lowBitsType : lowBitsFlags);
-
-        if (column === null) {
-            writer.writeVlq(array.length);
-        }
+            (lowBitsType === LOW_BITS_FLAGS ? lowBitsFlags : typeMax);
 
         writer.writeUint8(header);
-
-        // console.log(
-        //     'header:', header.toString(2).padStart(8, 0),
-        //     'typeBitmap:', typeBitmap.toString(2).padStart(8, 0),
-        //     'headerTypeBitmap:', headerTypeBitmap.toString(2).padStart(8, 0),
-        //     'columns:', [...objectColumnKeys.keys()],
-        //     value
-        // );
 
         // extra types
         switch (extraTypesBits) {
             case 0b01: {
-                const type1 = 31 - Math.clz32(headerTypeBitmap);
-                const type2 = 31 - Math.clz32(headerTypeBitmap ^ (1 << type1));
+                const extraTypes = lowBitsType === LOW_BITS_FLAGS
+                    ? headerTypeBitmap
+                    : typeBitmap ^ (1 << typeMax);
+                const type1 = 31 - Math.clz32(extraTypes);
+                const type2 = 31 - Math.clz32(extraTypes ^ (1 << type1));
 
                 writer.writeUint8(
                     type2 === -1
@@ -661,34 +631,32 @@ function encode(input, options = {}) {
                 break;
         }
 
-        // write array's element values depending on type's number
-        if (typeCount > 1) {
+        // write array's element values depending on types number
+        if ((typeCount + hasUndef) > 1) {
             // an array with multi-type values
 
             // write element's type index
-            writer.writeTypeIndex(elemTypes, typeBitmap);
+            writer.writeTypeIndex(elemTypes, typeBitmap | (hasUndef << TYPE_UNDEF));
 
             // write elements
-            for (let i = 0; i < array.length; i++) {
+            for (let i = 0; i < value.length; i++) {
                 const elemType = elemTypes[i];
 
                 if (elemType !== TYPE_OBJECT) {
-                    writeTypedValue[elemType](array[i]);
-                } else if (hasInlinedObjectKeys) {
-                    writeObject(array[i], objectKeyColumns);
+                    writeTypedValue(elemType, value[i]);
+                } else if (hasObjectInlineKeys) {
+                    writeObject(value[i], objectColumnKeys);
                 }
             }
         } else {
             // an array with a single type
-            const elemType = elemTypes[0];
-
-            if (elemType !== TYPE_OBJECT) {
-                for (const elem of array) {
-                    writeTypedValue[elemType](elem);
+            if (typeMax !== TYPE_OBJECT) {
+                for (let i = 0; i < value.length; i++) {
+                    writeTypedValue(typeMax, value[i]);
                 }
-            } else if (hasInlinedObjectKeys) {
-                for (const elem of array) {
-                    writeObject(elem, objectKeyColumns);
+            } else if (hasObjectInlineKeys) {
+                for (let i = 0; i < value.length; i++) {
+                    writeObject(value[i], objectColumnKeys);
                 }
             }
         }
@@ -696,47 +664,84 @@ function encode(input, options = {}) {
         // write object column keys
         if (hasObjectColumnKeys) {
             // write column keys
-            writer.writeVlq(objectKeyColumns.size);
-            for (const key of objectKeyColumns.keys()) {
-                writeString(key);
+            writer.writeVlq(objectColumnKeys.size);
+            for (const key of objectColumnKeys.keys()) {
+                writeTypedValue(TYPE_STRING, key);
             }
 
             // write column values
-            for (const column of objectKeyColumns.values()) {
-                writeArray(column.values, column);
+            for (const values of objectColumnKeys.values()) {
+                writeArray(values, ARRAY_NO_LENGTH | ARRAY_PRESERVE_UNDEF);
             }
         }
     }
 
+    function writeTypedValue(type, value) {
+        switch (type) {
+            case TYPE_NULL:
+            case TYPE_TRUE:
+            case TYPE_FALSE:
+            case TYPE_UNDEF:
+                // write nothing, since the type is a self contained value type
+                break;
+
+            case TYPE_STRING:
+                writeString(value);
+                break;
+
+            case TYPE_UINT_8:
+                writer.writeUint8(value);
+                break;
+
+            case TYPE_UINT_16:
+                writer.writeUint16(value);
+                break;
+
+            case TYPE_UINT_24:
+                writer.writeUint24(value);
+                break;
+
+            case TYPE_UINT_32:
+                writer.writeUint32(value);
+                break;
+
+            case TYPE_UINT_32_VAR:
+                writer.writeUintVar(value);
+                break;
+
+            case TYPE_NEG_INT:
+                writer.writeUintVar(-value);
+                break;
+
+            case TYPE_FLOAT_32:
+                writer.writeFloat32(value);
+                break;
+
+            case TYPE_FLOAT_64:
+                writer.writeFloat64(value);
+                break;
+
+            case TYPE_OBJECT:
+                writeObject(value);
+                break;
+
+            case TYPE_ARRAY:
+                writeArray(value);
+                break;
+        }
+    }
+
     const writer = new Writer(options.chunkSize);
-    const strings = new Map();
-    let prevString = '';
+    const stringClusters = new Map();
     let stringIdx = 1;
+    let prevString = '';
+
     const objectKeys = new Map();
     const objectEntryDefs = Array.from({ length: 0 }, () => new Set());
     const inputType = getType(input);
 
-    const noop = () => {};
-    const writeTypedValue = {
-        [TYPE_TRUE]: noop,
-        [TYPE_FALSE]: noop,
-        [TYPE_NULL]: noop,
-        [TYPE_UNDEF]: noop,
-        [TYPE_STRING]: writeString,
-        [TYPE_UINT_8]: writer.writeUint8.bind(writer),
-        [TYPE_UINT_16]: writer.writeUint16.bind(writer),
-        [TYPE_UINT_24]: writer.writeUint24.bind(writer),
-        [TYPE_UINT_32]: writer.writeUint32.bind(writer),
-        [TYPE_UINT_32_VAR]: writer.writeUintVar.bind(writer),
-        [TYPE_NEG_INT]: (value) => writer.writeUintVar(-value),
-        [TYPE_FLOAT_32]: writer.writeFloat32.bind(writer),
-        [TYPE_FLOAT_64]: writer.writeFloat64.bind(writer),
-        [TYPE_OBJECT]: writeObject,
-        [TYPE_ARRAY]: writeArray
-    };
-
     writer.writeUint8(inputType);
-    writeTypedValue[inputType](input);
+    writeTypedValue(inputType, input);
 
     return writer.value;
 }
@@ -755,12 +760,12 @@ function decode(bytes) {
             num = (view.getUint8(pos + 2) << 13) | (view.getUint16(pos, true) >> 3);
             pos += 3;
         } else {
-            const low32 = view.getUint32(pos, true);
-
-            num = (low32 >> 3) & MAX_UINT_28;
+            const x = view.getUint32(pos, true);
             pos += 4;
 
-            if (low32 & 0x8000_0000) {
+            num = (x >> 3) & MAX_UINT_28;
+
+            if (x & 0x80000000) {
                 num += readVarNum() * (1 << 29);
             }
         }
@@ -770,13 +775,16 @@ function decode(bytes) {
 
     function readVarNum() {
         let base = 0x80;
-        let byte = view.getUint8(pos++);
+        let byte = view.getUint8(pos);
         let value = byte & 0x7f;
 
+        pos++;
+
         while (byte & 0x80) {
-            byte = view.getUint8(pos++);
+            byte = view.getUint8(pos);
             value += (byte & 0x7f) * base;
             base *= 0x80;
+            pos++;
         }
 
         return value;
@@ -794,7 +802,10 @@ function decode(bytes) {
 
         if (isReference) {
             // reference
-            return strings[num >> 1];
+            const ref = num >> 1;
+            const ret = strings[ref];
+
+            return ret;
         }
 
         // definition
@@ -825,20 +836,20 @@ function decode(bytes) {
                 break;
             }
 
-            if (entryIdx >= objectEntryDefs.length) {
-                objectEntryDefs[entryIdx] = [];
+            if (entryIdx >= kdefs.length) {
+                kdefs[entryIdx] = [];
             }
 
             if (type & 1) {
                 // reference
-                const [key, entryType] = objectEntryDefs[entryIdx][type >> 1];
+                const [key, entryType] = kdefs[entryIdx][type >> 1];
                 value[key] = readValue(entryType);
             } else {
                 // definition
                 const key = readString();
                 const entryType = readType();
 
-                objectEntryDefs[entryIdx].push([key, entryType]);
+                kdefs[entryIdx].push([key, entryType]);
                 value[key] = readValue(entryType);
             }
 
@@ -857,16 +868,14 @@ function decode(bytes) {
 
         const result = new Array(len);
         const header = view.getUint8(pos);
-        const hasUndef = (header >> 7) & 1;                  // a
-        const extraTypes = (header >> 5) & 0b11;             // bb
-        const lowBitsType = (header >> 4) & 1;               // c
-        const lowBitsFlags = lowBitsType === LOW_BITS_FLAGS
-            ? header & 0x0f                                  // dddd
-            : 0x00;
-        const hasObjectColumnKeys = (lowBitsFlags >> 3) & 1; // e
-        const hasObjectInlineKeys = (lowBitsFlags >> 2) & 1; // f
-        const escapedArrays = (lowBitsFlags >> 1) & 1;       // g
-        const hasNulls = (lowBitsFlags >> 0) & 1;            // h
+        const hasUndef = (header >> 7) & 1;
+        const extraTypes = (header >> 5) & 0b11;
+        const lowBitsType = (header >> 4) & 1;
+        const lowBitsFlags = lowBitsType === LOW_BITS_FLAGS ? header & 0x0f : 0x00;
+        const hasObjectColumnKeys = (lowBitsFlags >> 3) & 1;
+        const hasObjectInlineKeys = (lowBitsFlags >> 2) & 1;
+        const escapedArrays = (lowBitsFlags >> 1) & 1;
+        const hasNulls = (lowBitsFlags >> 0) & 1;
         const extraTypesList = extraTypes === 0b01 ? view.getUint8(pos + 1) : 0;
         let typeBitmap =
             (lowBitsType === LOW_BITS_TYPE ? 1 << (header & 0x0f) : 0) |
@@ -884,14 +893,9 @@ function decode(bytes) {
 
         pos += 1 + (extraTypes === 0b00 ? 0 : extraTypes === 0b11 ? 2 : 1);
 
-        // console.log(len,
-        //     'header:', header.toString(2).padStart(8, 0),
-        //     'typeBitmap:', typeBitmap.toString(2).padStart(8, 0),
-        //     { extraTypes, hasObjectColumnKeys, hasObjectInlineKeys }
-        // );
-
         let typeCount = 0;
         let typeIdx = 0;
+        const ownTypeIndexNeeded = typeBitmap & ((1 << TYPE_OBJECT) | (1 << TYPE_ARRAY));
         while (typeBitmap > 0) {
             if (typeBitmap & 1) {
                 typeIndex[typeCount++] = typeIdx;
@@ -905,7 +909,7 @@ function decode(bytes) {
         if (typeCount > 1) {
             const bitsPerType = 32 - Math.clz32(typeCount - 1);
             const mask = (1 << bitsPerType) - 1;
-            const typeMapping = typeBitmap & ((1 << TYPE_OBJECT) | (1 << TYPE_ARRAY))
+            const typeMapping = ownTypeIndexNeeded
                 ? typeIndex.slice(0, typeCount)
                 : typeIndex;
             let indexPos = pos;
@@ -929,7 +933,6 @@ function decode(bytes) {
                 } else {
                     objects.push(result[i] = hasObjectInlineKeys ? readValue(elemType) : {});
                 }
-
                 byte >>= bitsPerType;
                 left -= bitsPerType;
             }
@@ -1043,14 +1046,12 @@ function decode(bytes) {
 
     const stringDecoder = new TextDecoder('utf8', { ignoreBOM: true });
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    const objectEntryDefs = [];
+    const kdefs = [];
     const strings = [''];
     let prevString = '';
     let pos = 0;
 
-    const ret = readValue(readType());
-
-    return ret;
+    return readValue(readType());
 }
 
 module.exports = {

@@ -21,7 +21,7 @@
     },
     "scripts": {
         "test": "mocha --reporter progress",
-        "lint": "eslint src test",
+        "lint": "eslint src test benchmarks",
         "lint-and-test": "npm run lint && npm test",
         "build": "rollup --config",
         "test:all": "npm run test:src && npm run test:dist",

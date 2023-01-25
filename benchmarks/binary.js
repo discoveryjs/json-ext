@@ -1,20 +1,23 @@
-const jsonExt = require('../src/binary');
+const jsonExtStage1 = require('./binary/snapshot1');
+const jsonExtStage2 = require('./binary/snapshot2'); // object key columns, opt arrays
+const jsonExtStage3 = require('./binary/snapshot3'); // change type set, use uint24 for vlq, opt object entries encoding
+const jsonExtStage4 = require('./binary/snapshot4'); // prev string
+const jsonExtCurrent = require('../src/binary');
 const v8 = require('v8');
 const cbor = require('cbor');
 const bson = require('bson');
 const { gzipSync, gunzipSync, brotliCompressSync } = require('zlib');
-const stringToBuffer = s => new TextEncoder().encode(s);
-const ensureBuffer = v => typeof v === 'string' ? stringToBuffer(v) : v;
 
 // FIXTURE
 const filename = process.argv[2];
+const validateDecodedResult = process.argv.includes('--validate');
 const raw = filename
     ? require('fs').readFileSync(filename)
     : null;
 const fixture = raw !== null ? JSON.parse(raw) : {
     // mock data
     foo: 1,
-    bar: [1,2,3],
+    bar: [1, 2, 3, 2342],
     a: ['aaa', 'bbb', 'aaa', 'foo'],
     b: [{ foo: 'foo', bar: 'bar' }],
     baz: {foo: 2, a: 'asd', baz: true},
@@ -27,7 +30,7 @@ const features = new Set([
     'gzip'
 ]);
 const solutions = {
-    'native JSON': {
+    'Standard JSON': {
         encode: {
             name: 'strigify()',
             fn: data => JSON.stringify(data)
@@ -35,16 +38,6 @@ const solutions = {
         decode: {
             name: 'parse()',
             fn: encoded => JSON.parse(encoded)
-        }
-    },
-    'json-ext': {
-        encode: {
-            name: 'encode()',
-            fn: data => jsonExt.encode(data)
-        },
-        decode: {
-            name: 'decode()',
-            fn: encoded => jsonExt.decode(encoded)
         }
     },
     'Node.js v8': {
@@ -87,52 +80,106 @@ const solutions = {
             name: 'deserialize()',
             fn: encoded => bson.deserialize(encoded)
         }
+    },
+    'json-ext (snapshot 1)': {
+        encode: {
+            name: 'encode()',
+            fn: data => jsonExtStage1.encode(data)
+        },
+        decode: {
+            name: 'decode()',
+            fn: encoded => jsonExtStage1.decode(encoded)
+        }
+    },
+    'json-ext (snapshot 2)': {
+        encode: {
+            name: 'encode()',
+            fn: data => jsonExtStage2.encode(data)
+        },
+        decode: {
+            name: 'decode()',
+            fn: encoded => jsonExtStage2.decode(encoded)
+        }
+    },
+    'json-ext (snapshot 3)': {
+        encode: {
+            name: 'encode()',
+            fn: data => jsonExtStage3.encode(data)
+        },
+        decode: {
+            name: 'decode()',
+            fn: encoded => jsonExtStage3.decode(encoded)
+        }
+    },
+    'json-ext (snapshot 4)': {
+        encode: {
+            name: 'encode()',
+            fn: data => jsonExtStage4.encode(data)
+        },
+        decode: {
+            name: 'decode()',
+            fn: encoded => jsonExtStage4.decode(encoded)
+        }
+    },
+    'json-ext (current)': {
+        encode: {
+            name: 'encode()',
+            fn: data => jsonExtCurrent.encode(data)
+        },
+        decode: {
+            name: 'decode()',
+            fn: encoded => jsonExtCurrent.decode(encoded)
+        }
     }
 };
-
-function addTotal(times, encodeName, decodeName) {
-    let total = 0;
-
-    for (const t of Object.values(times)) {
-        total += t || 0;
-    }
-
-    return {
-        ...times,
-        encodeDecode: times[encodeName] + times[decodeName],
-        total
-    };
-}
 
 async function runSolution(name, data) {
     const solution = solutions[name];
     const { encode, decode } = solution;
     const times = {};
     const time = async (tname, fn) => {
-        // console.log(name, tname);
-        const t = Date.now();
+        const startTime = Date.now();
         const res = await fn();
-        times[tname] = Date.now() - t;
-        const size = res.byteLength || res.length;
-        console.log(' ', tname, times[tname],
-            ...typeof size === 'number' ? [`(size: ${String(res.byteLength || res.length).replace(/\.\d+(eE[-+]?\d+)?|\B(?=(\d{3})+(\D|$))/g, m => m || '_')})`] : []);
+        const elapsedTime = Date.now() - startTime;
+        const size = typeof res === 'string' ? Buffer.byteLength(res) : res.byteLength;
+
+        times[tname] = elapsedTime;
+        console.log(' ', solution[tname]?.name || tname, elapsedTime,
+            ...typeof size === 'number' ? [`(size: ${String(size).replace(/\.\d+(eE[-+]?\d+)?|\B(?=(\d{3})+(\D|$))/g, m => m || '_')})`] : []);
+
         return res;
     };
 
-    const encoded = await time(encode.name, () => encode.fn(data));
-    const encodedBuffer = ensureBuffer(encoded);
+    let encoded;
+
+    try {
+        encoded = await time('encode', () => {
+            return encode.fn(data);
+        });
+    } catch (e) {
+        console.error('ERROR', e);
+    }
+
+    let decodedValidationResult = null;
     let gzip = null;
     let brotli = null;
 
     try {
-        const decoded = await time(decode.name, () => decode.fn(encoded));
-        require('assert').deepStrictEqual(decoded, data);
+        const decoded = await time('decode', () => decode.fn(encoded));
+        if (validateDecodedResult) {
+            require('assert').deepStrictEqual(decoded, data);
+            console.error('  [OK] Decoded is deep equal to original data');
+            decodedValidationResult = true;
+        }
     } catch (e) {
-        times[decode.name] = 'ERROR';
+        decodedValidationResult = false;
+        // times[decode.name] = 'ERROR';
+        console.error('  [ERROR] Decoded is not deep equal to original data');
         console.error(e);
+        // console.error('ERROR', e.message);
     }
 
-    if (features.has('gzip')) {
+    if (features.has('gzip') && encoded) {
         gzip = await time('gzip', () => gzipSync(encoded));
         await time('gunzip', () => gunzipSync(gzip));
     }
@@ -144,32 +191,41 @@ async function runSolution(name, data) {
 
     return {
         name,
+        valid: decodedValidationResult,
         size: {
-            encoded: encoded.length,
-            encodedBuffer: encodedBuffer.length,
+            encoded: typeof encoded === 'string' ? Buffer.byteLength(encoded) : encoded ? encoded.byteLength : null,
             ...gzip ? { gzip: gzip.length } : null,
             ...brotli ? { brotli: brotli.length } : null
         },
-        time: addTotal(times, encode.name, decode.name)
+        time: times
     };
 }
 
 async function runBenchmarks() {
     const results = [];
-
-    for (const solutionName of Object.keys(solutions)) {
-        console.log(solutionName);
-        results.push(await runSolution(solutionName, fixture));
-        console.log();
-    }
+    const fixtureSize = filename ? raw.length : JSON.stringify(fixture).length;
 
     console.log(`===[${filename || 'raw'}]===`);
-    console.log(`===[size: ${filename ? raw.length : JSON.stringify(fixture).length}]`);
-    console.log(results);
+    console.log(`===[size: ${fixtureSize}]`);
+    console.log();
 
-    for (const { name, size, time } of results) {
-        console.log([name, ...Object.values(size), ...Object.values(time)].join(';'));
+    for (const solutionName of Object.keys(solutions)) {
+        // if (solutionName !== 'cbor' || fixtureSize < 200000000) {
+        if (solutionName.startsWith('json-ext') || solutionName === 'Standard JSON') {
+        // if (solutionName === 'json-ext (current)') {
+            console.log(solutionName);
+            results.push(await runSolution(solutionName, fixture));
+            console.log();
+        }
     }
+
+    if (typeof process.send === 'function') {
+        process.send(results);
+    }
+
+    // for (const { name, size, time } of results) {
+    //     console.log([...Object.values(size), ...Object.values(time)].join('\t'));
+    // }
 }
 
 setTimeout(runBenchmarks, 250);
