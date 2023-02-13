@@ -3,9 +3,9 @@ const jsonExtStage1 = require('./binary/snapshot1');
 const jsonExtStage2 = require('./binary/snapshot2'); // object key columns, opt arrays
 const jsonExtStage3 = require('./binary/snapshot3'); // change type set, use uint24 for vlq, opt object entries encoding
 const jsonExtStage4 = require('./binary/snapshot4'); // prev string
-const jsonExtCurrent = require('../src/binary');
 const jsonExtStage5 = require('./binary/snapshot5'); //
 const jsonExtStage6 = require('./binary/snapshot6'); //
+let jsonExtCurrent;
 const v8 = require('v8');
 const cbor = require('cbor');
 const cborX = require('cbor-x');
@@ -288,6 +288,8 @@ async function runBenchmarks() {
     console.log(`===[${filename || 'raw'}]===`);
     console.log(`===[size: ${fixtureSize}]`);
     console.log();
+
+    jsonExtCurrent = await import('../src/binary.mjs');
 
     for (const solutionName of [
         'Standard JSON',

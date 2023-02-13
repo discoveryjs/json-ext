@@ -1,15 +1,17 @@
 const assert = require('assert');
-const {encode, decode, Writer} = require('../src/binary');
-
-function roundTrip(value) {
-    return decode(encode(value));
-}
+// const {encode, decode, Writer} = require('../src/binary.mjs');
 
 function roundTripJson(value) {
     return JSON.parse(JSON.stringify(value));
 }
 
 describe('binary', () => {
+    let encode, decode, Writer;
+    before(async () => ({encode, decode, Writer} = await import('../src/binary.mjs')));
+    function roundTrip(value) {
+        return decode(encode(value));
+    }
+
     describe('atoms', () => {
         const values = [
             null,
