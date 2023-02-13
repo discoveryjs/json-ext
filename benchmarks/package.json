@@ -13,7 +13,11 @@
     "bfj": "^7.0.2",
     "bson": "^4.7.2",
     "cbor": "^8.1.0",
+    "cbor-x": "^1.5.0",
     "chalk": "^4.1.0",
-    "json-stream-stringify": "^2.0.2"
+    "json-stream-stringify": "^2.0.2",
+    "msgpack-lite": "^0.1.26",
+    "msgpack5": "^6.0.2",
+    "msgpackr": "^1.8.2"
   }
 }

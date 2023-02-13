@@ -1,11 +1,18 @@
+const jsonExtStage0 = require('./binary/snapshot0');
 const jsonExtStage1 = require('./binary/snapshot1');
 const jsonExtStage2 = require('./binary/snapshot2'); // object key columns, opt arrays
 const jsonExtStage3 = require('./binary/snapshot3'); // change type set, use uint24 for vlq, opt object entries encoding
 const jsonExtStage4 = require('./binary/snapshot4'); // prev string
 const jsonExtCurrent = require('../src/binary');
+const jsonExtStage5 = require('./binary/snapshot5'); //
+const jsonExtStage6 = require('./binary/snapshot6'); //
 const v8 = require('v8');
 const cbor = require('cbor');
+const cborX = require('cbor-x');
 const bson = require('bson');
+const msgpackr = require('msgpackr');
+const msgpackLite = require('msgpack-lite');
+const msgpack5 = require('msgpack5')();
 const { gzipSync, gunzipSync, brotliCompressSync } = require('zlib');
 
 // FIXTURE
@@ -71,6 +78,46 @@ const solutions = {
             fn: encoded => cbor.decode(encoded)
         }
     },
+    'cbor-x': {
+        encode: {
+            name: 'encode()',
+            fn: data => cborX.encode(data)
+        },
+        decode: {
+            name: 'decode()',
+            fn: encoded => cborX.decode(encoded)
+        }
+    },
+    'msgpack-lite': {
+        encode: {
+            name: 'encode()',
+            fn: data => msgpackLite.encode(data)
+        },
+        decode: {
+            name: 'decode()',
+            fn: encoded => msgpackLite.decode(encoded)
+        }
+    },
+    'msgpackr': {
+        encode: {
+            name: 'pack()',
+            fn: data => msgpackr.pack(data)
+        },
+        decode: {
+            name: 'unpack()',
+            fn: encoded => msgpackr.unpack(encoded)
+        }
+    },
+    'msgpack5': {
+        encode: {
+            name: 'encode()',
+            fn: data => msgpack5.encode(data)
+        },
+        decode: {
+            name: 'decode()',
+            fn: encoded => msgpack5.decode(encoded)
+        }
+    },
     'bson': {
         encode: {
             name: 'serialize()',
@@ -81,7 +128,17 @@ const solutions = {
             fn: encoded => bson.deserialize(encoded)
         }
     },
-    'json-ext (snapshot 1)': {
+    'json-ext (initial)': {
+        encode: {
+            name: 'encode()',
+            fn: data => jsonExtStage0.encode(data)
+        },
+        decode: {
+            name: 'decode()',
+            fn: encoded => jsonExtStage0.decode(encoded)
+        }
+    },
+    'json-ext (snapshot 2023-01-13)': {
         encode: {
             name: 'encode()',
             fn: data => jsonExtStage1.encode(data)
@@ -91,7 +148,7 @@ const solutions = {
             fn: encoded => jsonExtStage1.decode(encoded)
         }
     },
-    'json-ext (snapshot 2)': {
+    'json-ext (snapshot 2023-01-18)': {
         encode: {
             name: 'encode()',
             fn: data => jsonExtStage2.encode(data)
@@ -101,7 +158,7 @@ const solutions = {
             fn: encoded => jsonExtStage2.decode(encoded)
         }
     },
-    'json-ext (snapshot 3)': {
+    'json-ext (snapshot 2023-01-21)': {
         encode: {
             name: 'encode()',
             fn: data => jsonExtStage3.encode(data)
@@ -111,7 +168,7 @@ const solutions = {
             fn: encoded => jsonExtStage3.decode(encoded)
         }
     },
-    'json-ext (snapshot 4)': {
+    'json-ext (snapshot 2023-01-22)': {
         encode: {
             name: 'encode()',
             fn: data => jsonExtStage4.encode(data)
@@ -119,6 +176,26 @@ const solutions = {
         decode: {
             name: 'decode()',
             fn: encoded => jsonExtStage4.decode(encoded)
+        }
+    },
+    'json-ext (snapshot 2023-01-27)': {
+        encode: {
+            name: 'encode()',
+            fn: data => jsonExtStage5.encode(data)
+        },
+        decode: {
+            name: 'decode()',
+            fn: encoded => jsonExtStage5.decode(encoded)
+        }
+    },
+    'json-ext (snapshot 2023-02-08)': {
+        encode: {
+            name: 'encode()',
+            fn: data => jsonExtStage6.encode(data)
+        },
+        decode: {
+            name: 'decode()',
+            fn: encoded => jsonExtStage6.decode(encoded)
         }
     },
     'json-ext (current)': {
@@ -141,7 +218,7 @@ async function runSolution(name, data) {
         const startTime = Date.now();
         const res = await fn();
         const elapsedTime = Date.now() - startTime;
-        const size = typeof res === 'string' ? Buffer.byteLength(res) : res.byteLength;
+        const size = typeof res === 'string' ? Buffer.byteLength(res) : res.estSize || res.byteLength;
 
         times[tname] = elapsedTime;
         console.log(' ', solution[tname]?.name || tname, elapsedTime,
@@ -167,14 +244,17 @@ async function runSolution(name, data) {
     try {
         const decoded = await time('decode', () => decode.fn(encoded));
         if (validateDecodedResult) {
-            require('assert').deepStrictEqual(decoded, data);
-            console.error('  [OK] Decoded is deep equal to original data');
-            decodedValidationResult = true;
+            try {
+                require('assert').deepStrictEqual(decoded, data);
+                console.error('  ✅ Decoded is deep equal to original data');
+                decodedValidationResult = true;
+            } catch (e) {
+                decodedValidationResult = false;
+                console.error('  [ERROR] Decoded is not deep equal to original data');
+            }
         }
     } catch (e) {
-        decodedValidationResult = false;
         // times[decode.name] = 'ERROR';
-        console.error('  [ERROR] Decoded is not deep equal to original data');
         console.error(e);
         // console.error('ERROR', e.message);
     }
@@ -193,7 +273,7 @@ async function runSolution(name, data) {
         name,
         valid: decodedValidationResult,
         size: {
-            encoded: typeof encoded === 'string' ? Buffer.byteLength(encoded) : encoded ? encoded.byteLength : null,
+            encoded: typeof encoded === 'string' ? Buffer.byteLength(encoded) : encoded ? encoded.estSize || encoded.byteLength : null,
             ...gzip ? { gzip: gzip.length } : null,
             ...brotli ? { brotli: brotli.length } : null
         },
@@ -209,10 +289,25 @@ async function runBenchmarks() {
     console.log(`===[size: ${fixtureSize}]`);
     console.log();
 
-    for (const solutionName of Object.keys(solutions)) {
-        // if (solutionName !== 'cbor' || fixtureSize < 200000000) {
-        if (solutionName.startsWith('json-ext') || solutionName === 'Standard JSON') {
-        // if (solutionName === 'json-ext (current)') {
+    for (const solutionName of [
+        'Standard JSON',
+        // 'Node.js v8',
+        // 'cbor',
+        // 'cbor-x',
+        // 'msgpack-lite',
+        // 'msgpackr',
+        // 'msgpack5',
+        // 'bson',
+        // 'json-ext (initial)',
+        'json-ext (snapshot 2023-01-13)',
+        // 'json-ext (snapshot 2023-01-18)',
+        // 'json-ext (snapshot 2023-01-21)',
+        // 'json-ext (snapshot 2023-01-22)',
+        // 'json-ext (snapshot 2023-01-27)',
+        'json-ext (snapshot 2023-02-08)',
+        'json-ext (current)'
+    ]) {
+        if (solutionName !== 'cbor' || fixtureSize < 200000000) {
             console.log(solutionName);
             results.push(await runSolution(solutionName, fixture));
             console.log();
