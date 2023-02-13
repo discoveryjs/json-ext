@@ -1,4 +1,5 @@
 const { fork } = require('child_process');
+const validate = false;
 const fixtures = [
     /* eslint-disable comma-dangle */
     './fixture/small.json',
@@ -9,7 +10,7 @@ const fixtures = [
 
 function runTest(filepath) {
     return new Promise((resolve, reject) => {
-        fork('binary.js', [filepath]) // '--validate'
+        fork('binary.js', validate ? [filepath, '--validate'] : [filepath])
             .on('message', resolve)
             .on('close', code => {
                 if (code) {
