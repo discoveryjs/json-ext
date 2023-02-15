@@ -369,8 +369,8 @@ export function encode(input, options = {}) {
 
         // try to apply column representation for objects
         const {
-            objectKeyColumns,
-            hasInlinedObjectKeys
+            hasInlinedEntries: objectHasInlinedEntries,
+            columns: objectColumns
         } = collectArrayObjectInfo(array, elemTypes, typeBitmap);
 
         // array header
@@ -443,10 +443,10 @@ export function encode(input, options = {}) {
         const hasFlattenArrays = (typeBitmap >> TYPE_ARRAY) & 1
             ? (typeCount === 1) || getTypeCount(elemTypes, TYPE_ARRAY) > 1
             : 0;
-        const hasObjectColumnKeys = objectKeyColumns.size !== 0;
+        const hasObjectColumnKeys = objectColumns.size !== 0;
         const lowBitsFlags =
             (hasObjectColumnKeys << 3) |
-            (hasInlinedObjectKeys << 2) |
+            (objectHasInlinedEntries << 2) |
             (hasFlattenArrays << 1) |
             (hasNulls << 0);
         const lowBitsKind = lowBitsFlags !== 0 || (typeCount === 1 && hasUndef) // has any flag or all elements are undefined (an object key column)
@@ -458,14 +458,14 @@ export function encode(input, options = {}) {
         const headerTypeBitmap =
             typeBitmap & (STORABLE_TYPES ^ // switch off type bits used in lowBitsFlags
                 (lowBitsKind === LOW_BITS_TYPE ? 1 << lowBitsType : 0) ^
-                ((hasObjectColumnKeys || hasInlinedObjectKeys) << TYPE_OBJECT) ^
+                ((hasObjectColumnKeys || objectHasInlinedEntries) << TYPE_OBJECT) ^
                 (hasFlattenArrays << TYPE_ARRAY) ^
                 (hasNulls << TYPE_NULL)
             );
         const extraTypeCount = typeCount - hasUndef - (
             lowBitsKind === LOW_BITS_TYPE
                 ? 1
-                : (hasObjectColumnKeys || hasInlinedObjectKeys) + hasFlattenArrays + hasNulls
+                : (hasObjectColumnKeys || objectHasInlinedEntries) + hasFlattenArrays + hasNulls
         );
         const extraTypesBits =
             extraTypeCount <= 0
@@ -733,24 +733,24 @@ export function encode(input, options = {}) {
                 // write object column keys
                 if (hasObjectColumnKeys) {
                     // write column keys
-                    writer.writeVlq(objectKeyColumns.size);
-                    for (const key of objectKeyColumns.keys()) {
+                    writer.writeVlq(objectColumns.size);
+                    for (const key of objectColumns.keys()) {
                         writeString(key);
                     }
 
                     // write column values
-                    for (const column of objectKeyColumns.values()) {
+                    for (const column of objectColumns.values()) {
                         writeArray(column.values, true, column);
                     }
                 }
 
                 // write object inlined keys
-                if (hasInlinedObjectKeys) {
+                if (objectHasInlinedEntries) {
                     const objectsOnly = typeBitmap === (1 << TYPE_OBJECT);
 
                     for (let i = 0; i < array.length; i++) {
                         if (objectsOnly || elemTypes[i] === TYPE_OBJECT) {
-                            writeObject(array[i], objectKeyColumns);
+                            writeObject(array[i], objectColumns);
                         }
                     }
                 }
