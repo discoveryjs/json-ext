@@ -57,6 +57,7 @@ async function run() {
                 encodeDecodeTime: time(data.time.encode + data.time.decode),
                 gzipTime: time(data.time.gzip),
                 gunzipTime: time(data.time.gunzip),
+                restoreTime: time(data.time.gunzip + data.time.decode),
                 totalTime: time(
                     data.time.encode +
                     data.time.decode +
@@ -79,6 +80,7 @@ async function run() {
         encodeDecodeTime: 'Enc+Dec',
         gzipTime: 'Gzip',
         gunzipTime: 'Gunzip',
+        restoreTime: 'Gun+Dec',
         totalTime: 'Total'
     };
     const drawLine = (s, m, e) => console.log(
@@ -92,14 +94,16 @@ async function run() {
         '─'.repeat(maxFieldLen.decodeTime + 2) +
         // m +
         // '─'.repeat(maxFieldLen.encodedMem + 2) +
-        m +
-        '─'.repeat(maxFieldLen.encodeDecodeTime + 2) +
+        // m +
+        // '─'.repeat(maxFieldLen.encodeDecodeTime + 2) +
         m +
         '─'.repeat(maxFieldLen.gzipSize + 2) +
         m +
         '─'.repeat(maxFieldLen.gzipTime + 2) +
         m +
         '─'.repeat(maxFieldLen.gunzipTime + 2) +
+        m +
+        '─'.repeat(maxFieldLen.restoreTime + 2) +
         m +
         '─'.repeat(maxFieldLen.totalTime + 2) +
         e
@@ -115,14 +119,16 @@ async function run() {
         fmtField(data, 'decodeTime', left),
         // '│',
         // fmtField(data, 'encodedMem', left),
-        '│',
-        fmtField(data, 'encodeDecodeTime', left),
+        // '│',
+        // fmtField(data, 'encodeDecodeTime', left),
         '│',
         fmtField(data, 'gzipSize', left),
         '│',
         fmtField(data, 'gzipTime', left),
         '│',
         fmtField(data, 'gunzipTime', left),
+        '│',
+        fmtField(data, 'restoreTime', left),
         '│',
         fmtField(data, 'totalTime', left),
         '│'
