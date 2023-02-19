@@ -86,9 +86,9 @@ export class Writer {
     }
     writeString(str, shift = 1) {
         this.writeVlq(Buffer.byteLength(str) << shift);
-        this.writeStringBytes(str);
+        this.writeStringRaw(str);
     }
-    writeStringBytes(str) {
+    writeStringRaw(str) {
         let strPos = 0;
         while (strPos < str.length) {
             const { read, written } = this.stringEncoder.encodeInto(

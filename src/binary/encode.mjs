@@ -201,47 +201,39 @@ export function encode(input, options = {}) {
 
         if ((typeBitmap & (1 << TYPE_STRING)) === typeBitmap && array.length > 2) {
             const sectionSize = 32;
-            let stringIdx_ = stringIdx;
-            let prevString_ = prevString;
-            const tmpStrings = new Map();
             let current = 0;
             let hasSlice = false;
-            let sliceBitLoss = 0;
             let refs = 0;
 
             stringHeaders = new Array(array.length);
             for (let i = 0, k = 0; i < array.length; i++) {
                 const str = array[i];
-                const refIdx = str === '' ? 0 : strings.get(str) || tmpStrings.get(str);
+                const refIdx = str === '' ? 0 : strings.get(str);
 
                 if (refIdx === undefined) {
-                    const prevStringCommonPrefixLength = findCommonStringPrefix(prevString_, str);
+                    const prevStringCommonPrefixLength = findCommonStringPrefix(prevString, str);
                     let bytes;
 
-                    tmpStrings.set(str, stringIdx_++);
-                    prevString_ = str;
+                    strings.set(str, stringIdx++);
+                    prevString = str;
 
                     if (prevStringCommonPrefixLength > 0) {
                         bytes = Buffer.byteLength(str.slice(prevStringCommonPrefixLength));
-                        // console.log('!slice', { offset: prevStringCommonPrefixLength, len: bytes }, prevString_.slice(0, prevStringCommonPrefixLength), str.slice(prevStringCommonPrefixLength));
                         current += 1 +
-                            writer.vlqBytesNeeded(bytes) +
-                            writer.vlqBytesNeeded(prevStringCommonPrefixLength);
+                            writer.vlqBytesNeeded(prevStringCommonPrefixLength) +
+                            writer.vlqBytesNeeded(bytes);
                     } else {
                         bytes = Buffer.byteLength(str);
-                        // console.log('!raw', { len: bytes }, str);
                         current += writer.vlqBytesNeeded(bytes << 1);
                     }
 
                     stringHeaders[k++] = (bytes << 2) | (prevStringCommonPrefixLength > 0 ? 0b10 : 0);
-                    sliceBitLoss += writer.vlqBytesNeeded(bytes << 2) - writer.vlqBytesNeeded(bytes << 1);
 
                     if (prevStringCommonPrefixLength > 0) {
                         hasSlice = true;
                         stringHeaders[k++] = prevStringCommonPrefixLength;
                     }
                 } else {
-                    // console.log('!ref', refIdx, str);
                     current += writer.vlqBytesNeeded(refIdx << 1);
                     stringHeaders[k++] = (refIdx << 1) | 1;
                     refs++;
@@ -249,25 +241,19 @@ export function encode(input, options = {}) {
             }
             const { bytes: lengthBytes } = findNumArrayBestEncoding(writer, stringHeaders, sectionSize);
 
-            if (!hasSlice) {
-                stat.sliceBitLoss += sliceBitLoss;
-                stat.noSliceStringArray++;
-                stat.noSliceStringArrayLenBytes += writer.vlqBytesNeeded(array.length);
-            }
-
-            if (refs === array.length) {
-                stat.onlyStrRefsLoss += stringHeaders.reduce((s, v) => s + writer.vlqBytesNeeded(v) - writer.vlqBytesNeeded(v >> 1), 0);
-            } else if (refs === 0) {
-                if (!hasSlice) {
-                    stat.onlyStrDefLoss += stringHeaders.reduce((s, v) => s + writer.vlqBytesNeeded(v) - writer.vlqBytesNeeded(v >> 2), 0);
-                } else {
-                    stat.onlyStrDefAndSliceLoss = stringHeaders.reduce((s, v) => s + writer.vlqBytesNeeded(v) - writer.vlqBytesNeeded(v >> 1), 0);
-                }
-            }
+            // if (refs === array.length) {
+            //     stat.onlyStrRefsLoss += stringHeaders.reduce((s, v) => s + writer.vlqBytesNeeded(v) - writer.vlqBytesNeeded(v >> 1), 0);
+            // } else if (refs === 0) {
+            //     if (!hasSlice) {
+            //         stat.onlyStrDefLoss += stringHeaders.reduce((s, v) => s + writer.vlqBytesNeeded(v) - writer.vlqBytesNeeded(v >> 2), 0);
+            //     } else {
+            //         stat.onlyStrDefAndSliceLoss = stringHeaders.reduce((s, v) => s + writer.vlqBytesNeeded(v) - writer.vlqBytesNeeded(v >> 1), 0);
+            //     }
+            // }
 
             // console.log(array, {lns, prefixes, lengthBytes, prefixesBytes});
 
-            if (lengthBytes + 1 < current) {
+            if (lengthBytes + 1 <= current) {
                 // console.log({new: lengthBytes + 1, current });
                 encoding = ARRAY_ENCODING_STRING;
                 stat.newStringBytes += lengthBytes + 1;
@@ -657,9 +643,11 @@ export function encode(input, options = {}) {
                             const offset = stringHeaders[k++];
                             writer.writeUint8(0);
                             writer.writeVlq(offset);
-                            writer.writeString(str.slice(offset), 0);
+                            writer.writeVlq(header >> 2);
+                            writer.writeStringRaw(str.slice(offset), 0);
                         } else {
-                            writer.writeString(str);
+                            writer.writeVlq(header >> 1);
+                            writer.writeStringRaw(str);
                         }
 
                         strings.set(str, stringIdx++);
@@ -679,7 +667,7 @@ export function encode(input, options = {}) {
                         // string definition
                         const str = array[i];
 
-                        writer.writeStringBytes(header & 0b10
+                        writer.writeStringRaw(header & 0b10
                             // prefix slice
                             ? str.slice(stringHeaders[k++])
                             // raw string
