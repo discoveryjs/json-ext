@@ -16,8 +16,6 @@ export const ARRAY_ENCODING_VLQ2 = 3;
 export const ARRAY_ENCODING_MIN_DIFF = 4;
 export const ARRAY_ENCODING_ENUM = 5;
 export const ARRAY_ENCODING_SINGLE_VALUE = 6;
-export const ARRAY_ENCODING_STRING_DEFAULT = 7;
-export const ARRAY_ENCODING_STRING = 8;
 
 // 1st byte of type bitmap (most common types)
 export const TYPE_TRUE = 0;         // value-containing type

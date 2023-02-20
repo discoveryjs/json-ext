@@ -21,8 +21,6 @@ import {
     ARRAY_ENCODING_VLQ,
     ARRAY_ENCODING_VLQ2,
     ARRAY_ENCODING_PROGRESSION,
-    ARRAY_ENCODING_STRING,
-    ARRAY_ENCODING_STRING_DEFAULT,
 
     LOW_BITS_TYPE,
     LOW_BITS_FLAGS
@@ -30,6 +28,32 @@ import {
 
 // reusable dictionary of used types for a value seria index
 const typeIndexDictionary = new Uint8Array(32);
+
+function loadStrings(readStringBytes, readArray) {
+    const defs = readArray(undefined, false);
+    const slices = readArray(undefined, false);
+    const allStrings = readStringBytes();
+    const stringRefs = readArray(undefined, false);
+    const strings = new Array(defs);
+
+    for (let i = 0, offset = 0, sliceIdx = 0, prevString = ''; i < defs.length; i++) {
+        const def = defs[i];
+        let str = allStrings.slice(offset, offset += def >> 2);
+
+        if ((def & 2) === 2) {
+            str = prevString.slice(0, slices[sliceIdx++]) + str;
+        }
+
+        if ((def & 1) === 1) {
+            str += prevString.slice(-slices[sliceIdx++]);
+        }
+
+        strings[i] = str;
+        prevString = str;
+    }
+
+    return { stringRefs, strings };
+}
 
 export function decode(bytes) {
     function readVlq() {
@@ -88,32 +112,14 @@ export function decode(bytes) {
     }
 
     function readString() {
-        const num = readVlq();
-        const isReference = num & 1;
+        const ref = stringRefs[stringRefIdx++];
 
-        if (isReference) {
-            // reference
-            return strings[num >> 1];
-        }
-
-        // definition
-        const prevStringLen = num === 0 ? readVlq() : 0;
-        const len = num === 0 ? readVlq() : num >> 1;
-        let str = readStringBytes(len);
-
-        if (num === 0) {
-            str = prevString.slice(0, prevStringLen) + str;
-        }
-
-        strings.push(str);
-        prevString = str;
-
-        return str;
+        return strings[ref];
     }
 
-    function readStringBytes(len) {
-        const str = stringDecoder.decode(bytes.subarray(pos, pos + len));
-        pos += len;
+    function readStringBytes() {
+        const len = readVlq();
+        const str = stringDecoder.decode(bytes.subarray(pos, pos += len));
 
         return str;
     }
@@ -152,7 +158,7 @@ export function decode(bytes) {
         return object;
     }
 
-    function readArray(knownLength) {
+    function readArray(knownLength, headerRefs = true) {
         const arrayLength = typeof knownLength === 'number' ? knownLength : readVlq();
 
         if (arrayLength === 0) {
@@ -194,7 +200,9 @@ export function decode(bytes) {
                 }
             }
 
-            arrayHeaders.push((encoding << 24) | (typeBits << 8) | header);
+            if (headerRefs) {
+                arrayHeaders.push((encoding << 24) | (typeBits << 8) | header);
+            }
         }
 
         const result = new Array(arrayLength);
@@ -267,30 +275,6 @@ export function decode(bytes) {
                 break;
             }
 
-            case ARRAY_ENCODING_STRING: {
-                const stringHeaders = readArray();
-
-                for (let i = 0, k = 0; i < arrayLength; i++) {
-                    const header = stringHeaders[k++];
-
-                    if (header & 1) {
-                        result[i] = strings[header >> 1];
-                    } else {
-                        const str = header & 0b10
-                            // slice
-                            ? prevString.slice(0, stringHeaders[k++]) + readStringBytes(header >> 2)
-                            // raw
-                            : readStringBytes(header >> 2);
-
-                        strings.push(str);
-                        prevString = str;
-                        result[i] = str;
-                    }
-                }
-                break;
-            }
-
-            case ARRAY_ENCODING_STRING_DEFAULT:
             default: {
                 const hasObjects = typeBitmap & (1 << TYPE_OBJECT);
                 const hasArrays = typeBitmap & (1 << TYPE_ARRAY);
@@ -472,11 +456,12 @@ export function decode(bytes) {
 
     const stringDecoder = new TextDecoder('utf8', { ignoreBOM: true });
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    let pos = 0;
+
     const objectEntryDefs = [];
     const arrayHeaders = [];
-    const strings = [''];
-    let prevString = '';
-    let pos = 0;
+    const { strings, stringRefs } = loadStrings(readStringBytes, readArray);
+    let stringRefIdx = 0;
 
     const ret = readValue(readType());
 

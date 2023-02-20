@@ -15,10 +15,9 @@ const WRITER_MIN_CHUNK_SIZE = 8;
 
 export class Writer {
     constructor(chunkSize = WRITER_DEFAULT_CHUNK_SIZE) {
-        this.chunks = [];
         this.stringEncoder = new TextEncoder();
         this.chunkSize = chunkSize > WRITER_MIN_CHUNK_SIZE ? chunkSize : WRITER_MIN_CHUNK_SIZE;
-        this.createChunk();
+        this.reset();
     }
     get value() {
         this.flushChunk();
@@ -27,6 +26,10 @@ export class Writer {
         this.chunks = null;
 
         return resultBuffer;
+    }
+    reset() {
+        this.chunks = [];
+        this.createChunk();
     }
     createChunk() {
         this.bytes = new Uint8Array(this.chunkSize);

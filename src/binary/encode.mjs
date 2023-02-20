@@ -1,7 +1,7 @@
 import { Writer } from './encode-writter.mjs';
 import { getType, getTypeCount } from './encode-get-type.mjs';
 import { findNumArrayBestEncoding } from './encode-number.mjs';
-import { findCommonStringPrefix } from './encode-string.mjs';
+import { writeStrings } from './encode-string.mjs';
 import { collectArrayObjectInfo } from './encode-object.mjs';
 import {
     TYPE_TRUE,
@@ -32,8 +32,6 @@ import {
     ARRAY_ENCODING_PROGRESSION,
     ARRAY_ENCODING_SINGLE_VALUE,
     ARRAY_ENCODING_ENUM,
-    ARRAY_ENCODING_STRING,
-    ARRAY_ENCODING_STRING_DEFAULT,
 
     LOW_BITS_TYPE,
     LOW_BITS_FLAGS
@@ -43,73 +41,15 @@ import { resetStat, stat } from './debug-stat.mjs';
 const EMPTY_MAP = new Map();
 
 export function encode(input, options = {}) {
-    function writeStringReference(str) {
-        const ref = strings.get(str);
+    function writeString(str) {
+        let ref = strings.get(str);
 
-        if (ref !== undefined) {
-            writer.writeReference(ref);
-
-            return true;
+        if (ref === undefined) {
+            ref = stringIdx++;
+            strings.set(str, ref);
         }
 
-        return false;
-    }
-
-    function writeString(value) {
-        if (value === '') {
-            writer.writeReference(0); // empty string reference
-            return;
-        }
-
-        if (!writeStringReference(value)) {
-            const prevStringCommonPrefixLength = findCommonStringPrefix(prevString, value);
-            // const prevStringCommonLength2 = findCommonSubstring2(prevString, value);
-            // let start = 0;
-            // let end = value.length;
-
-            // if (prevStringCommonLength2 !== 0) {
-            //     // end = prevStringCommonLength2;
-            //     totaldiff += -prevStringCommonLength2;
-            //     taildiff += -prevStringCommonLength2;
-            //     if (prevStringCommonLength < -prevStringCommonLength2) {
-            //         taildiff2 += -prevStringCommonLength2;
-            //     }
-            // }
-
-            // totalpenalty += prevStringCommonLength2 !== 0 && prevStringCommonLength !== 0;
-            if (prevStringCommonPrefixLength > 0) {
-                // start = prevStringCommonLength;
-                // totaldiff += prevStringCommonLength;
-                // headdiff += prevStringCommonLength;
-                // if (prevStringCommonLength > -prevStringCommonLength2) {
-                //     headdiff2 += prevStringCommonLength;
-                // }
-                // penalty += prevStringCommonLength >= 64 && prevStringCommonLength < 128;
-                // penalty += prevStringCommonLength <= (vlqBytesNeeded(prevStringCommonLength * 2) + 1);
-                writer.writeUint8(0);
-                writer.writeVlq(prevStringCommonPrefixLength);
-                writer.writeString(value.slice(prevStringCommonPrefixLength), 0);
-            } else {
-                writer.writeString(value);
-            }
-
-            // if (prevStringCommonLength || prevStringCommonLength2) {
-            //     writer.writeUint8(0);
-            //     if (prevStringCommonLength > -prevStringCommonLength2)  {
-            //         start = prevStringCommonLength;
-            //         prevStringCommonLength && writer.writeVlq(prevStringCommonLength * 2);
-            //     } else {
-            //         end = prevStringCommonLength2;
-            //         prevStringCommonLength2 && writer.writeVlq(-prevStringCommonLength2 * 2 | 1);
-            //     }
-            //     writer.writeString(value.slice(start, end), 0);
-            // } else {
-            //     writer.writeString(value);
-            // }
-
-            strings.set(value, stringIdx++);
-            prevString = value;
-        }
+        stringRefs.push(ref);
     }
 
     function writeObject(object, ignoreFields = EMPTY_MAP) {
@@ -156,7 +96,7 @@ export function encode(input, options = {}) {
         writer.writeUint8(0);
     }
 
-    function writeArray(array, knownLength = false, column = null) {
+    function writeArray(array, knownLength = false, column = null, headerRefs = true) {
         // an empty array
         if (array.length === 0) {
             writer.writeUint8(0);
@@ -195,96 +135,6 @@ export function encode(input, options = {}) {
                     elemTypes[i] = elemType;
                 }
             }
-        }
-
-        let stringHeaders = null;
-
-        if ((typeBitmap & (1 << TYPE_STRING)) === typeBitmap && array.length > 2) {
-            const sectionSize = 32;
-            let current = 0;
-            let hasSlice = false;
-            let refs = 0;
-
-            stringHeaders = new Array(array.length);
-            for (let i = 0, k = 0; i < array.length; i++) {
-                const str = array[i];
-                const refIdx = str === '' ? 0 : strings.get(str);
-
-                if (refIdx === undefined) {
-                    const prevStringCommonPrefixLength = findCommonStringPrefix(prevString, str);
-                    let bytes;
-
-                    strings.set(str, stringIdx++);
-                    prevString = str;
-
-                    if (prevStringCommonPrefixLength > 0) {
-                        bytes = Buffer.byteLength(str.slice(prevStringCommonPrefixLength));
-                        current += 1 +
-                            writer.vlqBytesNeeded(prevStringCommonPrefixLength) +
-                            writer.vlqBytesNeeded(bytes);
-                    } else {
-                        bytes = Buffer.byteLength(str);
-                        current += writer.vlqBytesNeeded(bytes << 1);
-                    }
-
-                    stringHeaders[k++] = (bytes << 2) | (prevStringCommonPrefixLength > 0 ? 0b10 : 0);
-
-                    if (prevStringCommonPrefixLength > 0) {
-                        hasSlice = true;
-                        stringHeaders[k++] = prevStringCommonPrefixLength;
-                    }
-                } else {
-                    current += writer.vlqBytesNeeded(refIdx << 1);
-                    stringHeaders[k++] = (refIdx << 1) | 1;
-                    refs++;
-                }
-            }
-            const { bytes: lengthBytes } = findNumArrayBestEncoding(writer, stringHeaders, sectionSize);
-
-            // if (refs === array.length) {
-            //     stat.onlyStrRefsLoss += stringHeaders.reduce((s, v) => s + writer.vlqBytesNeeded(v) - writer.vlqBytesNeeded(v >> 1), 0);
-            // } else if (refs === 0) {
-            //     if (!hasSlice) {
-            //         stat.onlyStrDefLoss += stringHeaders.reduce((s, v) => s + writer.vlqBytesNeeded(v) - writer.vlqBytesNeeded(v >> 2), 0);
-            //     } else {
-            //         stat.onlyStrDefAndSliceLoss = stringHeaders.reduce((s, v) => s + writer.vlqBytesNeeded(v) - writer.vlqBytesNeeded(v >> 1), 0);
-            //     }
-            // }
-
-            // console.log(array, {lns, prefixes, lengthBytes, prefixesBytes});
-
-            if (lengthBytes + 1 <= current) {
-                // console.log({new: lengthBytes + 1, current });
-                encoding = ARRAY_ENCODING_STRING;
-                stat.newStringBytes += lengthBytes + 1;
-                stat.currentStringBytes += current;
-            } else {
-                encoding = ARRAY_ENCODING_STRING_DEFAULT;
-                stat.loosnewStringBytes += lengthBytes + 1;
-                stat.looscurrentStringBytes += current;
-            }
-
-            // const min1 = Math.min(...Object.values(estimates));
-            // const min2 = Math.min(...Object.values(estimatesDeltas));
-            // const min = Math.min(min1, min2);
-            // const estimatesMin = min1 <= min2 ? estimates : estimatesDeltas;
-
-            // for (const [k,v] of Object.entries({ current, ...estimatesMin })) {
-            //     if (v === min) {
-            //         const kx = min1 <= min2 ? k : k + '_delta';
-            //         arrayStrStat[kx] = arrayStrStat[kx] || { size: 0, indexSize: 0, count: 0 };
-            //         arrayStrStat[kx].count++;
-            //         arrayStrStat[kx].size += v;
-            //         arrayStrStat[kx].indexSize += current;
-            //         break;
-            //     }
-            // }
-            // pontStrIndex += current;
-            // pontStrMin += min;
-
-            // if (current > min) {
-            //     enc = 1;
-            // }
         }
 
         // try to optimize array of uint values only
@@ -474,7 +324,7 @@ export function encode(input, options = {}) {
             (lowBitsKind === LOW_BITS_TYPE ? lowBitsType : lowBitsFlags);
 
         const arrayHeader = (encoding << 24) | (headerTypeBitmap << 8) | header;
-        const arrayHeaderId = arrayDefs.get(arrayHeader);
+        const arrayHeaderId = headerRefs ? arrayDefs.get(arrayHeader) : undefined;
 
         // const xxTypeBitmap = typeBitmap | (hasInlinedObjectKeys << 18) | (hasObjectColumnKeys << 19);
         // typeBitmaps.set(xxTypeBitmap, (typeBitmaps.get(xxTypeBitmap) || 0) + 1);
@@ -500,7 +350,9 @@ export function encode(input, options = {}) {
         if (arrayHeaderId !== undefined) {
             writer.writeVlq((arrayHeaderId << 1) | 1);
         } else {
-            arrayDefs.set(arrayHeader, arrayDefs.size);
+            if (headerRefs) {
+                arrayDefs.set(arrayHeader, arrayDefs.size);
+            }
 
             writer.writeVlq((encoding << 1) | 0);
             writer.writeUint8(header);
@@ -630,58 +482,6 @@ export function encode(input, options = {}) {
                 break;
             }
 
-            case ARRAY_ENCODING_STRING_DEFAULT: {
-                for (let i = 0, k = 0; i < array.length; i++) {
-                    const header = stringHeaders[k++];
-
-                    if (header & 1) {
-                        writer.writeVlq(header);
-                    } else {
-                        const str = array[i];
-
-                        if (header & 0b10) {
-                            const offset = stringHeaders[k++];
-                            writer.writeUint8(0);
-                            writer.writeVlq(offset);
-                            writer.writeVlq(header >> 2);
-                            writer.writeStringRaw(str.slice(offset), 0);
-                        } else {
-                            writer.writeVlq(header >> 1);
-                            writer.writeStringRaw(str);
-                        }
-
-                        strings.set(str, stringIdx++);
-                        prevString = str;
-                    }
-                }
-                break;
-            }
-
-            case ARRAY_ENCODING_STRING: {
-                writeArray(stringHeaders);
-
-                for (let i = 0, k = 0; i < array.length; i++) {
-                    const header = stringHeaders[k++];
-
-                    if ((header & 1) === 0) {
-                        // string definition
-                        const str = array[i];
-
-                        writer.writeStringRaw(header & 0b10
-                            // prefix slice
-                            ? str.slice(stringHeaders[k++])
-                            // raw string
-                            : str
-                        );
-
-                        strings.set(str, stringIdx++);
-                        prevString = str;
-                    }
-                }
-
-                break;
-            }
-
             default:
                 // write array's element values depending on type's number
                 if (typeCount > 1) {
@@ -744,51 +544,6 @@ export function encode(input, options = {}) {
                 }
         }
 
-        // if (typeCount === 1 && (typeBitmap & ((1 << TYPE_ARRAY) | (1 << TYPE_UNDEF)))) {
-        //     let ok = true;
-        //     loop: for (const elem of array) {
-        //         if (Array.isArray(elem)) {
-        //             for (const x of elem) {
-        //                 if (typeof x !== 'number' || !isFinite(x)) {
-        //                     ok = false;
-        //                     break loop;
-        //                 }
-        //             }
-        //         }
-        //     }
-
-        //     if (ok) {
-        //         const arrays = array.filter(Array.isArray);
-        //         const values = arrays.flat();
-        //         const alens = arrays.map(x => x.length);
-        //         const { estimates, estimatesDeltas } = findNumArrayBestEncoding(values, getElemenTypes(values), sectionSize);
-        //         const lens = findNumArrayBestEncoding(alens, getElemenTypes(alens), sectionSize);
-        //         const current = writer.written - written;
-        //         estimates.current = current;
-        //         estimatesDeltas.current = current;
-
-        //         const minLen = Math.min(...Object.values(lens.estimates), ...Object.values(lens.estimatesDeltas));
-        //         const min1 = Math.min(...Object.values(estimates));
-        //         const min2 = Math.min(...Object.values(estimatesDeltas));
-        //         const min = Math.min(min1, min2);
-        //         const estimatesMin = min1 <= min2 ? estimates : estimatesDeltas;
-
-        //         for (const [k,v] of Object.entries({ current, ...estimatesMin })) {
-        //             if (v === min) {
-        //                 const kx = min1 <= min2 ? k : k + '_delta';
-        //                 arrayArrStat[kx] = arrayArrStat[kx] || { size: 0, indexSize: 0, lens: 0, count: 0 };
-        //                 arrayArrStat[kx].count++;
-        //                 // arrayArrStat[kx].lens += minLen;
-        //                 arrayArrStat[kx].size += v + minLen;
-        //                 arrayArrStat[kx].indexSize += current;
-        //                 break;
-        //             }
-        //         }
-
-        //         pontArrIndex += current;
-        //         pontArrMin += min;
-        //     }
-        // }
 
         // console.log(writer.written - written);
     }
@@ -814,8 +569,8 @@ export function encode(input, options = {}) {
     const objectEntryDefs = [];
     const arrayDefs = new Map();
     const strings = new Map();
-    let prevString = '';
-    let stringIdx = 1;
+    const stringRefs = [];
+    let stringIdx = 0;
     const inputType = getType(input);
 
     const noop = () => {};
@@ -980,8 +735,13 @@ export function encode(input, options = {}) {
     //     onlyStrDefAndSliceLoss: stat.onlyStrDefAndSliceLoss
     // });
 
-    const res = writer.value;
+    const structureBytes = writer.value;
     // res.estSize = res.byteLength - (pontIndex - pontMin) - (pontStrIndex - pontStrMin) - (pontArrIndex - pontArrMin) - sm;
 
     return res;
+    const stringBytes = writeStrings(strings, stringRefs, writer, writeArray);
+    return Buffer.concat([
+        stringBytes,
+        structureBytes
+    ]);
 }

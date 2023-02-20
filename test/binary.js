@@ -175,12 +175,13 @@ describe('binary', () => {
             ['foo', 'bar', 'baz'],
             ['foo', 'foo', 'foo'],
 
-            // strings with common prefix
+            // strings with common prefix/postfix
             [
                 'foo/bar', 'foo/bar/baz', 'foo/bar/baz/qux', 'foo/bar/a/b/c/d',
                 'hello', 'hello world', 'hello',
                 'foo/bar/123'
-            ]
+            ],
+            ['hello', 'hello world', 'hello - abc - world', 'hello - world', 'world']
         ];
 
         for (const value of values) {
