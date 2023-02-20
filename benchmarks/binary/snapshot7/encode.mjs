@@ -36,7 +36,6 @@ import {
     LOW_BITS_TYPE,
     LOW_BITS_FLAGS
 } from './const.mjs';
-import { resetStat, stat } from './debug-stat.mjs';
 
 const EMPTY_MAP = new Map();
 
@@ -54,7 +53,6 @@ export function encode(input, options = {}) {
 
     function writeObject(object, ignoreFields = EMPTY_MAP) {
         let entryIdx = 0;
-        objects++;
 
         for (const key in object) {
             if (hasOwnProperty.call(object, key) && !ignoreFields.has(key)) {
@@ -79,6 +77,7 @@ export function encode(input, options = {}) {
                 const refId = objectEntryDefs[entryIdx].get(defId);
 
                 if (refId !== undefined) {
+                    // console.log('! write entry ref', refId);
                     // def reference
                     writer.writeReference(refId);
                 } else {
@@ -86,8 +85,10 @@ export function encode(input, options = {}) {
                     writeString(key);
                     writer.writeUint8(entryType);
                     objectEntryDefs[entryIdx].set(defId, objectEntryDefs[entryIdx].size);
+                    // console.log('! write entry def', defId, objectEntryDefs[entryIdx].size - 1, key, entryType);
                 }
 
+                // console.log('! write entry value', entryType, object[key]);
                 writeTypedValue(entryType, object[key]);
                 entryIdx++;
             }
@@ -140,67 +141,7 @@ export function encode(input, options = {}) {
         // try to optimize array of uint values only
         const sectionSize = 16;
         if (encoding === ARRAY_ENCODING_DEFAULT && (typeBitmap & UINT_TYPE) === typeBitmap && array.length > 1) {
-            let bytes = 0;
-            // const t = performance.now();
-            stat.enabled = true;
-            ({ encoding, bytes } = findNumArrayBestEncoding(writer, array, sectionSize));
-            stat.enabled = false;
-            // const { estimates, sectionStatTemp, estimatesDeltas } = findNumArrayBestEncoding(array, elemTypes, sectionSize);
-            // let even = 0;
-            // let even2 = 0;
-            // for (let i = 0; i < array.length; i++) {
-            //     if ((array[i] & 1) === 0) {
-            //         even++;
-            //         even2 += array[i] > 0 && (((32 - Math.clz32(array[i])) - 1) % 8) === 0;
-            //     }
-            // }
-            // arrayNumEven += even === array.length;
-            // arrayNumEven2 += even === array.length ? even2 : 0;
-            // arrayNumOdd += even === 0;
-
-            // const min1 = Math.min(...Object.values(estimates));
-            // const min2 = Math.min(...Object.values(estimatesDeltas));
-            // const min = Math.min(min1, min2);
-            // const estimatesMin = min1 <= min2 ? estimates : estimatesDeltas;
-            // let idx = 0;
-
-            // for (const [k,v] of Object.entries(estimatesMin)) {
-            //     if (v === min) {
-            //         const kx = min1 <= min2 ? k : k + '_delta';
-            //         arrayStat[kx] = arrayStat[kx] || { size: 0, indexSize: 0, count: 0 };
-            //         arrayStat[kx].count++;
-            //         arrayStat[kx].size += v;
-            //         arrayStat[kx].indexSize += estimates.indexBytes;
-            //         enc = idx | (min1 > min2 ? 1 << 4 : 0);
-
-            //         if (k === 'sections') {
-            //             for (const [k2,v2] of Object.entries(sectionStatTemp)) {
-            //                 const kx2 = k2;
-            //                 if (sectionsStat[kx2]) {
-            //                     sectionsStat[kx2].count += v2.count;
-            //                     sectionsStat[kx2].size += v2.size;
-            //                     sectionsStat[kx2].indexSize += v2.indexSize;
-            //                 } else {
-            //                     sectionsStat[kx2] = v2;
-            //                 }
-            //             }
-            //         }
-            //         break;
-            //     }
-            //     idx++;
-            // }
-
-            // pontIndex += estimates.indexBytes;
-            // pontMin += min;
-
-            // if (estimates.indexBytes > min) {
-            //     enc = 1;
-            // }
-            // if (array.length > 1_000_000) {
-            //     console.log({ len: array.length, vlqBytes, vlqBytes2, indexBytes });
-            // }
-
-            // tt += performance.now() - t;
+            ({ encoding } = findNumArrayBestEncoding(writer, array, sectionSize));
         }
 
         // try to apply column representation for objects
@@ -273,11 +214,12 @@ export function encode(input, options = {}) {
         //            1 type  -> type byte: type0 | type0
         //            2 types -> type byte: type1 | type0
         //
-        arrays++;
         const hasUndef = (typeBitmap >> TYPE_UNDEF) & 1;
         const hasNulls = (typeBitmap >> TYPE_NULL) & 1;
-        const hasFlattenArrays = (typeBitmap >> TYPE_ARRAY) & 1
-            ? (typeCount === 1) || getTypeCount(elemTypes, TYPE_ARRAY) > 1
+        const hasFlattenArrays = 0 // (typeBitmap >> TYPE_ARRAY) & 1
+            ? ((typeCount === 1) || getTypeCount(elemTypes, TYPE_ARRAY) > 1) &&
+                // don't flatten arrays of object arrays for now
+                array.every(elem => !Array.isArray(elem) || elem.every(elem2 => getType(elem2) !== TYPE_OBJECT))
             : 0;
         const hasObjectColumnKeys = objectColumns.size !== 0;
         const lowBitsFlags =
@@ -326,10 +268,45 @@ export function encode(input, options = {}) {
         const arrayHeader = (encoding << 24) | (headerTypeBitmap << 8) | header;
         const arrayHeaderId = headerRefs ? arrayDefs.get(arrayHeader) : undefined;
 
+        // xxxx undefined (hole) / null / true / false
+        // xxxx number uint | int | float | numeric bitmap/encoding
+        // x string
+        // xx object (00 - no, 01 - inlined, 10 - columns, 11 - inlined & columns)
+        // xx array (00 - no, 01 - as is, 10 - flatten, 11 - ?)
+        // x carry bit
+        // x ref/def bit
+        // x reserved
+
+        // 1
+        // xxxxxxxx types
+        // 2
+        // xx object  inlined | columns
+        // x array  (0 as is, 1 - flatten)
+        // xx string?  refs | defs | slice
+        // xxx number  uint/int | float | bitmap
+        // 3 num encoding
+        // xx lowering
+        // xxxxxx encoding
+        //  - progression
+        //  - vlq
+        //  - vlq_signed
+        //  - vlq2
+        //  - vlq2_signed
+        //  - enum
+        //  - sections
+        // 3 bitmap
+        // xxxxx - uint/int 8, 16, 24, 32, 32vlq
+        // xxx - float32, float64, decimal
+        //
+        // ----
+        //
+        // uint: uint8, uint16, uint24, uint32, uint32Vlq, uintVlq
+        // int_neg: int8, int16, int24, int32, int32Vlq, intVlq
+        // float: float32, float64, decimal  ? decimal8, decimal16, decimal24, decimal32, decimalVlq
+
         // const xxTypeBitmap = typeBitmap | (hasInlinedObjectKeys << 18) | (hasObjectColumnKeys << 19);
         // typeBitmaps.set(xxTypeBitmap, (typeBitmaps.get(xxTypeBitmap) || 0) + 1);
         // typeBitmapsValues.set(xxTypeBitmap, (typeBitmapsValues.get(xxTypeBitmap) || 0) + array.length);
-        // xHeaders.add((typeBitmap << 7) | (hasObjectColumnKeys << 6) | (hasInlinedObjectKeys << 5) | enc);
 
         // cdefs++;
         // cdefsBytes += 1 + (extraTypesBits === 0 ? 1 : extraTypesBits === 3 ? 3 : 2);
@@ -342,6 +319,8 @@ export function encode(input, options = {}) {
         //     'columns:', [...objectColumnKeys.keys()],
         //     value
         // );
+
+        // let written = writer.written;
 
         if (!knownLength) {
             writer.writeVlq(array.length);
@@ -382,7 +361,8 @@ export function encode(input, options = {}) {
             }
         }
 
-        // let written = writer.written;
+        // console.log('array', array, 'header', writer.written - written, 'enc', encoding);
+        // written = writer.written;
 
         switch (encoding) {
             case ARRAY_ENCODING_SINGLE_VALUE:
@@ -528,6 +508,7 @@ export function encode(input, options = {}) {
 
                     // write column values
                     for (const column of objectColumns.values()) {
+                        // array.length > 100 && console.log(column.key, array.length);
                         writeArray(column.values, true, column);
                     }
                 }
@@ -544,6 +525,7 @@ export function encode(input, options = {}) {
                 }
         }
 
+        // console.log('array', array, 'values', writer.written - written);
 
         // console.log(writer.written - written);
     }
@@ -592,152 +574,12 @@ export function encode(input, options = {}) {
         [TYPE_ARRAY]: writeArray
     };
 
-    let arrays = 0;
-    let objects = 0;
-    let arrays32 = 0;
-    let arrayLens = new Map();
-    let arrayHasUndef = 0;
-    let pontEncoding = 0;
-    let pontSections = 0;
-    let pontSectionsIndex = 0;
-    let pontSectionsPenalty = 0;
-    let pontVlq4 = 0;
-    let pontVlq4Index = 0;
-    let pontOthers = 0;
-    let pontEnums = 0;
-    let pontIndex = 0;
-    let pontMin = 0;
-    let pontStrIndex = 0;
-    let pontStrMin = 0;
-    let pontArrIndex = 0;
-    let pontArrMin = 0;
-    let pontProgression = 0;
-    let pontProgressionIndex = 0;
-    let sectionsProgression = 0;
-    let totaldiff = 0;
-    let taildiff = 0;
-    let taildiff2 = 0;
-    let headdiff = 0;
-    let headdiff2 = 0;
-    let penalty = 0;
-    let totalpenalty = 0;
-    const sectionsStat = {};
-    const arrayStat = {};
-    const arrayStrStat = {};
-    const arrayArrStat = {};
-    const refs = new Set();
-    const typeBitmaps = new Map();
-    const typeBitmapsValues = new Map();
-    let sm = 0;
-    let smp = 0;
-    let progressionSaving = 0;
-    let arrayNumEven = 0;
-    let arrayNumEven2 = 0;
-    let arrayNumOdd = 0;
-    let cdefs = 0;
-    let cdefsBytes = 0;
-    let xHeaders = new Set();
-
-    let encodeWritten = 0;
-
-    resetStat();
-
     writer.writeUint8(inputType);
     typeWriteHandler[inputType](input);
 
-    // const xStat = (stat) => {
-    //     for (const v of Object.values(stat)) {
-    //         v.win = v.indexSize - v.size;
-    //     }
-    //     return stat;
-    // };
-    // console.log('arrayStrStat', xStat(arrayStrStat));
-    // console.log('arrayArrStat', xStat(arrayArrStat));
-    // console.log('arrayStat', xStat(arrayStat));
-    // console.log('sectionsStat', xStat(sectionsStat));
-    // console.log({
-    //     pontIndex,
-    //     pontSectionsPenalty,
-    //     pontOthers,
-    //     pontMin,
-    //     win: pontIndex - pontMin,
-    //     winSections: arrayStat.sections?.win || 0,
-    //     winProgression: arrayStat.progressionBytes?.win || 0,
-    //     pontArrIndex,
-    //     pontArrMin,
-    //     winArr: pontArrIndex - pontArrMin,
-    //     pontStrIndex,
-    //     pontStrMin,
-    //     winStr: pontStrIndex - pontStrMin,
-    //     winWithStr: (pontIndex - pontMin) + (pontStrIndex - pontStrMin)
-    // });
-
-    // const bitmapToNames = b => {
-    //     let res = [];
-    //     while (b) {
-    //         res.unshift(TYPE_NAME[31 - Math.clz32(b)]);
-    //         b ^= 1 << (31 - Math.clz32(b));
-    //     }
-    //     return res;
-    // };
-
-    // // console.log(bitmapToNames(1 << TYPE_STRING));
-
-    // console.log({
-    //     bitmaps: typeBitmaps.size,
-    //     mostpop: [...typeBitmaps.entries()]
-    //         .sort((a, b) => b[1] - a[1])
-    //         .slice(0, 20)
-    //         .map(b => `${b[1]} x ${bitmapToNames(b[0]).join(' | ')} (${typeBitmapsValues.get(b[0])})`)
-    // });
-    // // console.log({ headdiff, headdiff2, taildiff, taildiff2, total: taildiff2 + headdiff2, totaldiff, penalty, totalpenalty, win: (totaldiff - totalpenalty) - (taildiff2 + headdiff2), winCur: (totaldiff - totalpenalty) - headdiff });
-    // // console.log({ strings: strings.size, refs: refs.size, ref8,
-    // //     ref8vlq,
-    // //     ref16,
-    // //     ref16vlq,ref24, ref24vlq });
-    // console.log({ sm, smp, arrays, arrayNumEven, arrayNumEven2,
-    //     arrayNumOdd, cdefs, cdefsBytes, xHeaders: xHeaders.size, arrayHeaders: arrayHeaders.size });
-    // console.log({ columnMonoType, columnMonoTypeElements, acceptedColumns,
-    //     droppedColumns });
-    // console.log(tt, { pontEnum, pontSV, pontEncoding, pontWat, ponts: pontEnum + pontSV, pont_, pont3 });
-    // console.log({min:writer.sb+objects+arrays, pont: writer.written - (writer.sb+objects+arrays) })
-    // console.log({ arrays, arrays32, arrays32plus: arrays - arrays32, arrayLens: new Map([...arrayLens.entries()].sort((a, b) => a[0] - b[0]).slice(0, 32)), arrayHasUndef });
-    // const {
-    //     encodeSize,
-    //     encodeCount,
-    //     encodeMin,
-    //     encodeWin,
-    //     encodeDefault,
-    //     encodeWinDefault
-    // } = stat;
-    // console.log({
-    //     encodeSize,
-    //     encodeCount,
-    //     encodeMin,
-    //     encodeWin,
-    //     encodeDefault,
-    //     encodeWinDefault
-    // });
-
-    // const {newStringBytes,currentStringBytes,
-    //     loosnewStringBytes,
-    //     looscurrentStringBytes } = stat;
-    // console.log({newStringBytes, currentStringBytes, win: currentStringBytes - newStringBytes,
-    //     loosnewStringBytes,
-    //     looscurrentStringBytes,
-    //     loss: loosnewStringBytes - looscurrentStringBytes});
-    // console.log('slice loss', {
-    //     bitloss: stat.sliceBitLoss,
-    //     noSliceStringArray: stat.noSliceStringArray,
-    //     noSliceStringArrayLenBytes: stat.noSliceStringArrayLenBytes,
-    //     onlyStrRefsLoss: stat.onlyStrRefsLoss,
-    //     onlyStrDefLoss: stat.onlyStrDefLoss,
-    //     onlyStrDefAndSliceLoss: stat.onlyStrDefAndSliceLoss
-    // });
-
     const structureBytes = writer.value;
-    // res.estSize = res.byteLength - (pontIndex - pontMin) - (pontStrIndex - pontStrMin) - (pontArrIndex - pontArrMin) - sm;
     const stringBytes = writeStrings(strings, stringRefs, writer, writeArray);
+
     return Buffer.concat([
         stringBytes,
         structureBytes
