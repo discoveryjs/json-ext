@@ -29,6 +29,8 @@ import {
     ARRAY_ENCODING_DEFAULT,
     ARRAY_ENCODING_VLQ,
     ARRAY_ENCODING_VLQ2,
+    ARRAY_ENCODING_SIGNED_VLQ,
+    ARRAY_ENCODING_SIGNED_VLQ2,
     ARRAY_ENCODING_PROGRESSION,
     ARRAY_ENCODING_SINGLE_VALUE,
     ARRAY_ENCODING_ENUM,
@@ -450,6 +452,14 @@ export function encode(input, options = {}) {
                 break;
             }
 
+            case ARRAY_ENCODING_SIGNED_VLQ: {
+                // write values
+                for (let i = 0; i < array.length; i++) {
+                    writer.writeSignedVlq(array[i]);
+                }
+                break;
+            }
+
             case ARRAY_ENCODING_VLQ2: {
                 // const t = performance.now();
                 // write index
@@ -471,9 +481,35 @@ export function encode(input, options = {}) {
                 break;
             }
 
+            case ARRAY_ENCODING_SIGNED_VLQ2: {
+                // write index
+                for (let i = 0; i < array.length; i += 2) {
+                    const lo = array[i];
+                    const abslo = Math.abs(lo);
+                    const hi = array[i + 1] || 0;
+                    const abshi = Math.abs(hi);
+
+                    writer.writeUint8(
+                        (abslo > 0x03 ? 0x08 : 0x00) | (abslo & 0x03) | (lo < 0 ? 0x04 : 0x00) |
+                        (abshi > 0x03 ? 0x80 : 0x00) | (((abshi & 0x03) | (hi < 0 ? 0x04 : 0x00)) << 4)
+                    );
+                }
+
+                // write values
+                for (let i = 0; i < array.length; i++) {
+                    const n = array[i] >= 0 ? array[i] : -array[i];
+                    if (n > 0x03) {
+                        writer.writeUintVar((n - (n & 0x03)) / 4);
+                    }
+                }
+
+                // tt += performance.now() - t;
+                break;
+            }
+
             case ARRAY_ENCODING_PROGRESSION: {
                 // const w = writer.written;
-                writer.writeUintVar(array[0]);
+                writer.writeSignedVlq(array[0]);
                 // const w1 = writer.written - w;
                 writer.writeSignedVlq(array[1] - array[0]);
 

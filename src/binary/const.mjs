@@ -13,9 +13,11 @@ export const ARRAY_ENCODING_DEFAULT = 0;
 export const ARRAY_ENCODING_PROGRESSION = 1;
 export const ARRAY_ENCODING_VLQ = 2;
 export const ARRAY_ENCODING_VLQ2 = 3;
-export const ARRAY_ENCODING_MIN_DIFF = 4;
-export const ARRAY_ENCODING_ENUM = 5;
-export const ARRAY_ENCODING_SINGLE_VALUE = 6;
+export const ARRAY_ENCODING_SIGNED_VLQ = 4;
+export const ARRAY_ENCODING_SIGNED_VLQ2 = 5;
+export const ARRAY_ENCODING_MIN_DIFF = 6;
+export const ARRAY_ENCODING_ENUM = 7;
+export const ARRAY_ENCODING_SINGLE_VALUE = 8;
 
 // 1st byte of type bitmap (most common types)
 export const TYPE_TRUE = 0;         // value-containing type
@@ -53,8 +55,8 @@ export const UINT_TYPE =
     (1 << TYPE_UINT_16) |
     (1 << TYPE_UINT_24) |
     (1 << TYPE_UINT_32) |
-    (1 << TYPE_UINT_32_VAR);
-    // (1 << TYPE_NEG_INT);
+    (1 << TYPE_UINT_32_VAR) |
+    (1 << TYPE_NEG_INT);
 export const ENUM_TYPE =
     (1 << TYPE_STRING) |
     (1 << TYPE_UINT_8) |

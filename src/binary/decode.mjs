@@ -20,6 +20,8 @@ import {
 
     ARRAY_ENCODING_VLQ,
     ARRAY_ENCODING_VLQ2,
+    ARRAY_ENCODING_SIGNED_VLQ,
+    ARRAY_ENCODING_SIGNED_VLQ2,
     ARRAY_ENCODING_PROGRESSION,
 
     LOW_BITS_TYPE,
@@ -241,12 +243,20 @@ export function decode(bytes) {
                 break;
             }
 
+            case ARRAY_ENCODING_SIGNED_VLQ: {
+                for (let i = 0; i < arrayLength; i++) {
+                    result[i] = readSignedVarNum();
+                }
+                break;
+            }
+
             case ARRAY_ENCODING_VLQ2: {
                 let indexPos = pos;
 
                 pos += Math.ceil(arrayLength / 2);
 
                 for (let i = 0, indexByte = 0; i < arrayLength; i++) {
+                    // read a byte for even indecies, since a byte encodes 2 numbers
                     if ((i & 1) === 0) {
                         indexByte = view.getUint8(indexPos++);
                     }
@@ -264,8 +274,33 @@ export function decode(bytes) {
                 break;
             }
 
+            case ARRAY_ENCODING_SIGNED_VLQ2: {
+                let indexPos = pos;
+
+                pos += Math.ceil(arrayLength / 2);
+
+                for (let i = 0, indexByte = 0; i < arrayLength; i++) {
+                    // read a byte for even indecies, since a byte encodes 2 numbers
+                    if ((i & 1) === 0) {
+                        indexByte = view.getUint8(indexPos++);
+                    }
+
+                    const n = indexByte & 0x0f;
+                    const sign = n & 0x04 ? -1 : 1;
+
+                    if ((n & 0x08) === 0) {
+                        result[i] = sign * (n & 0x03);
+                    } else {
+                        result[i] = sign * (readVarNum() * 4 + (n & 0x03));
+                    }
+
+                    indexByte = indexByte >> 4;
+                }
+                break;
+            }
+
             case ARRAY_ENCODING_PROGRESSION: {
-                result[0] = readVarNum();
+                result[0] = readSignedVarNum();
                 const step = readSignedVarNum();
 
                 for (let i = 1; i < arrayLength; i++) {
