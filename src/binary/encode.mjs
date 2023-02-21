@@ -56,7 +56,6 @@ export function encode(input, options = {}) {
 
     function writeObject(object, ignoreFields = EMPTY_MAP) {
         let entryIdx = 0;
-        objects++;
 
         for (const key in object) {
             if (hasOwnProperty.call(object, key) && !ignoreFields.has(key)) {
@@ -276,7 +275,6 @@ export function encode(input, options = {}) {
         //            1 type  -> type byte: type0 | type0
         //            2 types -> type byte: type1 | type0
         //
-        arrays++;
         const hasUndef = (typeBitmap >> TYPE_UNDEF) & 1;
         const hasNulls = (typeBitmap >> TYPE_NULL) & 1;
         const hasFlattenArrays = (typeBitmap >> TYPE_ARRAY) & 1
@@ -540,8 +538,8 @@ export function encode(input, options = {}) {
                     if ((typeBitmap & ARRAY_NON_WRITABLE_TYPE) !== typeBitmap || ((typeBitmap & (1 << TYPE_ARRAY)) && !hasFlattenArrays)) {
                         const writeValue = typeWriteHandler[31 - Math.clz32(typeBitmap)];
 
-                        for (const elem of array) {
-                            writeValue(elem);
+                        for (let i = 0; i < array.length; i++) {
+                            writeValue(array[i]);
                         }
                     }
                 }
@@ -629,54 +627,6 @@ export function encode(input, options = {}) {
         [TYPE_ARRAY]: writeArray
     };
 
-    let arrays = 0;
-    let objects = 0;
-    let arrays32 = 0;
-    let arrayLens = new Map();
-    let arrayHasUndef = 0;
-    let pontEncoding = 0;
-    let pontSections = 0;
-    let pontSectionsIndex = 0;
-    let pontSectionsPenalty = 0;
-    let pontVlq4 = 0;
-    let pontVlq4Index = 0;
-    let pontOthers = 0;
-    let pontEnums = 0;
-    let pontIndex = 0;
-    let pontMin = 0;
-    let pontStrIndex = 0;
-    let pontStrMin = 0;
-    let pontArrIndex = 0;
-    let pontArrMin = 0;
-    let pontProgression = 0;
-    let pontProgressionIndex = 0;
-    let sectionsProgression = 0;
-    let totaldiff = 0;
-    let taildiff = 0;
-    let taildiff2 = 0;
-    let headdiff = 0;
-    let headdiff2 = 0;
-    let penalty = 0;
-    let totalpenalty = 0;
-    const sectionsStat = {};
-    const arrayStat = {};
-    const arrayStrStat = {};
-    const arrayArrStat = {};
-    const refs = new Set();
-    const typeBitmaps = new Map();
-    const typeBitmapsValues = new Map();
-    let sm = 0;
-    let smp = 0;
-    let progressionSaving = 0;
-    let arrayNumEven = 0;
-    let arrayNumEven2 = 0;
-    let arrayNumOdd = 0;
-    let cdefs = 0;
-    let cdefsBytes = 0;
-    let xHeaders = new Set();
-
-    let encodeWritten = 0;
-
     resetStat();
 
     writer.writeUint8(inputType);
@@ -717,8 +667,6 @@ export function encode(input, options = {}) {
     //     }
     //     return res;
     // };
-
-    // // console.log(bitmapToNames(1 << TYPE_STRING));
 
     // console.log({
     //     bitmaps: typeBitmaps.size,
@@ -774,7 +722,7 @@ export function encode(input, options = {}) {
 
     const structureBytes = writer.value;
     // res.estSize = res.byteLength - (pontIndex - pontMin) - (pontStrIndex - pontStrMin) - (pontArrIndex - pontArrMin) - sm;
-    const stringBytes = writeStrings(strings, stringRefs, writer, writeArray);
+    const stringBytes = writeStrings([...strings.keys()], stringRefs, writer, writeArray);
     return Buffer.concat([
         stringBytes,
         structureBytes

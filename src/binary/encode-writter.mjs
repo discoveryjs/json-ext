@@ -7,11 +7,17 @@ import {
     MAX_VLQ_24
 } from './const.mjs';
 
-// reusable dictionary of used types for a value seria index
-const typeIndexDictionary = new Uint8Array(32);
-
 const WRITER_DEFAULT_CHUNK_SIZE = 64 * 1024;
 const WRITER_MIN_CHUNK_SIZE = 8;
+
+// reusable dictionary of used types for a value seria index
+const typeIndexDictionary = new Uint8Array(32);
+const VLQ_BYTES_NEEDED = new Uint8Array(33);
+
+for (let i = 0; i < 33; i++) {
+    VLQ_BYTES_NEEDED[32 - i] = Math.ceil(i / 7) || 1;
+}
+
 
 export class Writer {
     constructor(chunkSize = WRITER_DEFAULT_CHUNK_SIZE) {
@@ -169,25 +175,9 @@ export class Writer {
         this.pos += 8;
     }
     vlqBytesNeeded(n) {
-        if (n === 0) {
-            return 1;
-        }
-
-        let bytesNeeded = 0;
-
-        do {
-            const x = n & MAX_UINT_28;
-
-            if (x === n) {
-                bytesNeeded += Math.ceil((32 - Math.clz32(n)) / 7);
-                break;
-            }
-
-            bytesNeeded += 4;
-            n = (n - x) / 0x10000000;
-        } while (n > 0);
-
-        return bytesNeeded;
+        return n <= MAX_UINT_28
+            ? VLQ_BYTES_NEEDED[Math.clz32(n)]
+            : VLQ_BYTES_NEEDED[Math.clz32(n / 0x1000_0000)] + 4;
     }
     // The number is stored byte by byte, using 7 bits of each byte
     // to store the number bits and 1 continuation bit
