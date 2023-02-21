@@ -145,8 +145,8 @@ export function decode(bytes) {
                 object[key] = readValue(entryType);
             } else {
                 // definition
+                const entryType = type >> 2;
                 const key = readString();
-                const entryType = readType();
 
                 objectEntryDefs[entryIdx].push([key, entryType]);
                 object[key] = readValue(entryType);

@@ -82,9 +82,10 @@ export function encode(input, options = {}) {
                     // def reference
                     writer.writeReference(refId);
                 } else {
-                    writer.writeVlq(2);
+                    // Use "| 2" to avoid zero byte which is ending of object's entry list
+                    writer.writeVlq((entryType << 2) | 2);
                     writeString(key);
-                    writer.writeUint8(entryType);
+
                     objectEntryDefs[entryIdx].set(defId, objectEntryDefs[entryIdx].size);
                 }
 
