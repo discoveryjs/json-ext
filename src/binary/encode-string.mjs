@@ -38,14 +38,16 @@ export function findCommonStringPostfix(string1, string2, start2) {
     return 0;
 }
 
-function writeStringsSection(strings, stringsMap, stringDefs, stringSlices, stringRefRemap, offset) {
-    strings.sort();
-
+function writeStringsSection(stringRefs, strings, stringDefs, stringSlices, stringRefRemap, offset) {
     let allStrings = '';
     let prevString = '';
 
-    for (const str of strings) {
-        const stringIdx = offset++;
+    stringRefs.sort((a, b) => strings[a] < strings[b] ? -1 : 1);
+
+    for (let i = 0; i < stringRefs.length; i++) {
+        const stringIdx = stringRefs[i];
+        const str = strings[stringIdx];
+        const newStringIdx = offset++;
         const start = findCommonStringPrefix(prevString, str);
         const end = findCommonStringPostfix(prevString, str, start) || str.length;
         const prefixSlice = start > 0;
@@ -54,8 +56,8 @@ function writeStringsSection(strings, stringsMap, stringDefs, stringSlices, stri
             ? str.slice(start, end)
             : str;
 
-        stringRefRemap[stringsMap.get(str)] = stringIdx;
-        stringDefs[stringIdx] = (payload.length << 2) | (prefixSlice << 1) | (postfixSlice << 0);
+        stringRefRemap[stringIdx] = newStringIdx;
+        stringDefs[newStringIdx] = (payload.length << 2) | (prefixSlice << 1) | (postfixSlice << 0);
         allStrings += payload;
         prevString = str;
 
@@ -71,48 +73,60 @@ function writeStringsSection(strings, stringsMap, stringDefs, stringSlices, stri
     return allStrings;
 }
 
-export function writeStrings(stringsMap, stringRefs, writer, writeArray) {
-    const strings = [...stringsMap.keys()];
-    const stringDefs = new Array(stringsMap.size);
+export function writeStrings(strings, stringRefs, writer, writeArray) {
+    const stringDefs = new Uint32Array(strings.length);
     const stringSlices = [];
-    const stringRefCount = new Uint32Array(stringsMap.size);
-    const stringRefRemap = new Uint32Array(stringsMap.size);
+    const stringRefCount = new Uint32Array(strings.length);
+    const stringRefRemap = new Uint32Array(strings.length);
     const referredStringsSet = new Set();
-    const refToString = refIdx => strings[refIdx];
     let allStrings = '';
     let offset = 0;
 
     // Count string references and collect strings referred more than once
-    for (let refIdx of stringRefs) {
-        if (++stringRefCount[refIdx] > 1) {
+    for (let i = 0; i < stringRefs.length; i++) {
+        const refIdx = stringRefs[i];
+
+        if (stringRefCount[refIdx]++ === 2) {
+            // Add a string to the set only when there are more than 1 reference
+            // (1st reference is a string definition)
             referredStringsSet.add(refIdx);
         }
     }
 
     // Sort referred strings by number of references
-    const referredStrings = [...referredStringsSet].sort((a, b) => stringRefCount[b] - stringRefCount[a]);
+    const referredStrings = new Uint32Array(referredStringsSet).sort((a, b) => stringRefCount[b] - stringRefCount[a]);
 
     // Write most refererred strings first
     // Strings are sectioned by 1-byte vlq, 2-bytes vlq and the rest
     for (let range of [[0, 127], [127, 0x3fff]]) {
         if (referredStrings.length > offset) {
-            const stringsSlice = referredStrings.slice(range[0], range[1]).map(refToString);
-            allStrings += writeStringsSection(stringsSlice, stringsMap, stringDefs, stringSlices, stringRefRemap, offset);
-            offset += stringsSlice.length;
+            const referredStringsSlice = referredStrings.subarray(range[0], range[1]);
+
+            allStrings += writeStringsSection(referredStringsSlice, strings, stringDefs, stringSlices, stringRefRemap, offset);
+            offset += referredStringsSlice.length;
+
+            for (let i = 0; i < referredStringsSlice.length; i++) {
+                stringRefCount[referredStringsSlice[i]] = 0;
+            }
+        }
+    }
+
+    for (let i = 0, k = 0; i < stringRefCount.length; i++) {
+        if (stringRefCount[i] !== 0) {
+            stringRefCount[k++] = i;
         }
     }
 
     allStrings += writeStringsSection(
-        referredStrings.slice(offset).map(refToString)
-            .concat(strings.filter((_, refIdx) => !referredStringsSet.has(refIdx))),
-        stringsMap,
+        stringRefCount.subarray(0, stringRefCount.length - offset),
+        strings,
         stringDefs,
         stringSlices,
         stringRefRemap,
         offset
     );
 
-    // Remap references to use less bytes for references to most used strings
+    // Remap references to use less bytes for references for most used strings
     for (let i = 0; i < stringRefs.length; i++) {
         stringRefs[i] = stringRefRemap[stringRefs[i]];
     }
