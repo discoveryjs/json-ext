@@ -16,6 +16,8 @@
     "repository": "discoveryjs/json-ext",
     "main": "./src/index",
     "browser": {
+        "./src/stringify-info.js": "./src/stringify-info.js",
+        "./src/parse-chunked.js": "./src/parse-chunked.js",
         "./src/stringify-stream.js": "./src/stringify-stream-browser.js",
         "./src/text-decoder.js": "./src/text-decoder-browser.js",
         "./src/version.js": "./dist/version.js"
