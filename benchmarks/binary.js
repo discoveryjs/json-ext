@@ -5,7 +5,8 @@ const jsonExtStage3 = require('./binary/snapshot3'); // change type set, use uin
 const jsonExtStage4 = require('./binary/snapshot4'); // prev string
 const jsonExtStage5 = require('./binary/snapshot5'); //
 const jsonExtStage6 = require('./binary/snapshot6'); //
-let jsonExtStage7; // new string encondig approach (in the beginning), initial work improved on num encoding
+let jsonExtStage7; // new string encondig approach (ahead of structure), refs for array headers, initial work on improved numeric encoding
+let jsonExtStage8; // less general types, more numeric types, new array headers, improved numeric enconding including deltas lowering
 let jsonExtCurrent;
 const v8 = require('v8');
 const cbor = require('cbor');
@@ -209,6 +210,16 @@ const solutions = {
             fn: encoded => jsonExtStage7.decode(encoded)
         }
     },
+    'json-ext (snapshot 8) 2023-03-07': {
+        encode: {
+            name: 'encode()',
+            fn: data => jsonExtStage8.encode(data)
+        },
+        decode: {
+            name: 'decode()',
+            fn: encoded => jsonExtStage8.decode(encoded)
+        }
+    },
     'json-ext (current)': {
         encode: {
             name: 'encode()',
@@ -319,7 +330,8 @@ async function runBenchmarks() {
         // 'json-ext (snapshot 4) 2023-01-22',
         // 'json-ext (snapshot 5) 2023-01-27',
         // 'json-ext (snapshot 6) 2023-02-08',
-        'json-ext (snapshot 7) 2023-02-20',
+        // 'json-ext (snapshot 7) 2023-02-20',
+        'json-ext (snapshot 8) 2023-03-07',
         'json-ext (current)'
     ]) {
         if (solutionName !== 'cbor' || fixtureSize < 200000000) {

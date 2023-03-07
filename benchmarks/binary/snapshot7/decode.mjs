@@ -140,7 +140,6 @@ export function decode(bytes) {
             }
 
             if (type & 1) {
-                // console.log('read entry', entryIdx, 'ref', type, '->', type >> 1, objectEntryDefs);
                 // reference
                 const [key, entryType] = objectEntryDefs[entryIdx][type >> 1];
                 object[key] = readValue(entryType);
@@ -148,7 +147,6 @@ export function decode(bytes) {
                 // definition
                 const key = readString();
                 const entryType = readType();
-                // console.log('read entry', entryIdx, 'def', type, '->', type >> 1, objectEntryDefs, key, entryType);
 
                 objectEntryDefs[entryIdx].push([key, entryType]);
                 object[key] = readValue(entryType);

@@ -77,7 +77,6 @@ export function encode(input, options = {}) {
                 const refId = objectEntryDefs[entryIdx].get(defId);
 
                 if (refId !== undefined) {
-                    // console.log('! write entry ref', refId);
                     // def reference
                     writer.writeReference(refId);
                 } else {
@@ -85,10 +84,8 @@ export function encode(input, options = {}) {
                     writeString(key);
                     writer.writeUint8(entryType);
                     objectEntryDefs[entryIdx].set(defId, objectEntryDefs[entryIdx].size);
-                    // console.log('! write entry def', defId, objectEntryDefs[entryIdx].size - 1, key, entryType);
                 }
 
-                // console.log('! write entry value', entryType, object[key]);
                 writeTypedValue(entryType, object[key]);
                 entryIdx++;
             }
@@ -320,8 +317,6 @@ export function encode(input, options = {}) {
         //     value
         // );
 
-        // let written = writer.written;
-
         if (!knownLength) {
             writer.writeVlq(array.length);
         }
@@ -362,7 +357,6 @@ export function encode(input, options = {}) {
         }
 
         // console.log('array', array, 'header', writer.written - written, 'enc', encoding);
-        // written = writer.written;
 
         switch (encoding) {
             case ARRAY_ENCODING_SINGLE_VALUE:
@@ -430,7 +424,6 @@ export function encode(input, options = {}) {
             }
 
             case ARRAY_ENCODING_VLQ2: {
-                // const t = performance.now();
                 // write index
                 for (let i = 0; i < array.length; i += 2) {
                     writer.writeUint8(
@@ -446,19 +439,13 @@ export function encode(input, options = {}) {
                     }
                 }
 
-                // tt += performance.now() - t;
                 break;
             }
 
             case ARRAY_ENCODING_PROGRESSION: {
-                // const w = writer.written;
                 writer.writeUintVar(array[0]);
-                // const w1 = writer.written - w;
                 writer.writeSignedVlq(array[1] - array[0]);
 
-                // const ww = writer.written - w;
-                // encodeWritten += ww;
-                // console.log(array[0], array[1] - array[0], ww, w1, ww-w1);
                 break;
             }
 
@@ -508,7 +495,6 @@ export function encode(input, options = {}) {
 
                     // write column values
                     for (const column of objectColumns.values()) {
-                        // array.length > 100 && console.log(column.key, array.length);
                         writeArray(column.values, true, column);
                     }
                 }
@@ -524,10 +510,6 @@ export function encode(input, options = {}) {
                     }
                 }
         }
-
-        // console.log('array', array, 'values', writer.written - written);
-
-        // console.log(writer.written - written);
     }
 
     function writeTypedValue(elemType, value) {
