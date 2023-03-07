@@ -1,4 +1,4 @@
-import { Writer } from './encode-writter.mjs';
+import { Writer } from './encode-writer.mjs';
 import { getType, getTypeCount } from './encode-get-type.mjs';
 import { findNumArrayBestEncoding } from './encode-number.mjs';
 import { writeStrings } from './encode-string.mjs';
@@ -141,7 +141,7 @@ export function encode(input, options = {}) {
         // try to optimize array of uint values only
         const sectionSize = 16;
         if (encoding === ARRAY_ENCODING_DEFAULT && (typeBitmap & UINT_TYPE) === typeBitmap && array.length > 1) {
-            ({ encoding } = findNumArrayBestEncoding(writer, array, sectionSize));
+            encoding = findNumArrayBestEncoding(writer, array, sectionSize);
         }
 
         // try to apply column representation for objects

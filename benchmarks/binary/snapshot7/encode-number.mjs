@@ -8,7 +8,7 @@ import {
     TYPE_NEG_INT
 } from './const.mjs';
 
-export function minNumArraySliceEncoding(writer, array, disMin, start = 0, end = array.length) {
+export function minNumArraySliceEncoding(writer, array, start = 0, end = array.length) {
     const arrayLength = end - start;
     let typeIndexBytes = 0;
     let vlqBytes = 0;
@@ -17,7 +17,6 @@ export function minNumArraySliceEncoding(writer, array, disMin, start = 0, end =
     let progressionBytes = Infinity;
     let typeBitmap = 0;
     let typeCount = 0;
-    let minN = array[start];
 
     for (let i = start; i < end; i++) {
         const n = array[i];
@@ -26,10 +25,6 @@ export function minNumArraySliceEncoding(writer, array, disMin, start = 0, end =
         if (((typeBitmap >> elemType) & 1) === 0) {
             typeBitmap |= (1 << elemType);
             typeCount++;
-        }
-
-        if (n < minN) {
-            minN = n;
         }
 
         if (i !== start && progressionStep !== n - array[i - 1]) {
@@ -89,28 +84,14 @@ export function minNumArraySliceEncoding(writer, array, disMin, start = 0, end =
         ? Math.ceil((arrayLength * (typeCount <= 2 ? 1 : typeCount <= 4 ? 2 : 3)) / 8)
         : 0;
 
-    // delta with min
-    let minDiffBytes = Infinity;
-    if (typeCount === 1 && !disMin) {
-        minDiffBytes = writer.vlqBytesNeeded(minN);
-        for (let i = start; i < end; i++) {
-            minDiffBytes += writer.vlqBytesNeeded(array[i] - minN);
-        }
-    }
-
     // find the most bytes saving encoding
-    const candidates = [typeIndexBytes, progressionBytes, vlqBytes, vlqBytes2, minDiffBytes];
+    const candidates = [typeIndexBytes, progressionBytes, vlqBytes, vlqBytes2];
     const minBytes = Math.min(...candidates);
     const encoding = candidates.indexOf(minBytes);
 
-    return {
-        encoding,
-        bytes: minBytes
-    };
+    return encoding;
 }
 
 export function findNumArrayBestEncoding(writer, array) {
-    let { encoding, bytes } = minNumArraySliceEncoding(writer, array, 1);
-
-    return { encoding, bytes };
+    return minNumArraySliceEncoding(writer, array);
 }

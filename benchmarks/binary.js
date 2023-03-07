@@ -139,7 +139,7 @@ const solutions = {
             fn: encoded => jsonExtStage0.decode(encoded)
         }
     },
-    'json-ext (snapshot 2023-01-13)': {
+    'json-ext (snapshot 1) 2023-01-13': {
         encode: {
             name: 'encode()',
             fn: data => jsonExtStage1.encode(data)
@@ -149,7 +149,7 @@ const solutions = {
             fn: encoded => jsonExtStage1.decode(encoded)
         }
     },
-    'json-ext (snapshot 2023-01-18)': {
+    'json-ext (snapshot 2) 2023-01-18': {
         encode: {
             name: 'encode()',
             fn: data => jsonExtStage2.encode(data)
@@ -159,7 +159,7 @@ const solutions = {
             fn: encoded => jsonExtStage2.decode(encoded)
         }
     },
-    'json-ext (snapshot 2023-01-21)': {
+    'json-ext (snapshot 3) 2023-01-21': {
         encode: {
             name: 'encode()',
             fn: data => jsonExtStage3.encode(data)
@@ -169,7 +169,7 @@ const solutions = {
             fn: encoded => jsonExtStage3.decode(encoded)
         }
     },
-    'json-ext (snapshot 2023-01-22)': {
+    'json-ext (snapshot 4) 2023-01-22': {
         encode: {
             name: 'encode()',
             fn: data => jsonExtStage4.encode(data)
@@ -179,7 +179,7 @@ const solutions = {
             fn: encoded => jsonExtStage4.decode(encoded)
         }
     },
-    'json-ext (snapshot 2023-01-27)': {
+    'json-ext (snapshot 5) 2023-01-27': {
         encode: {
             name: 'encode()',
             fn: data => jsonExtStage5.encode(data)
@@ -189,7 +189,7 @@ const solutions = {
             fn: encoded => jsonExtStage5.decode(encoded)
         }
     },
-    'json-ext (snapshot 2023-02-08)': {
+    'json-ext (snapshot 6) 2023-02-08': {
         encode: {
             name: 'encode()',
             fn: data => jsonExtStage6.encode(data)
@@ -199,7 +199,7 @@ const solutions = {
             fn: encoded => jsonExtStage6.decode(encoded)
         }
     },
-    'json-ext (snapshot 2023-02-20)': {
+    'json-ext (snapshot 7) 2023-02-20': {
         encode: {
             name: 'encode()',
             fn: data => jsonExtStage7.encode(data)
@@ -313,13 +313,13 @@ async function runBenchmarks() {
         // 'msgpack5',
         // 'bson',
         // 'json-ext (initial)',
-        'json-ext (snapshot 2023-01-13)',
-        // 'json-ext (snapshot 2023-01-18)',
-        // 'json-ext (snapshot 2023-01-21)',
-        // 'json-ext (snapshot 2023-01-22)',
-        // 'json-ext (snapshot 2023-01-27)',
-        'json-ext (snapshot 2023-02-08)',
-        'json-ext (snapshot 2023-02-20)',
+        // 'json-ext (snapshot 1) 2023-01-13',
+        // 'json-ext (snapshot 2) 2023-01-18',
+        // 'json-ext (snapshot 3) 2023-01-21',
+        // 'json-ext (snapshot 4) 2023-01-22',
+        // 'json-ext (snapshot 5) 2023-01-27',
+        // 'json-ext (snapshot 6) 2023-02-08',
+        'json-ext (snapshot 7) 2023-02-20',
         'json-ext (current)'
     ]) {
         if (solutionName !== 'cbor' || fixtureSize < 200000000) {
