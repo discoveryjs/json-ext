@@ -15,12 +15,12 @@ const INFO_INLINED_ENTRIES_ONLY = Object.freeze({
 });
 
 export function collectArrayObjectInfo(array, elemTypes, typeBitmap) {
-    if ((typeBitmap & (1 << TYPE_OBJECT)) === 0) {
+    if ((typeBitmap & TYPE_OBJECT) === 0) {
         return INFO_NO_OBJECTS;
     }
 
     // count objects number
-    const onlyObjects = typeBitmap === (1 << TYPE_OBJECT);
+    const onlyObjects = typeBitmap === TYPE_OBJECT;
     const objectCount = onlyObjects
         ? array.length // when TYPE_OBJECT is a single type in an array
         : getTypeCount(elemTypes, TYPE_OBJECT);
@@ -42,28 +42,26 @@ export function collectArrayObjectInfo(array, elemTypes, typeBitmap) {
                     }
 
                     const valueType = getType(value);
-                    const valueTypeBit = 1 << valueType;
                     let column = columns.get(key);
 
                     if (column === undefined) {
-                        column = {
+                        columns.set(key, column = {
                             key,
                             values: new Array(objectCount),
                             types: new Uint8Array(objectCount).fill(TYPE_UNDEF),
                             typeBitmap: 0,
                             typeCount: 0,
                             valueCount: 0
-                        };
-                        columns.set(key, column);
+                        });
                     }
 
-                    if ((column.typeBitmap & valueTypeBit) === 0) {
-                        column.typeBitmap |= valueTypeBit;
+                    if ((column.typeBitmap & valueType) === 0) {
+                        column.typeBitmap |= valueType;
                         column.typeCount++;
                     }
 
-                    column.values[objIdx] = value;
                     column.types[objIdx] = valueType;
+                    column.values[objIdx] = value;
                     column.valueCount++;
                 }
 
@@ -89,8 +87,8 @@ export function collectArrayObjectInfo(array, elemTypes, typeBitmap) {
             // A column overhead is a sum of a key name definition size, type index size
             // and an array header size for array of column values
             const columnOverhead =
-                1 + // min key reprentation size (a 1-byte string reference)
-                1 + // min array header size (a 1-byte array reference)
+                1 + // Min key reprentation size (a 1-byte string reference)
+                1 + // Min array header size (a 1-byte array reference)
                 typeIndexBitmapSize;
 
             // Inline entries takes at least 1 byte per entry to define a key
@@ -102,7 +100,7 @@ export function collectArrayObjectInfo(array, elemTypes, typeBitmap) {
             if (columnOverhead <= inlineEntriesOverhead) {
                 if (hasUndef) {
                     // Populate type bitmap with undefined type
-                    column.typeBitmap |= 1 << TYPE_UNDEF;
+                    column.typeBitmap |= TYPE_UNDEF;
                     column.typeCount++;
                 }
             } else {

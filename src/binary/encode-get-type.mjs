@@ -1,51 +1,17 @@
 import {
-    MAX_UINT_8,
-    MAX_UINT_16,
-    MAX_UINT_24,
-    MAX_UINT_32,
-
     TYPE_TRUE,
     TYPE_FALSE,
     TYPE_STRING,
-    TYPE_UINT_8,
-    TYPE_UINT_16,
-    TYPE_UINT_24,
-    TYPE_UINT_32,
-    TYPE_UINT_32_VAR,
-    TYPE_NEG_INT,
-    TYPE_FLOAT_32,
-    TYPE_FLOAT_64,
     TYPE_OBJECT,
     TYPE_ARRAY,
     TYPE_NULL,
-    TYPE_UNDEF
+    TYPE_UNDEF,
+    TYPE_NUMBER
 } from './const.mjs';
-
-const TEST_FLOAT_32 = new Float32Array(1);
-
-export function getIntType(value) {
-    if (value < 0) {
-        return TYPE_NEG_INT;
-    }
-
-    // The return expression is written so that only 2 or 3 comparisons
-    // are needed to choose a type
-    return (
-        value > MAX_UINT_16
-            ? value > MAX_UINT_24
-                ? value > MAX_UINT_32
-                    ? TYPE_UINT_32_VAR
-                    : TYPE_UINT_32
-                : TYPE_UINT_24
-            : value > MAX_UINT_8
-                ? TYPE_UINT_16
-                : TYPE_UINT_8
-    );
-}
 
 export function getType(value) {
     switch (typeof value) {
-        case 'undefined':
+        default:
             return TYPE_UNDEF;
 
         case 'boolean':
@@ -55,23 +21,14 @@ export function getType(value) {
             return TYPE_STRING;
 
         case 'number':
-            if (!Number.isFinite(value)) {
-                return TYPE_NULL;
-            }
-
-            if (!Number.isInteger(value)) {
-                TEST_FLOAT_32[0] = value;
-                return TEST_FLOAT_32[0] === value ? TYPE_FLOAT_32 : TYPE_FLOAT_64;
-            }
-
-            return getIntType(value);
+            return Number.isFinite(value) ? TYPE_NUMBER : TYPE_NULL;
 
         case 'object':
-            return Array.isArray(value)
-                ? TYPE_ARRAY
-                : value !== null
-                    ? TYPE_OBJECT
-                    : TYPE_NULL;
+            return value === null
+                ? TYPE_NULL
+                : Array.isArray(value)
+                    ? TYPE_ARRAY
+                    : TYPE_OBJECT;
     }
 }
 

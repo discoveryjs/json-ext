@@ -58,6 +58,7 @@ describe('binary', () => {
                 0x0f000000,
                 0xf0000000,
                 0xffffffff,
+                0x6b96d13e, // 1805046078
                 // 64
                 0x0f00000000,
                 0xf000000000,
@@ -72,6 +73,10 @@ describe('binary', () => {
                     assert.strictEqual(roundTrip(-num), num === 0 ? 0 : -num)
                 );
             }
+
+            it('18446744073709552000', () =>
+                assert.strictEqual(roundTrip(18446744073709552000), 18446744073709552000)
+            );
         });
 
         describe('float', () => {
@@ -129,8 +134,11 @@ describe('binary', () => {
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
             [1, 12, 3, 212345324, 135, 444136, 47, 58, 269, 110, 1223211, 2000333112, 213, 514, 115, 6],
             [0, 1, 2, 3, 0, 1, 2, 3, 0, 0, 1, 1, 0, 2, 3, 3, 2, 1, 0],
+            [0, -1, -2, -3, -1, -2, -3, -4, 1, 0, 0, 0, 0, 0, 0],
             [200000, 200001, 200002, 200003, 200000, 200001, 200002, 200003, 200000, 200000, 200001, 200001, 200000, 200002, 200003, 200003, 200002, 200001, 200000],
             [111, 111, 11, 11, 11111, 111, 1111111, 11111111, 11, 111111111, 88_000_000_000],
+            [1590080817000, 1588834647000, 1588833937000, 1588833069000, 1588832161000, 123],
+            [29534455421, 29534455482, 29534455501, 29534455520, 29534455539, 29534455577, 1812495676, 29534455726, 1812495688, 58664864, 7449643, 1812495721, 29534455798, 1812495730],
 
             // len=2 types=2
             [1, true],
@@ -235,7 +243,25 @@ describe('binary', () => {
         const values = [
             {},
             { foo: 'bar' },
-            { num8: 123, num16: 12345, num32: 123456, float: 1 / 3, str: 'str', bool: false, bool2: true, null: null },
+            {
+                zero: 0,
+                uint8: 123,
+                uint16: 12345,
+                uint24: 123456,
+                uint32: 0x3fff_ffff,
+                uint32var: 0x3fff_ffff_ffff,
+                int8: -123,
+                int16: -12345,
+                int24: -123456,
+                int32: -0x3fff_ffff,
+                int32var: -0x3fff_ffff_ffff,
+                float32: 1 / 2,
+                float64: 1 / 3,
+                str: 'str',
+                bool: false,
+                bool2: true,
+                null: null
+            },
             { array: [1, 1000, 1000000], obj: { foo: 123 } },
             {
                 foo: {
@@ -254,6 +280,16 @@ describe('binary', () => {
                 assert.deepStrictEqual(roundTrip(value), value)
             );
         }
+
+        it('a lot of defs & refs [{ field0 }, { field0 } ..., { fieldN }, { fieldN }]', () => {
+            const dict = Array.from({ length: 300 }, (_, idx) => ({ ['field' + idx]: idx }));
+            const value = [...dict, ...dict];
+
+            assert.deepStrictEqual(
+                roundTrip(value),
+                value
+            );
+        });
 
         it('{ foo: undefined, bar: 1, baz: undefined }', () =>
             assert.deepStrictEqual(
