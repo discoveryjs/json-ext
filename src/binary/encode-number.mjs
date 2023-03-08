@@ -456,8 +456,12 @@ export function writeNumericArrayHeader(writer, encoding) {
     }
 }
 
-export function writeNumericArray(writer, array) {
+export function writeNumericArray(writer, array, knownLength) {
     const encoding = findNumArrayBestEncoding(writer, array);
+
+    if (!knownLength) {
+        writer.writeVlq(array.length);
+    }
 
     writeNumericArrayHeader(writer, encoding);
     writeNumbers(writer, array, encoding);
@@ -487,8 +491,8 @@ export function writeNumbers(writer, input, encoding) {
     const lowering = encoding & 0x30;
     let numbers = input;
 
-    // console.log({ lowering, method, bitmap: encoding >> 8})
-    // console.log({numbers})
+    // console.log({ lowering, method, bitmap: encoding >> 8 });
+    // console.log({ numbers });
 
     switch (lowering) {
         case ARRAY_LOWERING_DELTA: {
@@ -519,7 +523,7 @@ export function writeNumbers(writer, input, encoding) {
     switch (method) {
         case ARRAY_ENCODING_VLQ: {
             for (let i = 0; i < numbers.length; i++) {
-                writer.writeUintVar(numbers[i]);
+                writer.writeVlq(numbers[i]);
             }
 
             break;
@@ -545,7 +549,7 @@ export function writeNumbers(writer, input, encoding) {
             // write values
             for (let i = 0; i < numbers.length; i++) {
                 if (numbers[i] > 0x07) {
-                    writer.writeUintVar((numbers[i] - (numbers[i] & 0x07)) / 8);
+                    writer.writeVlq((numbers[i] - (numbers[i] & 0x07)) / 8);
                 }
             }
 
@@ -569,12 +573,12 @@ export function writeNumbers(writer, input, encoding) {
             // write values
             for (let i = 0; i < numbers.length; i++) {
                 const n = numbers[i] >= 0 ? numbers[i] : -numbers[i];
+
                 if (n > 0x03) {
-                    writer.writeUintVar((n - (n & 0x03)) / 4);
+                    writer.writeVlq((n - (n & 0x03)) / 4);
                 }
             }
 
-            // tt += performance.now() - t;
             break;
         }
 
@@ -594,9 +598,6 @@ export function writeNumbers(writer, input, encoding) {
                 : packedTypeBitmap;
             const typeCount = BIT_COUNT[packedTypeBitmap];
 
-            // const x = writer.written;
-            // console.log('!! writeNumbers> at', writer.bytes.slice(x, writer.written), x, writer.written,{useInt}, array, types, encoding.toString(2));
-
             if (typeCount > 1) {
                 const types = useInt
                     ? numbers.map(getSignedNumericType)
@@ -609,6 +610,7 @@ export function writeNumbers(writer, input, encoding) {
                 }
             } else {
                 const type = 31 - Math.clz32(typeBitmap);
+
                 for (let i = 0; i < numbers.length; i++) {
                     writeNumber(writer, numbers[i], type);
                 }

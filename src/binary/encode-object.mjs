@@ -1,7 +1,8 @@
 import { getType, getTypeCount } from './encode-get-type.mjs';
 import {
+    TYPE_UNDEF,
     TYPE_OBJECT,
-    TYPE_UNDEF
+    BIT_COUNT
 } from './const.mjs';
 
 const EMPTY_MAP = new Map();
@@ -47,19 +48,14 @@ export function collectArrayObjectInfo(array, elemTypes, typeBitmap) {
                     if (column === undefined) {
                         columns.set(key, column = {
                             key,
-                            values: new Array(objectCount),
-                            types: new Uint8Array(objectCount).fill(TYPE_UNDEF),
                             typeBitmap: 0,
-                            typeCount: 0,
+                            types: new Uint8Array(objectCount),
+                            values: new Array(objectCount),
                             valueCount: 0
                         });
                     }
 
-                    if ((column.typeBitmap & valueType) === 0) {
-                        column.typeBitmap |= valueType;
-                        column.typeCount++;
-                    }
-
+                    column.typeBitmap |= valueType;
                     column.types[objIdx] = valueType;
                     column.values[objIdx] = value;
                     column.valueCount++;
@@ -71,40 +67,39 @@ export function collectArrayObjectInfo(array, elemTypes, typeBitmap) {
 
         // exclude keys for which the column representation is not byte efficient
         for (const column of columns.values()) {
-            const hasUndef = column.valueCount !== objectCount;
-            const typeCount = column.typeCount + hasUndef;
+            // Populate type bitmap with undefined type when holes
+            if (column.valueCount !== objectCount) {
+                column.typeBitmap |= TYPE_UNDEF;
+            }
 
-            // When a single type value set there is no type index bitmap and column representation
-            // will always be optimal than inlined entries
+            // Count value types
+            const typeCount = BIT_COUNT[column.typeBitmap];
+
+            // When a column has values of a single type it means no holes as well as no type index
+            // and column representation will always be optimal than inlined entries
             if (typeCount === 1) {
+                column.types = null;
                 continue;
             }
 
             // Estimate column values type index size
             const bitsPerType = 32 - Math.clz32(typeCount - 1);
-            const typeIndexBitmapSize = Math.ceil((bitsPerType * objectCount) / 8);
+            const typeIndexSize = Math.ceil((bitsPerType * objectCount) / 8);
 
             // A column overhead is a sum of a key name definition size, type index size
             // and an array header size for array of column values
             const columnOverhead =
                 1 + // Min key reprentation size (a 1-byte string reference)
                 1 + // Min array header size (a 1-byte array reference)
-                typeIndexBitmapSize;
+                typeIndexSize;
 
             // Inline entries takes at least 1 byte per entry to define a key
             // plus 1 shared byte per object to end a list of entries.
             // The shared (finishing) byte is taking into account until first column drop
             const inlineEntriesOverhead = column.valueCount * (1 + !hasInlinedEntries);
 
-            // Use column representation when it gives less or equal overhead
-            if (columnOverhead <= inlineEntriesOverhead) {
-                if (hasUndef) {
-                    // Populate type bitmap with undefined type
-                    column.typeBitmap |= TYPE_UNDEF;
-                    column.typeCount++;
-                }
-            } else {
-                // Drop the column
+            // Drop column representation when it gives more overhead than inlined entries
+            if (columnOverhead > inlineEntriesOverhead) {
                 hasInlinedEntries = true;
                 columns.delete(column.key);
             }

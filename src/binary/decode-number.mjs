@@ -89,7 +89,7 @@ export function readNumbers(reader, encoding, arrayLength, output = new Array(ar
     switch (method) {
         case ARRAY_ENCODING_VLQ: {
             for (let i = 0; i < numberCount; i++) {
-                output[start + i] = reader.readUintVar();
+                output[start + i] = reader.readVlq();
             }
             break;
         }
@@ -104,21 +104,18 @@ export function readNumbers(reader, encoding, arrayLength, output = new Array(ar
         case ARRAY_ENCODING_VLQ2: {
             const indexBytes = reader.readBytes(Math.ceil(numberCount / 2));
 
-            for (let i = 0, indexPos = 0, indexByte = 0; i < numberCount; i++) {
-                // read a byte for even indecies, since a byte encodes 2 numbers
-                if ((i & 1) === 0) {
-                    indexByte = indexBytes[indexPos++];
-                }
+            for (let i = 0, indexByte = 0; i < numberCount; i++) {
+                // Since an index byte encodes 2 numbers:
+                // - Read a high 4 bits for odd indecies
+                // - Read a byte for even indecies
+                indexByte = i & 1
+                    ? indexByte >> 4
+                    : indexBytes[i >> 1];
 
-                const n = indexByte & 0x0f;
-
-                if (n <= 0x07) {
-                    output[start + i] = n;
-                } else {
-                    output[start + i] = reader.readUintVar() * 8 + (n & 0x07);
-                }
-
-                indexByte = indexByte >> 4;
+                // A highest bit of 4bits is a carry bit, lower 3 bits are payload
+                output[start + i] = indexByte & 0x08
+                    ? reader.readVlq() * 8 + (indexByte & 0x07)
+                    : indexByte & 0x07;
             }
             break;
         }
@@ -126,33 +123,31 @@ export function readNumbers(reader, encoding, arrayLength, output = new Array(ar
         case ARRAY_ENCODING_INT_VLQ2: {
             const indexBytes = reader.readBytes(Math.ceil(numberCount / 2));
 
-            for (let i = 0, indexPos = 0, indexByte = 0; i < numberCount; i++) {
-                // read a byte for even indecies, since a byte encodes 2 numbers
-                if ((i & 1) === 0) {
-                    indexByte = indexBytes[indexPos++];
-                }
+            for (let i = 0, indexByte = 0; i < numberCount; i++) {
+                // Since an index byte encodes 2 numbers:
+                // - Read a high 4 bits for odd indecies
+                // - Read a byte for even indecies
+                indexByte = i & 1
+                    ? indexByte >> 4
+                    : indexBytes[i >> 1];
 
-                const n = indexByte & 0x0f;
-                const sign = n & 0x04 ? -1 : 1;
+                const sign = indexByte & 0x04 ? -1 : 1;
 
-                if ((n & 0x08) === 0) {
-                    output[start + i] = sign * (n & 0x03);
-                } else {
-                    output[start + i] = sign * (reader.readUintVar() * 4 + (n & 0x03));
-                }
-
-                indexByte = indexByte >> 4;
+                // A highest bit of 4bits is a carry bit, lower 2 bits are payload
+                output[start + i] = indexByte & 0x08
+                    ? sign * (reader.readVlq() * 4 + (indexByte & 0x03))
+                    : sign * (indexByte & 0x03);
             }
 
             break;
         }
 
         case ARRAY_ENCODING_PROGRESSION: {
-            output[0] = reader.readIntVar();
+            let prev = output[0] = reader.readIntVar();
             const step = reader.readIntVar();
 
             for (let i = 1; i < arrayLength; i++) {
-                output[i] = output[i - 1] + step;
+                prev = output[i] = prev + step;
             }
 
             break;
@@ -167,14 +162,19 @@ export function readNumbers(reader, encoding, arrayLength, output = new Array(ar
                   (packedTypeBitmap & FLOAT_BITS)
                 : packedTypeBitmap;
             const typeCount = BIT_COUNT[packedTypeBitmap];
-            const types = typeCount > 1
-                ? reader.readTypeIndex(numberCount, typeBitmap)
-                : new Uint8Array(numberCount).fill(31 - Math.clz32(typeBitmap));
 
-            // console.log('readNumbers at',pos - reader.corPos,{useInt},arrayLength,typeBitmap.toString(2),types);
+            if (typeCount > 1) {
+                const types = reader.readTypeIndex(numberCount, typeBitmap);
 
-            for (let i = 0; i < numberCount; i++) {
-                output[start + i] = readNumber(reader, types[i]);
+                for (let i = 0; i < numberCount; i++) {
+                    output[start + i] = readNumber(reader, types[i]);
+                }
+            } else {
+                const type = 31 - Math.clz32(typeBitmap);
+
+                for (let i = 0; i < numberCount; i++) {
+                    output[start + i] = readNumber(reader, type);
+                }
             }
 
             break;

@@ -63,19 +63,19 @@ export class Reader {
             num = num >> 1;
             this.pos += 1;
         } else if ((num & 0x02) === 0) {
-            num = this.view.getUint16(this.pos, true) >> 2;
+            num = (this.view.getUint8(this.pos + 1) << 6) | (num >> 2);
             this.pos += 2;
         } else if ((num & 0x04) === 0) {
-            num = (this.view.getUint8(this.pos + 2) << 13) | (this.view.getUint16(this.pos, true) >> 3);
+            num = (this.view.getUint16(this.pos + 1, true) << 5) | (num >> 3);
             this.pos += 3;
         } else {
             const low32 = this.view.getUint32(this.pos, true);
 
-            num = (low32 >> 3) & MAX_UINT_28;
+            num = (low32 >>> 3) & MAX_UINT_28;
             this.pos += 4;
 
-            if (low32 & 0x8000_0000) {
-                num += this.readUintVar() * (1 << 29);
+            if (low32 >>> 31) {
+                num += this.readUintVar() * (1 << 28);
             }
         }
 

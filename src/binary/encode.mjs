@@ -13,7 +13,8 @@ import {
     // TYPE_NAME,
 
     PACK_TYPE,
-    UNPACK_TYPE
+    UNPACK_TYPE,
+    BIT_COUNT
 } from './const.mjs';
 import { resetStat } from './debug-stat.mjs';
 
@@ -90,7 +91,7 @@ export function encode(input, options = {}) {
         writer.writeUint8(0);
     }
 
-    function writeArray(array, knownLength = false, column = null, headerRefs = true) {
+    function writeArray(array, knownLength = false, column = null) {
         // an empty array
         if (array.length === 0) {
             writer.writeUint8(0);
@@ -100,14 +101,12 @@ export function encode(input, options = {}) {
         // collect array element types
         let elemTypes = null;
         let typeBitmap = 0;
-        let typeCount = 0;
         let numericEncoding = 0;
         let numbers = null;
 
         if (column !== null) {
             elemTypes = column.types;
             typeBitmap = column.typeBitmap;
-            typeCount = column.typeCount;
         } else {
             for (let i = 0; i < array.length; i++) {
                 const elem = array[i];
@@ -116,11 +115,10 @@ export function encode(input, options = {}) {
                     : getType(elem);
 
                 if ((typeBitmap & elemType) === 0) {
-                    if (typeCount === 1) {
+                    if (BIT_COUNT[typeBitmap] === 1) {
                         elemTypes = new Uint8Array(array.length).fill(typeBitmap, 0, i);
                     }
 
-                    typeCount++;
                     typeBitmap |= elemType;
                 }
 
@@ -171,7 +169,7 @@ export function encode(input, options = {}) {
         //   │ │ │ └ (reserved)
         //   │ │ └ (reserved)
         //   │ └ (carry bit)
-        //   └ (carry bit)
+        //   └ (carry bit) = always 0
         //
         // ...numericEncoding bytes (optional, number = 1)
         //
@@ -192,7 +190,7 @@ export function encode(input, options = {}) {
         // console.log(arrayTypeBytes.toString(2), {hasObjectColumnKeys,hasObjectInlinedEntries}, array);
 
         const arrayDef = (numericEncoding << 16) | arrayTypeBytes;
-        const arrayDefId = headerRefs ? arrayDefs.get(arrayDef) : undefined;
+        const arrayDefId = arrayDefs.get(arrayDef);
 
         if (!knownLength) {
             writer.writeVlq(array.length);
@@ -201,12 +199,8 @@ export function encode(input, options = {}) {
         if (arrayDefId !== undefined) {
             writer.writeVlq(arrayDefId);
         } else {
-            if (headerRefs) {
-                arrayDefs.set(arrayDef, (arrayDefs.size << 1) | 1);
-            }
-
+            arrayDefs.set(arrayDef, (arrayDefs.size << 1) | 1);
             writer.writeVlq(arrayTypeBytes);
-
             writeNumericArrayHeader(writer, numericEncoding);
         }
 
@@ -214,7 +208,7 @@ export function encode(input, options = {}) {
         // written = writer.written;
 
         // write type index when there is more than a single type
-        if (typeCount > 1) {
+        if (BIT_COUNT[typeBitmap] > 1) {
             writer.writeTypeIndex(elemTypes, typeBitmap, true);
         }
 
@@ -238,7 +232,7 @@ export function encode(input, options = {}) {
                 ? array
                 : array.filter(Array.isArray);
 
-            writeNumericArray(writer, arrays.map(array => array.length));
+            writeNumericArray(writer, arrays.map(array => array.length), true);
             writeArray(arrays.flat());
         } else if (typeBitmap & TYPE_ARRAY) {
             for (let i = 0; i < array.length; i++) {
@@ -298,9 +292,7 @@ export function encode(input, options = {}) {
     writePackedTypeValue(inputType, input);
 
     const structureBytes = writer.value;
-    // const t = Date.now();
-    const stringBytes = writeStrings([...strings.keys()], stringRefs, writer, writeArray);
-    // console.log('writeStrings', Date.now() - t);
+    const stringBytes = writeStrings([...strings.keys()], stringRefs, writer, writeNumericArray);
 
     return Buffer.concat([
         stringBytes,

@@ -18,20 +18,6 @@ export const MAX_VLQ_8   = 0x0000_007f;
 export const MAX_VLQ_16  = 0x0000_3fff;
 export const MAX_VLQ_24  = 0x001f_ffff;
 
-export const ARRAY_ENCODING_TYPE_INDEX = 0;
-export const ARRAY_ENCODING_INT_TYPE_INDEX = 1;
-export const ARRAY_ENCODING_VLQ = 2;
-export const ARRAY_ENCODING_INT_VLQ = 3;
-export const ARRAY_ENCODING_VLQ2 = 4;
-export const ARRAY_ENCODING_INT_VLQ2 = 5;
-export const ARRAY_ENCODING_PROGRESSION = 6;
-export const ARRAY_ENCODING_ENUM = 7;
-export const ARRAY_ENCODING_SINGLE_TYPE = 8;
-export const ARRAY_ENCODING_SINGLE_VALUE = 9;
-
-export const ARRAY_LOWERING_DELTA = 0x10;
-export const ARRAY_LOWERING_MIN = 0x20;
-
 // value types
 export const TYPE_UNDEF  = 1 << 0;  // value-containing type, must be 0 (object's entry list ending)
 export const TYPE_NULL   = 1 << 1;  // value-containing type
@@ -63,33 +49,27 @@ export const FLOAT_MASK  = ~FLOAT_BITS;
 export const INT_BITS    = 0b0001_1111_0000_0000;
 export const INT_MASK    = ~INT_BITS;
 
-export const STORABLE_TYPES = 0x0f;
+// numeric encoding
+export const ARRAY_ENCODING_TYPE_INDEX = 0;
+export const ARRAY_ENCODING_INT_TYPE_INDEX = 1;
+export const ARRAY_ENCODING_VLQ = 2;
+export const ARRAY_ENCODING_INT_VLQ = 3;
+export const ARRAY_ENCODING_VLQ2 = 4;
+export const ARRAY_ENCODING_INT_VLQ2 = 5;
+export const ARRAY_ENCODING_PROGRESSION = 6;
+export const ARRAY_ENCODING_ENUM = 7;
+export const ARRAY_ENCODING_SINGLE_TYPE = 8;
+export const ARRAY_ENCODING_SINGLE_VALUE = 9;
+
+export const ARRAY_LOWERING_DELTA = 0x10;
+export const ARRAY_LOWERING_MIN = 0x20;
+
+// type groups & packing
 export const VALUE_CONTAINING_TYPE =
     TYPE_TRUE |
     TYPE_FALSE |
     TYPE_NULL |
     TYPE_UNDEF;
-export const ARRAY_WRITABLE_TYPE =
-    TYPE_STRING |
-    TYPE_ARRAY;
-export const ARRAY_NON_WRITABLE_TYPE =
-    VALUE_CONTAINING_TYPE |
-    TYPE_NUMBER |
-    // TYPE_ARRAY |
-    TYPE_OBJECT;
-// export const UINT_TYPE =
-//     (1 << TYPE_UINT_8) |
-//     (1 << TYPE_UINT_16) |
-//     (1 << TYPE_UINT_24) |
-//     (1 << TYPE_UINT_32) |
-//     (1 << TYPE_UINT_32_VAR);
-// export const ENUM_TYPE =
-//     (1 << TYPE_STRING) |
-//     (1 << TYPE_UINT_8) |
-//     (1 << TYPE_UINT_16) |
-//     (1 << TYPE_UINT_24) |
-//     (1 << TYPE_UINT_32) |
-//     (1 << TYPE_UINT_32_VAR);
 
 export const PACK_TYPE = new Uint8Array(256);
 export const UNPACK_TYPE = new Uint8Array(8).map((_, idx) => {
@@ -105,6 +85,7 @@ export const BIT_COUNT = new Uint8Array(256).map((count, num) => {
     return count;
 });
 
+// type names
 export const TYPE_NAME = Object.fromEntries(Object.entries({
     TYPE_UNDEF,
     TYPE_TRUE,
@@ -118,5 +99,5 @@ export const TYPE_NAME = Object.fromEntries(Object.entries({
 export const NUM_TYPE_NAME = Object.fromEntries(Object.entries({
     UINT_8, UINT_16, UINT_24, UINT_32, UINT_32_VAR,
     INT_8, INT_16, INT_24, INT_32, INT_32_VAR,
-    FLOAT_32, FLOAT_64
+    FLOAT_32, FLOAT_64, DECIMAL
 }).map(([k, v]) => [v, k]));

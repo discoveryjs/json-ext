@@ -133,10 +133,10 @@ export function writeStrings(strings, stringRefs, writer, writeArray) {
 
     // Write string bytes
     writer.reset();
-    writeArray(stringDefs, false, null, false);
-    writeArray(stringSlices, false, null, false);
-    writer.writeString(allStrings, 0);
-    writeArray(stringRefs, false, null, false);
+    writer.writeString(allStrings);
+    writeNumericArray(writer, stringDefs);
+    writeNumericArray(writer, stringSlices);
+    writeNumericArray(writer, stringRefs);
 
     const stringBytes = writer.value;
 

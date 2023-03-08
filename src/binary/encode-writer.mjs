@@ -25,6 +25,11 @@ export class Writer {
         this.chunkSize = chunkSize > WRITER_MIN_CHUNK_SIZE ? chunkSize : WRITER_MIN_CHUNK_SIZE;
         this.reset();
     }
+
+    // ========================================================================
+    // Operating with internal buffers
+    // ========================================================================
+
     reset() {
         this.chunks = [];
         this.createChunk();
@@ -57,8 +62,12 @@ export class Writer {
         return resultBuffer;
     }
 
-    writeString(str, shift = 1) {
-        this.writeVlq(Buffer.byteLength(str) << shift);
+    // ========================================================================
+    // String
+    // ========================================================================
+
+    writeString(str) {
+        this.writeVlq(Buffer.byteLength(str));
         this.writeStringRaw(str);
     }
     writeStringRaw(str) {
@@ -80,6 +89,10 @@ export class Writer {
             }
         }
     }
+
+    //
+    // Type index
+    // ========================================================================
 
     writeTypeIndex(types, bitmap, pack) {
         let typeIdx = 0;
@@ -104,7 +117,6 @@ export class Writer {
 
             if (shift >= 8) {
                 this.writeUint8(chunk);
-                // console.log('writeTypeIndex', chunk.toString(2), pack ? types.map(x => PACK_TYPE[x]) : types, typeIndexDictionary);
                 shift -= 8;
                 chunk >>= 8;
             }
@@ -112,9 +124,12 @@ export class Writer {
 
         if (shift > 0) {
             this.writeUint8(chunk);
-            // console.log('writeTypeIndex', chunk.toString(2), pack ? types.map(x => PACK_TYPE[x]) : types, typeIndexDictionary);
         }
     }
+
+    // ========================================================================
+    // Variable size numbers
+    // ========================================================================
 
     vlqBytesNeeded(n) {
         let bytes = 0;
@@ -126,12 +141,15 @@ export class Writer {
 
         return VLQ_BYTES_NEEDED[Math.clz32(n)] + bytes;
     }
+
+    // The number is stored its length in bytes in lower bits. This approach is for unsigned numbers only.
+    // The same effectiveness as for int/uint var but a bit faster, since several bytes can be consumed at once.
+    //   8: num << 1 |   0  –   7 payload bits | xxxx xxx0
+    //  16: num << 2 |  01  -  14 payload bits | xxxx xx01 | xxxx xxxx
+    //  24: num << 3 | 011  –  21 payload bits | xxxx x011 | xxxx xxxx | xxxx xxxx
+    // 24+: num << 3 | 111  – 28+ payload bits | xxxx x111 | xxxx xxxx | xxxx xxxx | 0xxx xxxx
+    //                                         | xxxx x111 | xxxx xxxx | xxxx xxxx | 1xxx xxxx | ...
     writeVlq(num) {
-        //   8: num << 1 |   0  –   7 bits data | xxxx xxx0
-        //  16: num << 2 |  01  -  14 bits data | xxxx xx01 xxxx xxxx
-        //  24: num << 3 | 011  –  21 bits data | xxxx x011 xxxx xxxx xxxx xxxx
-        // 24+: num << 3 | 111  – 28+ bits data | xxxx x111 xxxx xxxx xxxx xxxx 0xxx xxxx
-        //                                      | xxxx x111 xxxx xxxx xxxx xxxx 1xxx xxxx var
         if (num <= MAX_VLQ_8) {
             this.writeUint8(num << 1  | 0b0000);
         } else if (num <= MAX_VLQ_16) {
@@ -141,10 +159,10 @@ export class Writer {
         } else {
             const lowBits = num & MAX_UINT_28;
 
-            this.writeUint32(((num > lowBits) << 31) | (lowBits << 3) | 0b0111);
+            this.writeUint32((num > lowBits ? 0x8000_0000 : 0) + ((lowBits << 3) | 0b0111));
 
             if (num > lowBits) {
-                this.writeUintVar((num - lowBits) / (1 << 29));
+                this.writeUintVar((num - lowBits) / (1 << 28));
             }
         }
     }
@@ -152,10 +170,6 @@ export class Writer {
     // The number is stored byte by byte, using 7 bits of each byte
     // to store the number bits and 1 continuation bit
     writeUintVar(num) {
-        if (num === 0) {
-            return this.writeUint8(0);
-        }
-
         if (num <= 0x7f) {
             this.ensureCapacity(1);
             this.view.setUint8(this.pos++, num & 0x7f);
@@ -182,17 +196,18 @@ export class Writer {
 
             this.view.setUint8(this.pos++, num & 0x7f);
         }
-
     }
-    writeIntVar(num) {
-        let sign = num < 0 ? 1 : 0;
 
-        if (sign === 1) {
+    writeIntVar(num) {
+        let sign = 0;
+
+        if (num < 0) {
+            sign = 1;
             num = -num;
         }
 
         // Use fast binary ops when possible
-        // int31 is not safe for shift left since changes a sign
+        // int31 is unsafe for shift left since changes a sign of the number
         if (num <= MAX_UINT_30) {
             num = (num << 1) | sign;
         } else {
@@ -201,6 +216,10 @@ export class Writer {
 
         this.writeUintVar(num);
     }
+
+    //
+    // Fixed size numbers
+    //
 
     writeUint8(value) {
         this.ensureCapacity(1);
@@ -249,7 +268,6 @@ export class Writer {
         this.view.setBigUint64(this.pos, BigInt(value), true);
         this.pos += 8;
     }
-
     writeFloat32(value) {
         this.ensureCapacity(4);
         this.view.setFloat32(this.pos, value);
