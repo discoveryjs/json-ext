@@ -2,7 +2,8 @@ import { getType, getTypeCount } from './encode-get-type.mjs';
 import {
     TYPE_UNDEF,
     TYPE_OBJECT,
-    BIT_COUNT
+    BIT_COUNT,
+    TYPE_NONE
 } from './const.mjs';
 
 const EMPTY_MAP = new Map();
@@ -37,26 +38,24 @@ export function collectArrayObjectInfo(array, elemTypes, typeBitmap) {
 
                 for (const key of Object.keys(object)) {
                     const value = object[key];
+                    const valueType = getType(value);
 
-                    if (value === undefined) {
+                    if (valueType === TYPE_NONE) {
                         continue;
                     }
 
-                    const valueType = getType(value);
                     let column = columns.get(key);
 
                     if (column === undefined) {
                         columns.set(key, column = {
                             key,
                             typeBitmap: 0,
-                            types: new Uint8Array(objectCount),
                             values: new Array(objectCount),
                             valueCount: 0
                         });
                     }
 
                     column.typeBitmap |= valueType;
-                    column.types[objIdx] = valueType;
                     column.values[objIdx] = value;
                     column.valueCount++;
                 }
@@ -78,7 +77,6 @@ export function collectArrayObjectInfo(array, elemTypes, typeBitmap) {
             // When a column has values of a single type it means no holes as well as no type index
             // and column representation will always be optimal than inlined entries
             if (typeCount === 1) {
-                column.types = null;
                 continue;
             }
 

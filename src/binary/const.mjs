@@ -19,6 +19,7 @@ export const MAX_VLQ_16  = 0x0000_3fff;
 export const MAX_VLQ_24  = 0x001f_ffff;
 
 // value types
+export const TYPE_NONE   = 0;
 export const TYPE_UNDEF  = 1 << 0;  // value-containing type, must be 0 (object's entry list ending)
 export const TYPE_NULL   = 1 << 1;  // value-containing type
 export const TYPE_NUMBER = 1 << 2;
@@ -66,10 +67,10 @@ export const ARRAY_LOWERING_MIN = 0x20;
 
 // type groups & packing
 export const VALUE_CONTAINING_TYPE =
-    TYPE_TRUE |
-    TYPE_FALSE |
+    // TYPE_UNDEF |
     TYPE_NULL |
-    TYPE_UNDEF;
+    TYPE_TRUE |
+    TYPE_FALSE;
 
 export const PACK_TYPE = new Uint8Array(256);
 export const UNPACK_TYPE = new Uint8Array(8).map((_, idx) => {

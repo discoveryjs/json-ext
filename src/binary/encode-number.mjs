@@ -72,6 +72,7 @@ export function getIntType(num) {
                     : INT_8
         );
     }
+
     return (
         num > MAX_INT_16
             ? num > MAX_INT_24
@@ -86,9 +87,8 @@ export function getIntType(num) {
 }
 
 export function getUintType(num) {
-    // The return expressions are written so that only 2 or 3 comparisons
+    // The return expression is written so that only 2 or 3 comparisons
     // are needed to choose a type of 5
-
     return (
         num > MAX_UINT_16
             ? num > MAX_UINT_24
@@ -450,9 +450,9 @@ export function writeNumericArrayHeader(writer, encoding) {
     const method = encoding & 0x0f;
 
     if (method === ARRAY_ENCODING_TYPE_INDEX || method === ARRAY_ENCODING_INT_TYPE_INDEX) {
-        writer.writeUint16(encoding);
+        writer.writeNumber(encoding, UINT_16);
     } else {
-        writer.writeUint8(encoding);
+        writer.writeNumber(encoding, UINT_8);
     }
 }
 
@@ -465,25 +465,6 @@ export function writeNumericArray(writer, array, knownLength) {
 
     writeNumericArrayHeader(writer, encoding);
     writeNumbers(writer, array, encoding);
-}
-
-export function writeNumber(writer, num, numericType) {
-    switch (numericType) {
-        case UINT_8: writer.writeUint8(num); break;
-        case UINT_16: writer.writeUint16(num); break;
-        case UINT_24: writer.writeUint24(num); break;
-        case UINT_32: writer.writeUint32(num); break;
-        case UINT_32_VAR: writer.writeUintVar(num); break;
-
-        case INT_8: writer.writeInt8(num); break;
-        case INT_16: writer.writeInt16(num); break;
-        case INT_24: writer.writeInt24(num); break;
-        case INT_32: writer.writeInt32(num); break;
-        case INT_32_VAR: writer.writeIntVar(num); break;
-
-        case FLOAT_32: writer.writeFloat32(num); break;
-        case FLOAT_64: writer.writeFloat64(num); break;
-    }
 }
 
 export function writeNumbers(writer, input, encoding) {
@@ -540,9 +521,10 @@ export function writeNumbers(writer, input, encoding) {
         case ARRAY_ENCODING_VLQ2: {
             // write index
             for (let i = 0; i < numbers.length; i += 2) {
-                writer.writeUint8(
+                writer.writeNumber(
                     (numbers[i] > 0x07 ? 0x08 : 0x00) | (numbers[i] & 0x07) |
-                    (numbers[i + 1] > 0x07 ? 0x80 : 0x00) | ((numbers[i + 1] & 0x07) << 4)
+                    (numbers[i + 1] > 0x07 ? 0x80 : 0x00) | ((numbers[i + 1] & 0x07) << 4),
+                    UINT_8
                 );
             }
 
@@ -564,9 +546,10 @@ export function writeNumbers(writer, input, encoding) {
                 const hi = numbers[i + 1] || 0;
                 const abshi = Math.abs(hi);
 
-                writer.writeUint8(
+                writer.writeNumber(
                     (abslo > 0x03 ? 0x08 : 0x00) | (abslo & 0x03) | (lo < 0 ? 0x04 : 0x00) |
-                    (abshi > 0x03 ? 0x80 : 0x00) | (((abshi & 0x03) | (hi < 0 ? 0x04 : 0x00)) << 4)
+                    (abshi > 0x03 ? 0x80 : 0x00) | (((abshi & 0x03) | (hi < 0 ? 0x04 : 0x00)) << 4),
+                    UINT_8
                 );
             }
 
@@ -606,13 +589,13 @@ export function writeNumbers(writer, input, encoding) {
                 writer.writeTypeIndex(types, typeBitmap);
 
                 for (let i = 0; i < numbers.length; i++) {
-                    writeNumber(writer, numbers[i], types[i]);
+                    writer.writeNumber(numbers[i], types[i]);
                 }
             } else {
                 const type = 31 - Math.clz32(typeBitmap);
 
                 for (let i = 0; i < numbers.length; i++) {
-                    writeNumber(writer, numbers[i], type);
+                    writer.writeNumber(numbers[i], type);
                 }
             }
 

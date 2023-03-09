@@ -5,13 +5,27 @@ import {
     MAX_VLQ_8,
     MAX_VLQ_16,
     MAX_VLQ_24,
+
+    UINT_8,
+    UINT_16,
+    UINT_24,
+    UINT_32,
+    UINT_32_VAR,
+    INT_8,
+    INT_16,
+    INT_24,
+    INT_32,
+    INT_32_VAR,
+    FLOAT_32,
+    FLOAT_64,
+
+    TYPE_OBJECT,
     PACK_TYPE
 } from './const.mjs';
+import { writeNumericArray, writeNumericArrayHeader } from './encode-number.mjs';
+import { bakeStrings } from './encode-string.mjs';
+import { WriterBackend } from './encode-writer-backend.mjs';
 
-const WRITER_DEFAULT_CHUNK_SIZE = 64 * 1024;
-const WRITER_MIN_CHUNK_SIZE = 8;
-
-// reusable dictionary of used types for a value seria index
 const typeIndexDictionary = new Uint8Array(32);
 const VLQ_BYTES_NEEDED = new Uint8Array(33);
 
@@ -20,46 +34,37 @@ for (let i = 0; i < 33; i++) {
 }
 
 export class Writer {
-    constructor(chunkSize = WRITER_DEFAULT_CHUNK_SIZE) {
-        this.stringEncoder = new TextEncoder();
-        this.chunkSize = chunkSize > WRITER_MIN_CHUNK_SIZE ? chunkSize : WRITER_MIN_CHUNK_SIZE;
-        this.reset();
+    constructor(chunkSize) {
+        this.backend = new WriterBackend(chunkSize);
+
+        this.arrayDefs = new Map();
+        this.strings = new Map();
+        this.stringRefs = [];
+        this.stringIdx = 0;
     }
 
-    // ========================================================================
-    // Operating with internal buffers
-    // ========================================================================
+    emit() {
+        const { strings, stringDefs, stringSlices, stringRefs } = bakeStrings(
+            [...this.strings.keys()],
+            this.stringRefs
+        );
 
-    reset() {
-        this.chunks = [];
-        this.createChunk();
-    }
-    createChunk() {
-        this.bytes = new Uint8Array(this.chunkSize);
-        this.view = new DataView(this.bytes.buffer);
-        this.pos = 0;
-    }
-    flushChunk() {
-        this.chunks.push(this.bytes.subarray(0, this.pos));
-        this.bytes = this.view = null;
-        this.pos = 0;
-    }
-    ensureCapacity(bytes) {
-        if (this.pos + bytes > this.bytes.length) {
-            this.flushChunk();
-            this.createChunk();
-        }
-    }
-    get written() {
-        return this.chunks.reduce((s, c) => s + c.byteLength, 0) + this.pos;
-    }
-    get value() {
-        this.flushChunk();
+        const structureBytes = this.backend.emit();
 
-        const resultBuffer = Buffer.concat(this.chunks);
-        this.chunks = null;
+        // Write string bytes
+        this.backend.reset();
+        this.writeVlq(Buffer.byteLength(strings));
+        this.backend.writeString(strings);
+        writeNumericArray(this, stringDefs);
+        writeNumericArray(this, stringSlices);
+        writeNumericArray(this, stringRefs);
 
-        return resultBuffer;
+        const stringBytes = this.backend.emit();
+
+        return Buffer.concat([
+            stringBytes,
+            structureBytes
+        ]);
     }
 
     // ========================================================================
@@ -67,30 +72,17 @@ export class Writer {
     // ========================================================================
 
     writeString(str) {
-        this.writeVlq(Buffer.byteLength(str));
-        this.writeStringRaw(str);
-    }
-    writeStringRaw(str) {
-        let strPos = 0;
-        while (strPos < str.length) {
-            const { read, written } = this.stringEncoder.encodeInto(
-                strPos > 0 ? str.slice(strPos) : str,
-                this.pos > 0 ? this.bytes.subarray(this.pos) : this.bytes
-            );
+        let ref = this.strings.get(str);
 
-            strPos += read;
-            this.pos += written;
-
-            if (strPos < str.length) {
-                this.flushChunk();
-                this.createChunk();
-            } else {
-                break;
-            }
+        if (ref === undefined) {
+            ref = this.stringIdx++;
+            this.strings.set(str, ref);
         }
+
+        this.stringRefs.push(ref);
     }
 
-    //
+    // ========================================================================
     // Type index
     // ========================================================================
 
@@ -116,19 +108,74 @@ export class Writer {
             shift += bitsPerType;
 
             if (shift >= 8) {
-                this.writeUint8(chunk);
+                this.backend.writeUint8(chunk);
                 shift -= 8;
                 chunk >>= 8;
             }
         }
 
         if (shift > 0) {
-            this.writeUint8(chunk);
+            this.backend.writeUint8(chunk);
         }
     }
 
     // ========================================================================
-    // Variable size numbers
+    // Array
+    // ========================================================================
+
+    // array header
+    // =====================
+    //
+    // 1st byte:
+    //
+    //   7 6 5 4 3 2 1 0
+    //   ┬ ┬ ┬ ┬ ┬ ┬ ┬ ┬
+    //   │ │ │ │ │ │ │ └ 0 - definition, 1 - defenition reference
+    //   │ │ │ │ │ │ └ has inlined objects
+    //   │ │ │ │ │ └ undefined (holes)
+    //   │ │ │ │ └ null
+    //   │ │ │ └ number
+    //   │ │ └ string
+    //   │ └ has object columns
+    //   └ true
+    //
+    // 2nd byte (optional, carry bit = 1):
+    //
+    //   x x 3 2 1 09 8
+    //   ┬ ┬ ┬ ┬ ┬ ┬─ ┬
+    //   │ │ │ │ │ │  └ false
+    //   │ │ │ │ │ └ array: 00 - no, 01 - as is, 11 - flatten, 10 - ?
+    //   │ │ │ │ └ (reserved)
+    //   │ │ │ └ (reserved)
+    //   │ │ └ (reserved)
+    //   │ └ (carry bit)
+    //   └ (carry bit) = always 0
+    //
+    // ...numericEncoding bytes (optional, number = 1)
+    //
+    writeArrayHeader(typeBitmap, numericEncoding, hasObjectColumnKeys, hasObjectInlinedEntries, hasFlattenArrays) {
+        const arrayTypeBytes =
+            (hasFlattenArrays << 10) |
+            (hasObjectColumnKeys << 6) |         // PACK_TYPE[TYPE_OBJECT] + 2
+            ((typeBitmap & ~TYPE_OBJECT) << 2) | // disable object type bit
+            (hasObjectInlinedEntries << 1);
+
+        // console.log(arrayTypeBytes.toString(2), {hasObjectColumnKeys,hasObjectInlinedEntries}, array);
+
+        const arrayDef = (arrayTypeBytes << 16) | numericEncoding;
+        const arrayDefId = this.arrayDefs.get(arrayDef);
+
+        if (arrayDefId !== undefined) {
+            this.writeVlq(arrayDefId);
+        } else {
+            this.arrayDefs.set(arrayDef, (this.arrayDefs.size << 1) | 1);
+            this.writeVlq(arrayTypeBytes);
+            writeNumericArrayHeader(this, numericEncoding);
+        }
+    }
+
+    // ========================================================================
+    // Numbers
     // ========================================================================
 
     vlqBytesNeeded(n) {
@@ -151,15 +198,15 @@ export class Writer {
     //                                         | xxxx x111 | xxxx xxxx | xxxx xxxx | 1xxx xxxx | ...
     writeVlq(num) {
         if (num <= MAX_VLQ_8) {
-            this.writeUint8(num << 1  | 0b0000);
+            this.backend.writeUint8(num << 1  | 0b0000);
         } else if (num <= MAX_VLQ_16) {
-            this.writeUint16(num << 2 | 0b0001);
+            this.backend.writeUint16(num << 2 | 0b0001);
         } else if (num <= MAX_VLQ_24) {
-            this.writeUint24(num << 3 | 0b0011);
+            this.backend.writeUint24(num << 3 | 0b0011);
         } else {
             const lowBits = num & MAX_UINT_28;
 
-            this.writeUint32((num > lowBits ? 0x8000_0000 : 0) + ((lowBits << 3) | 0b0111));
+            this.backend.writeUint32((num > lowBits ? 0x8000_0000 : 0) + ((lowBits << 3) | 0b0111));
 
             if (num > lowBits) {
                 this.writeUintVar((num - lowBits) / (1 << 28));
@@ -171,30 +218,25 @@ export class Writer {
     // to store the number bits and 1 continuation bit
     writeUintVar(num) {
         if (num <= 0x7f) {
-            this.ensureCapacity(1);
-            this.view.setUint8(this.pos++, num & 0x7f);
+            this.backend.writeUint8(num & 0x7f);
         } else if (num <= 0x3fff) {
-            this.ensureCapacity(2);
-            this.view.setUint16(this.pos, ((num << 1) & 0x7f00) | 0x80 | (num & 0x7f), true);
-            this.pos += 2;
+            this.backend.writeUint16(((num << 1) & 0x7f00) | 0x80 | (num & 0x7f));
         } else if (num <= 0x1fffff) {
-            this.ensureCapacity(4);
-            this.view.setUint32(this.pos, ((num << 2) & 0x7f0000) | 0x8000 | ((num << 1) & 0x7f00) | 0x80 | (num & 0x7f), true);
-            this.pos += 3;
+            this.backend.writeUint24(((num << 2) & 0x7f0000) | 0x8000 | ((num << 1) & 0x7f00) | 0x80 | (num & 0x7f));
         } else {
             const bytesNeeded = this.vlqBytesNeeded(num);
 
-            this.ensureCapacity(bytesNeeded);
+            this.backend.ensureCapacity(bytesNeeded);
 
             for (let i = 0; i < bytesNeeded - 1; i++) {
-                this.view.setUint8(this.pos++, 0x80 | (num & 0x7f));
+                this.backend.writeUint8(0x80 | (num & 0x7f));
 
                 num = num > MAX_UINT_32
                     ? (num - (num & 0x7f)) / 0x80
                     : num >>> 7;
             }
 
-            this.view.setUint8(this.pos++, num & 0x7f);
+            this.backend.writeUint8(num & 0x7f);
         }
     }
 
@@ -217,65 +259,24 @@ export class Writer {
         this.writeUintVar(num);
     }
 
-    //
-    // Fixed size numbers
-    //
+    writeNumber(num, numericType) {
+        switch (numericType) {
+            case UINT_8: this.backend.writeUint8(num); break;
+            case UINT_16: this.backend.writeUint16(num); break;
+            case UINT_24: this.backend.writeUint24(num); break;
+            case UINT_32: this.backend.writeUint32(num); break;
+            case UINT_32_VAR: this.writeUintVar(num); break;
 
-    writeUint8(value) {
-        this.ensureCapacity(1);
-        this.view.setUint8(this.pos, value);
-        this.pos += 1;
-    }
-    writeInt8(value) {
-        this.ensureCapacity(1);
-        this.view.setInt8(this.pos, value);
-        this.pos += 1;
-    }
-    writeUint16(value) {
-        this.ensureCapacity(2);
-        this.view.setUint16(this.pos, value, true);
-        this.pos += 2;
-    }
-    writeInt16(value) {
-        this.ensureCapacity(2);
-        this.view.setInt16(this.pos, value, true);
-        this.pos += 2;
-    }
-    writeUint24(value) {
-        this.ensureCapacity(3);
-        this.view.setUint16(this.pos, value, true);
-        this.view.setUint8(this.pos + 2, value >> 16);
-        this.pos += 3;
-    }
-    writeInt24(value) {
-        this.ensureCapacity(3);
-        this.view.setInt16(this.pos, value, true);
-        this.view.setInt8(this.pos + 2, value >> 16); // FIXME!
-        this.pos += 3;
-    }
-    writeUint32(value) {
-        this.ensureCapacity(4);
-        this.view.setUint32(this.pos, value, true);
-        this.pos += 4;
-    }
-    writeInt32(value) {
-        this.ensureCapacity(4);
-        this.view.setInt32(this.pos, value, true);
-        this.pos += 4;
-    }
-    writeUint64(value) {
-        this.ensureCapacity(8);
-        this.view.setBigUint64(this.pos, BigInt(value), true);
-        this.pos += 8;
-    }
-    writeFloat32(value) {
-        this.ensureCapacity(4);
-        this.view.setFloat32(this.pos, value);
-        this.pos += 4;
-    }
-    writeFloat64(value) {
-        this.ensureCapacity(8);
-        this.view.setFloat64(this.pos, value);
-        this.pos += 8;
+            case INT_8: this.backend.writeInt8(num); break;
+            case INT_16: this.backend.writeInt16(num); break;
+            case INT_24: this.backend.writeInt24(num); break;
+            case INT_32: this.backend.writeInt32(num); break;
+            case INT_32_VAR: this.writeIntVar(num); break;
+
+            case FLOAT_32: this.backend.writeFloat32(num); break;
+            case FLOAT_64: this.backend.writeFloat64(num); break;
+            default:
+                throw new Error('Unknown numeric type: ' + numericType);
+        }
     }
 }

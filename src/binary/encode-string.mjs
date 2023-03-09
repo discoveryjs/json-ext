@@ -38,16 +38,16 @@ export function findCommonStringPostfix(string1, string2, start2) {
     return 0;
 }
 
-function writeStringsSection(stringRefs, strings, stringDefs, stringSlices, stringRefRemap, offset) {
+function writeStringsSection(stringIndecies, strings, stringDefs, stringSlices, stringRefRemap, offset) {
     let allStrings = '';
     let prevString = '';
 
-    stringRefs.sort((a, b) => strings[a] < strings[b] ? -1 : 1);
+    stringIndecies.sort((a, b) => strings[a] < strings[b] ? -1 : 1);
 
-    for (let i = 0; i < stringRefs.length; i++) {
-        const stringIdx = stringRefs[i];
-        const str = strings[stringIdx];
+    for (let i = 0; i < stringIndecies.length; i++) {
         const newStringIdx = offset++;
+        const stringIdx = stringIndecies[i];
+        const str = strings[stringIdx];
         const start = findCommonStringPrefix(prevString, str);
         const end = findCommonStringPostfix(prevString, str, start) || str.length;
         const prefixSlice = start > 0;
@@ -73,7 +73,7 @@ function writeStringsSection(stringRefs, strings, stringDefs, stringSlices, stri
     return allStrings;
 }
 
-export function writeStrings(strings, stringRefs, writer, writeArray) {
+export function bakeStrings(strings, stringRefs) {
     const stringDefs = new Uint32Array(strings.length);
     const stringSlices = [];
     const stringRefCount = new Uint32Array(strings.length);
@@ -131,14 +131,10 @@ export function writeStrings(strings, stringRefs, writer, writeArray) {
         stringRefs[i] = stringRefRemap[stringRefs[i]];
     }
 
-    // Write string bytes
-    writer.reset();
-    writer.writeString(allStrings);
-    writeNumericArray(writer, stringDefs);
-    writeNumericArray(writer, stringSlices);
-    writeNumericArray(writer, stringRefs);
-
-    const stringBytes = writer.value;
-
-    return stringBytes;
+    return {
+        strings: allStrings,
+        stringDefs,
+        stringSlices,
+        stringRefs
+    };
 }

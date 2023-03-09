@@ -29,12 +29,12 @@ function loadStrings(reader) {
         const def = defs[i];
         let str = allStrings.slice(offset, offset += def >> 2);
 
-        if (def & 0b01) {
-            str = str + prevString.slice(-slices[sliceIdx++]);
-        }
-
         if (def & 0b10) {
             str = prevString.slice(0, slices[sliceIdx++]) + str;
+        }
+
+        if (def & 0b01) {
+            str = str + prevString.slice(-slices[sliceIdx++]);
         }
 
         strings[i] = str;
@@ -284,7 +284,7 @@ export function decode(bytes) {
     const ret = readPackedTypeValue(reader.readUint8());
 
     if (reader.pos !== bytes.byteLength) {
-        throw new Error('End of input is not reached');
+        throw new Error('End of input not reached');
     }
 
     return ret;

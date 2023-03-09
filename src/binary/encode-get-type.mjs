@@ -5,14 +5,18 @@ import {
     TYPE_OBJECT,
     TYPE_ARRAY,
     TYPE_NULL,
-    TYPE_UNDEF,
-    TYPE_NUMBER
+    TYPE_NUMBER,
+    TYPE_NONE
 } from './const.mjs';
+
+export function getTypeOrNull(value) {
+    return getType(value) || TYPE_NULL;
+}
 
 export function getType(value) {
     switch (typeof value) {
         default:
-            return TYPE_UNDEF;
+            return TYPE_NONE;
 
         case 'boolean':
             return value ? TYPE_TRUE : TYPE_FALSE;

@@ -1,10 +1,9 @@
 import { Writer } from './encode-writer.mjs';
-import { getType } from './encode-get-type.mjs';
-import { findNumArrayBestEncoding, getNumericType, writeNumber, writeNumbers, writeNumericArray, writeNumericArrayHeader } from './encode-number.mjs';
-import { writeStrings } from './encode-string.mjs';
+import { getType, getTypeOrNull } from './encode-get-type.mjs';
+import { findNumArrayBestEncoding, getNumericType, writeNumbers, writeNumericArray } from './encode-number.mjs';
 import { collectArrayObjectInfo } from './encode-object.mjs';
 import {
-    TYPE_NULL,
+    TYPE_NONE,
     TYPE_STRING,
     TYPE_NUMBER,
     TYPE_OBJECT,
@@ -14,24 +13,14 @@ import {
 
     PACK_TYPE,
     UNPACK_TYPE,
-    BIT_COUNT
+    BIT_COUNT,
+    UINT_8
 } from './const.mjs';
 import { resetStat } from './debug-stat.mjs';
 
 const EMPTY_MAP = new Map();
 
 export function encode(input, options = {}) {
-    function writeString(str) {
-        let ref = strings.get(str);
-
-        if (ref === undefined) {
-            ref = stringIdx++;
-            strings.set(str, ref);
-        }
-
-        stringRefs.push(ref);
-    }
-
     function packedType(value) {
         const type = getType(value);
 
@@ -46,8 +35,9 @@ export function encode(input, options = {}) {
         for (const key in object) {
             if (hasOwnProperty.call(object, key) && !ignoreFields.has(key)) {
                 const entryValue = object[key];
+                const entryType = packedType(entryValue);
 
-                if (entryValue === undefined) {
+                if (entryType === TYPE_NONE) {
                     continue;
                 }
 
@@ -59,7 +49,6 @@ export function encode(input, options = {}) {
                 //   │    └ numericType (type = TYPE_NUMBER)
                 //   └ (reserved for ref/def bit as a lowest bit)
                 //
-                const entryType = packedType(entryValue);
                 let keyId = objectKeys.get(key);
 
                 if (keyId === undefined) {
@@ -77,8 +66,8 @@ export function encode(input, options = {}) {
                     // entry def reference
                     writer.writeUintVar(refId);
                 } else {
-                    writer.writeUint8(entryType << 1);
-                    writeString(key);
+                    writer.writeNumber(entryType << 1, UINT_8);
+                    writer.writeString(key);
 
                     objectEntryDefs[entryIdx].set(defId, (objectEntryDefs[entryIdx].size << 1) | 1);
                 }
@@ -88,44 +77,29 @@ export function encode(input, options = {}) {
             }
         }
 
-        writer.writeUint8(0);
+        writer.writeNumber(0, UINT_8);
     }
 
-    function writeArray(array, knownLength = false, column = null) {
+    function writeArray(array, knownLength = false, typeBitmap = 0) {
         // an empty array
         if (array.length === 0) {
-            writer.writeUint8(0);
+            writer.writeNumber(0, UINT_8);
             return;
         }
 
         // collect array element types
         let elemTypes = null;
-        let typeBitmap = 0;
         let numericEncoding = 0;
         let numbers = null;
 
-        if (column !== null) {
-            elemTypes = column.types;
-            typeBitmap = column.typeBitmap;
-        } else {
+        if (typeBitmap === 0) {
             for (let i = 0; i < array.length; i++) {
-                const elem = array[i];
-                const elemType = elem === undefined
-                    ? TYPE_NULL
-                    : getType(elem);
-
-                if ((typeBitmap & elemType) === 0) {
-                    if (BIT_COUNT[typeBitmap] === 1) {
-                        elemTypes = new Uint8Array(array.length).fill(typeBitmap, 0, i);
-                    }
-
-                    typeBitmap |= elemType;
-                }
-
-                if (elemTypes !== null) {
-                    elemTypes[i] = elemType;
-                }
+                typeBitmap |= getTypeOrNull(array[i]);
             }
+        }
+
+        if (BIT_COUNT[typeBitmap] > 1) {
+            elemTypes = array.map(getTypeOrNull);
         }
 
         // try to optimize array of uint values only
@@ -143,37 +117,6 @@ export function encode(input, options = {}) {
             columns: objectColumns
         } = collectArrayObjectInfo(array, elemTypes, typeBitmap);
 
-        // array header
-        // =====================
-        //
-        // 1st byte:
-        //
-        //   7 6 5 4 3 2 1 0
-        //   ┬ ┬ ┬ ┬ ┬ ┬ ┬ ┬
-        //   │ │ │ │ │ │ │ └ 0 - definition, 1 - defenition reference
-        //   │ │ │ │ │ │ └ has inlined objects
-        //   │ │ │ │ │ └ undefined (holes)
-        //   │ │ │ │ └ null
-        //   │ │ │ └ number
-        //   │ │ └ string
-        //   │ └ has object columns
-        //   └ true
-        //
-        // 2nd byte (optional, carry bit = 1):
-        //
-        //   x x 3 2 1 09 8
-        //   ┬ ┬ ┬ ┬ ┬ ┬─ ┬
-        //   │ │ │ │ │ │  └ false
-        //   │ │ │ │ │ └ array: 00 - no, 01 - as is, 11 - flatten, 10 - ?
-        //   │ │ │ │ └ (reserved)
-        //   │ │ │ └ (reserved)
-        //   │ │ └ (reserved)
-        //   │ └ (carry bit)
-        //   └ (carry bit) = always 0
-        //
-        // ...numericEncoding bytes (optional, number = 1)
-        //
-
         const hasObjectColumnKeys = objectColumns.size !== 0;
         const hasFlattenArrays = 0;
         // typeBitmap & TYPE_ARRAY
@@ -181,28 +124,18 @@ export function encode(input, options = {}) {
         //         // don't flatten arrays of object arrays for now
         //         array.every(elem => !Array.isArray(elem) || elem.every(elem2 => getType(elem2) !== TYPE_OBJECT))
         //     : 0;
-        const arrayTypeBytes =
-            (hasFlattenArrays << 10) |
-            (hasObjectColumnKeys << 6) |         // PACK_TYPE[TYPE_OBJECT] + 2
-            ((typeBitmap & ~TYPE_OBJECT) << 2) | // disable object type bit
-            (hasObjectInlinedEntries << 1);
-
-        // console.log(arrayTypeBytes.toString(2), {hasObjectColumnKeys,hasObjectInlinedEntries}, array);
-
-        const arrayDef = (numericEncoding << 16) | arrayTypeBytes;
-        const arrayDefId = arrayDefs.get(arrayDef);
 
         if (!knownLength) {
             writer.writeVlq(array.length);
         }
 
-        if (arrayDefId !== undefined) {
-            writer.writeVlq(arrayDefId);
-        } else {
-            arrayDefs.set(arrayDef, (arrayDefs.size << 1) | 1);
-            writer.writeVlq(arrayTypeBytes);
-            writeNumericArrayHeader(writer, numericEncoding);
-        }
+        writer.writeArrayHeader(
+            typeBitmap,
+            numericEncoding,
+            hasObjectColumnKeys,
+            hasObjectInlinedEntries,
+            hasFlattenArrays
+        );
 
         // console.log('array', array, 'header', writer.written - written, 'enc', encoding);
         // written = writer.written;
@@ -216,7 +149,7 @@ export function encode(input, options = {}) {
         if (typeBitmap & TYPE_STRING) {
             for (let i = 0; i < array.length; i++) {
                 if (elemTypes === null || elemTypes[i] === TYPE_STRING) {
-                    writeString(array[i]);
+                    writer.writeString(array[i]);
                 }
             }
         }
@@ -249,12 +182,12 @@ export function encode(input, options = {}) {
 
             // names
             for (const key of objectColumns.keys()) {
-                writeString(key);
+                writer.writeString(key);
             }
 
             // values
             for (const column of objectColumns.values()) {
-                writeArray(column.values, true, column);
+                writeArray(column.values, true, column.typeBitmap);
             }
         }
 
@@ -270,8 +203,8 @@ export function encode(input, options = {}) {
 
     function writePackedTypeValue(packedType, value) {
         switch (UNPACK_TYPE[packedType & 0x07]) {
-            case TYPE_STRING: writeString(value); break;
-            case TYPE_NUMBER: writeNumber(writer, value, packedType >> 3); break;
+            case TYPE_STRING: writer.writeString(value); break;
+            case TYPE_NUMBER: writer.writeNumber(value, packedType >> 3); break;
             case TYPE_OBJECT: writeObject(value); break;
             case TYPE_ARRAY:  writeArray(value); break;
         }
@@ -280,22 +213,12 @@ export function encode(input, options = {}) {
     const writer = new Writer(options.chunkSize);
     const objectKeys = new Map();
     const objectEntryDefs = [];
-    const arrayDefs = new Map();
-    const strings = new Map();
-    const stringRefs = [];
-    let stringIdx = 0;
     const inputType = packedType(input);
 
     resetStat();
 
-    writer.writeUint8(inputType);
+    writer.writeNumber(inputType, UINT_8);
     writePackedTypeValue(inputType, input);
 
-    const structureBytes = writer.value;
-    const stringBytes = writeStrings([...strings.keys()], stringRefs, writer, writeNumericArray);
-
-    return Buffer.concat([
-        stringBytes,
-        structureBytes
-    ]);
+    return writer.emit();
 }
