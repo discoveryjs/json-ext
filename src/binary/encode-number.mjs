@@ -31,8 +31,8 @@ import {
     ARRAY_ENCODING_PROGRESSION,
     ARRAY_ENCODING_VLQ,
     ARRAY_ENCODING_INT_VLQ,
-    ARRAY_ENCODING_VLQ2,
-    ARRAY_ENCODING_INT_VLQ2,
+    ARRAY_ENCODING_VLQ_4BIT_INDEX,
+    ARRAY_ENCODING_INT_VLQ_4BIT_INDEX,
 
     ARRAY_LOWERING_DELTA,
     ARRAY_LOWERING_MIN,
@@ -40,7 +40,10 @@ import {
     BIT_COUNT,
     UINT_BITS,
     FLOAT_BITS,
-    INT_BITS
+    INT_BITS,
+    ARRAY_ENCODING_BIT_PACKING,
+    ARRAY_ENCODING_INT_BIT_PACKING,
+    ARRAY_LOWERING_NONE
 } from './const.mjs';
 
 const USE_INT_FLAG = 0x0001_0000;
@@ -120,30 +123,37 @@ export function getSignedNumericType(num) {
     return getIntType(num);
 }
 
+function maxMinMaxBits(min, max) {
+    const maxAbsNum = Math.max(Math.abs(min), Math.abs(max));
+    const sign = min < 0 ? 1 : 0;
+
+    return Math.max(32 - Math.clz32(maxAbsNum) + sign, 1);
+}
+
 function estimateUintCosts(writer, bytes, num, numType) {
     switch (numType) {
         case UINT_8:
             bytes[ARRAY_ENCODING_TYPE_INDEX] += 1;
             bytes[ARRAY_ENCODING_VLQ] += num > 0x7f ? 2 : 1;
-            bytes[ARRAY_ENCODING_VLQ2] += num > 0x07 ? 1 : 0;
+            bytes[ARRAY_ENCODING_VLQ_4BIT_INDEX] += num > 0x07 ? 1 : 0;
             break;
 
         case UINT_16:
             bytes[ARRAY_ENCODING_TYPE_INDEX] += 2;
             bytes[ARRAY_ENCODING_VLQ] += num > 0x3fff ? 3 : 2;
-            bytes[ARRAY_ENCODING_VLQ2] += num > 0x03ff ? 2 : 1;
+            bytes[ARRAY_ENCODING_VLQ_4BIT_INDEX] += num > 0x03ff ? 2 : 1;
             break;
 
         case UINT_24:
             bytes[ARRAY_ENCODING_TYPE_INDEX] += 3;
             bytes[ARRAY_ENCODING_VLQ] += num > 0x001f_ffff ? 4 : 3;
-            bytes[ARRAY_ENCODING_VLQ2] += num > 0x0001_ffff ? 3 : 2;
+            bytes[ARRAY_ENCODING_VLQ_4BIT_INDEX] += num > 0x0001_ffff ? 3 : 2;
             break;
 
         case UINT_32:
             bytes[ARRAY_ENCODING_TYPE_INDEX] += 4;
             bytes[ARRAY_ENCODING_VLQ] += num > 0x0fff_ffff ? 5 : 4;
-            bytes[ARRAY_ENCODING_VLQ2] += num > 0x00ff_ffff ? 4 : 3;
+            bytes[ARRAY_ENCODING_VLQ_4BIT_INDEX] += num > 0x00ff_ffff ? 4 : 3;
             break;
 
         case UINT_32_VAR: {
@@ -151,7 +161,7 @@ function estimateUintCosts(writer, bytes, num, numType) {
 
             bytes[ARRAY_ENCODING_TYPE_INDEX] += vlqn;
             bytes[ARRAY_ENCODING_VLQ] += vlqn;
-            bytes[ARRAY_ENCODING_VLQ2] += writer.vlqBytesNeeded((num - (num & 0x07)) / 8); // safe ">> 3" for big numbers
+            bytes[ARRAY_ENCODING_VLQ_4BIT_INDEX] += writer.vlqBytesNeeded((num - (num & 0x07)) / 8); // safe ">> 3" for big numbers
             break;
         }
     }
@@ -166,25 +176,25 @@ function estimateIntCosts(writer, bytes, num, numType) {
         case INT_8: {
             bytes[ARRAY_ENCODING_INT_TYPE_INDEX] += 1;
             bytes[ARRAY_ENCODING_INT_VLQ] += num > 0x3f ? 2 : 1;
-            bytes[ARRAY_ENCODING_INT_VLQ2] += num > 0x03 ? 1 : 0;
+            bytes[ARRAY_ENCODING_INT_VLQ_4BIT_INDEX] += num > 0x03 ? 1 : 0;
             break;
         }
         case INT_16: {
             bytes[ARRAY_ENCODING_INT_TYPE_INDEX] += 2;
             bytes[ARRAY_ENCODING_INT_VLQ] += num > 0x1fff ? 3 : 2;
-            bytes[ARRAY_ENCODING_INT_VLQ2] += num > 0x01ff ? 2 : 1;
+            bytes[ARRAY_ENCODING_INT_VLQ_4BIT_INDEX] += num > 0x01ff ? 2 : 1;
             break;
         }
         case INT_24: {
             bytes[ARRAY_ENCODING_INT_TYPE_INDEX] += 3;
             bytes[ARRAY_ENCODING_INT_VLQ] += num > 0x000f_ffff ? 4 : 3;
-            bytes[ARRAY_ENCODING_INT_VLQ2] += num > 0x0000_ffff ? 3 : 2;
+            bytes[ARRAY_ENCODING_INT_VLQ_4BIT_INDEX] += num > 0x0000_ffff ? 3 : 2;
             break;
         }
         case INT_32: {
             bytes[ARRAY_ENCODING_INT_TYPE_INDEX] += 4;
             bytes[ARRAY_ENCODING_INT_VLQ] += num > 0x07ff_ffff ? 5 : 4;
-            bytes[ARRAY_ENCODING_INT_VLQ2] += num > 0x007f_ffff ? 4 : 3;
+            bytes[ARRAY_ENCODING_INT_VLQ_4BIT_INDEX] += num > 0x007f_ffff ? 4 : 3;
             break;
         }
         case INT_32_VAR: {
@@ -193,7 +203,7 @@ function estimateIntCosts(writer, bytes, num, numType) {
 
             bytes[ARRAY_ENCODING_INT_TYPE_INDEX] += vlqn;
             bytes[ARRAY_ENCODING_INT_VLQ] += vlqn;
-            bytes[ARRAY_ENCODING_INT_VLQ2] += writer.vlqBytesNeeded((nSigned - (nSigned & 0x07)) / 8);  // safe ">> 2" for big numbers
+            bytes[ARRAY_ENCODING_INT_VLQ_4BIT_INDEX] += writer.vlqBytesNeeded((nSigned - (nSigned & 0x07)) / 8);  // safe ">> 2" for big numbers
             break;
         }
     }
@@ -215,7 +225,7 @@ function estimateNumberCosts(writer, bytes, num) {
     return (1 << intType) | USE_INT_FLAG;
 }
 
-function typeIndexEncoding(arrayLength, encodingBytes, typeBitmap) {
+function pickDefaultEncoding(arrayLength, encodingBytes, typeBitmap, countHeaderBytes) {
     const useInt = typeBitmap & USE_INT_FLAG;
     const method = useInt
         ? ARRAY_ENCODING_INT_TYPE_INDEX
@@ -228,7 +238,8 @@ function typeIndexEncoding(arrayLength, encodingBytes, typeBitmap) {
     const typeCount = BIT_COUNT[packedTypeBitmap];
     const minBytes =
         encodingBytes[method] +
-        (typeCount > 1 ? Math.ceil((arrayLength * (typeCount <= 2 ? 1 : typeCount <= 4 ? 2 : 3)) / 8) : 0);
+        (typeCount > 1 ? Math.ceil((arrayLength * (typeCount <= 2 ? 1 : typeCount <= 4 ? 2 : 3)) / 8) : 0) +
+        (countHeaderBytes ? 2 : 0); // header
 
     return {
         encoding: (packedTypeBitmap << 8) | method,
@@ -236,29 +247,56 @@ function typeIndexEncoding(arrayLength, encodingBytes, typeBitmap) {
     };
 }
 
-function pickMinBytesEncoding(arrayLength, encodingBytes, typeBitmap, lowering) {
-    const vlq2indexBytes = Math.ceil(arrayLength / 2);
-    let { encoding, minBytes } = typeIndexEncoding(arrayLength, encodingBytes, typeBitmap);
+function pickIntAdvancedEncoding(arrayLength, encodingBytes, typeBitmap, countHeaderBytes, lowering, maxBits) {
+    const bitPackBytes = maxBits <= 16 ? Math.ceil(arrayLength * maxBits / 8) + (countHeaderBytes ? 2 : 0) : Infinity;
+    let { encoding, minBytes } = pickDefaultEncoding(arrayLength, encodingBytes, typeBitmap, countHeaderBytes);
+    const method = encoding & 0x0f;
 
-    if ((encoding & 0x0f) === ARRAY_ENCODING_INT_TYPE_INDEX) {
-        if (encodingBytes[ARRAY_ENCODING_INT_VLQ] < minBytes) {
-            encoding = ARRAY_ENCODING_INT_VLQ;
-            minBytes = encodingBytes[ARRAY_ENCODING_INT_VLQ];
+    if (method === ARRAY_ENCODING_INT_TYPE_INDEX) {
+        const vlqBytes =
+            encodingBytes[ARRAY_ENCODING_INT_VLQ] +
+            (countHeaderBytes ? 1 : 0);
+        const vlq4bitIndexBytes =
+            encodingBytes[ARRAY_ENCODING_INT_VLQ_4BIT_INDEX] +
+            Math.ceil(arrayLength / 2) +
+            (countHeaderBytes ? 1 : 0);
+
+        if (bitPackBytes < minBytes) {
+            encoding = (maxBits << 8) | ARRAY_ENCODING_INT_BIT_PACKING;
+            minBytes = bitPackBytes;
         }
 
-        if (encodingBytes[ARRAY_ENCODING_INT_VLQ2] + vlq2indexBytes < minBytes) {
-            encoding = ARRAY_ENCODING_INT_VLQ2;
-            minBytes = encodingBytes[ARRAY_ENCODING_INT_VLQ2] + vlq2indexBytes;
+        if (vlqBytes < minBytes) {
+            encoding = ARRAY_ENCODING_INT_VLQ;
+            minBytes = vlqBytes;
+        }
+
+        if (vlq4bitIndexBytes < minBytes) {
+            encoding = ARRAY_ENCODING_INT_VLQ_4BIT_INDEX;
+            minBytes = vlq4bitIndexBytes;
         }
     } else {
-        if (encodingBytes[ARRAY_ENCODING_VLQ] < minBytes) {
-            encoding = ARRAY_ENCODING_VLQ;
-            minBytes = encodingBytes[ARRAY_ENCODING_VLQ];
+        const vlqBytes =
+            encodingBytes[ARRAY_ENCODING_VLQ] +
+            (countHeaderBytes ? 1 : 0);
+        const vlq4bitIndexBytes =
+            encodingBytes[ARRAY_ENCODING_VLQ_4BIT_INDEX] +
+            Math.ceil(arrayLength / 2) +
+            (countHeaderBytes ? 1 : 0);
+
+        if (bitPackBytes < minBytes) {
+            encoding = (maxBits << 8) | ARRAY_ENCODING_BIT_PACKING;
+            minBytes = bitPackBytes;
         }
 
-        if (encodingBytes[ARRAY_ENCODING_VLQ2] + vlq2indexBytes < minBytes) {
-            encoding = ARRAY_ENCODING_VLQ2;
-            minBytes = encodingBytes[ARRAY_ENCODING_VLQ2] + vlq2indexBytes;
+        if (vlqBytes < minBytes) {
+            encoding = ARRAY_ENCODING_VLQ;
+            minBytes = vlqBytes;
+        }
+
+        if (vlq4bitIndexBytes < minBytes) {
+            encoding = ARRAY_ENCODING_VLQ_4BIT_INDEX;
+            minBytes = vlq4bitIndexBytes;
         }
     }
 
@@ -282,11 +320,12 @@ function pickMinBytesEncoding(arrayLength, encodingBytes, typeBitmap, lowering) 
 //    │   └ 32var, 32, 24, 16, 8 (int – when useInt=1, uint – otherwise)
 //    └ decimal, float64, float32
 //
-export function minNumArraySliceEncoding(writer, array, start = 0, end = array.length) {
+export function minNumArraySliceEncoding(writer, array, countHeaderBytes, start = 0, end = array.length) {
     const arrayLength = end - start;
     let typeBitmap = 0;
     let useFloat = false;
     let minNum = array[start];
+    let maxNum = array[start];
 
     allCosts.fill(0);
 
@@ -303,15 +342,21 @@ export function minNumArraySliceEncoding(writer, array, start = 0, end = array.l
         if (num < minNum) {
             minNum = num;
         }
+
+        if (num > maxNum) {
+            maxNum = num;
+        }
     }
 
     // use default encoding when float numbers are used
     if (useFloat || arrayLength < 2) {
-        return typeIndexEncoding(arrayLength, noLoweringCosts, typeBitmap);
+        return pickDefaultEncoding(arrayLength, noLoweringCosts, typeBitmap, countHeaderBytes);
     }
 
     // collect costs for lowered numbers
-    let progressionStep = array[start + 1] - start[start];
+    let progressionStep = array[start + 1] - array[start];
+    let maxDelta = progressionStep;
+    let minDelta = progressionStep;
     let deltaTypeBitmap = 0;
     // let minTypeBitmap = 0;
 
@@ -328,14 +373,38 @@ export function minNumArraySliceEncoding(writer, array, start = 0, end = array.l
             if (progressionStep !== delta) {
                 progressionStep = false;
             }
+
+            if (delta > maxDelta) {
+                maxDelta = delta;
+            }
+
+            if (delta < minDelta) {
+                minDelta = delta;
+            }
         }
     }
 
     // Find the most bytes saving encoding
-    let { encoding, minBytes } = pickMinBytesEncoding(arrayLength, noLoweringCosts, typeBitmap, 0);
-    let deltaLowering = pickMinBytesEncoding(arrayLength - 1, deltaLoweringCosts, deltaTypeBitmap, ARRAY_LOWERING_DELTA);
+    let { encoding, minBytes } = pickIntAdvancedEncoding(
+        arrayLength,
+        noLoweringCosts,
+        typeBitmap,
+        countHeaderBytes,
+        ARRAY_LOWERING_NONE,
+        maxMinMaxBits(minNum, maxNum)
+    );
+    let deltaLowering = pickIntAdvancedEncoding(
+        arrayLength - 1,
+        deltaLoweringCosts,
+        deltaTypeBitmap,
+        countHeaderBytes,
+        ARRAY_LOWERING_DELTA,
+        maxMinMaxBits(minDelta, maxDelta)
+    );
+    // let minLowering = pickMinBytesEncoding(arrayLength, minLoweringCosts, minTypeBitmap, countHeaderBytes, ARRAY_LOWERING_MIN);
+
+    // Add costs for the first number encoding
     let deltaLoweringMinBytes = deltaLowering.minBytes + writer.vlqBytesNeeded(Math.abs(array[start]) * 2);
-    // let minLowering = pickMinBytesEncoding(arrayLength, minLoweringCosts, minTypeBitmap, ARRAY_LOWERING_MIN);
     // let minLoweringMinBytes = minLowering.minBytes + writer.vlqBytesNeeded(Math.abs(minNum) * 2);
 
     if (deltaLoweringMinBytes < minBytes) {
@@ -352,7 +421,8 @@ export function minNumArraySliceEncoding(writer, array, start = 0, end = array.l
     if (arrayLength > 2 && progressionStep !== false) {
         const progressionBytes =
             writer.vlqBytesNeeded(array[start]) +
-            writer.vlqBytesNeeded(Math.abs(progressionStep) * 2);
+            writer.vlqBytesNeeded(Math.abs(progressionStep) * 2) +
+            (countHeaderBytes ? 1 : 0); // header
 
         if (progressionBytes < minBytes) {
             encoding = ARRAY_ENCODING_PROGRESSION;
@@ -363,9 +433,9 @@ export function minNumArraySliceEncoding(writer, array, start = 0, end = array.l
     return { encoding, minBytes };
 }
 
-export function findNumArrayBestEncoding(writer, array) {
+export function findNumArrayBestEncoding(writer, array, countHeaderBytes = true) {
     // const sectionStatTemp = {};
-    const { encoding } = minNumArraySliceEncoding(writer, array);
+    const { encoding } = minNumArraySliceEncoding(writer, array, countHeaderBytes);
     // console.log(array, {encoding:encoding&0x0f, lowering: encoding&0x30, minBytes});
 
     // const sectionSize = 32;
@@ -449,10 +519,15 @@ export function findNumArrayBestEncoding(writer, array) {
 export function writeNumericArrayHeader(writer, encoding) {
     const method = encoding & 0x0f;
 
-    if (method === ARRAY_ENCODING_TYPE_INDEX || method === ARRAY_ENCODING_INT_TYPE_INDEX) {
-        writer.writeNumber(encoding, UINT_16);
-    } else {
-        writer.writeNumber(encoding, UINT_8);
+    switch (method) {
+        case ARRAY_ENCODING_TYPE_INDEX:
+        case ARRAY_ENCODING_INT_TYPE_INDEX:
+        case ARRAY_ENCODING_BIT_PACKING:
+        case ARRAY_ENCODING_INT_BIT_PACKING:
+            writer.writeNumber(encoding, UINT_16);
+            break;
+        default:
+            writer.writeNumber(encoding, UINT_8);
     }
 }
 
@@ -518,7 +593,7 @@ export function writeNumbers(writer, input, encoding) {
             break;
         }
 
-        case ARRAY_ENCODING_VLQ2: {
+        case ARRAY_ENCODING_VLQ_4BIT_INDEX: {
             // write index
             for (let i = 0; i < numbers.length; i += 2) {
                 writer.writeNumber(
@@ -538,7 +613,7 @@ export function writeNumbers(writer, input, encoding) {
             break;
         }
 
-        case ARRAY_ENCODING_INT_VLQ2: {
+        case ARRAY_ENCODING_INT_VLQ_4BIT_INDEX: {
             // write index
             for (let i = 0; i < numbers.length; i += 2) {
                 const lo = numbers[i];
@@ -560,6 +635,60 @@ export function writeNumbers(writer, input, encoding) {
                 if (n > 0x03) {
                     writer.writeVlq((n - (n & 0x03)) / 4);
                 }
+            }
+
+            break;
+        }
+
+        case ARRAY_ENCODING_BIT_PACKING: {
+            const bitsPerNumber = encoding >> 8;
+
+            let shift = 0;
+            let chunk = 0;
+
+            for (let i = 0; i < numbers.length; i++) {
+                chunk |= numbers[i] << shift;
+                shift += bitsPerNumber;
+
+                if (shift >= 16) {
+                    writer.writeNumber(chunk, UINT_16);
+                    shift -= 16;
+                    chunk >>= 16;
+                }
+            }
+
+            if (shift > 8) {
+                writer.writeNumber(chunk, UINT_16);
+            } else if (shift > 0) {
+                writer.writeNumber(chunk, UINT_8);
+            }
+
+            break;
+        }
+
+        case ARRAY_ENCODING_INT_BIT_PACKING: {
+            const bitsPerNumber = encoding >> 8;
+
+            let shift = 0;
+            let chunk = 0;
+
+            for (let i = 0; i < numbers.length; i++) {
+                const num = numbers[i];
+
+                chunk |= (num < 0 ? (-num << 1) | 1 : num << 1) << shift;
+                shift += bitsPerNumber;
+
+                if (shift >= 16) {
+                    writer.writeNumber(chunk, UINT_16);
+                    shift -= 16;
+                    chunk >>= 16;
+                }
+            }
+
+            if (shift > 8) {
+                writer.writeNumber(chunk, UINT_16);
+            } else if (shift > 0) {
+                writer.writeNumber(chunk, UINT_8);
             }
 
             break;

@@ -108,7 +108,7 @@ export function encode(input, options = {}) {
                 ? array
                 : array.filter((_, idx) => elemTypes[idx] === TYPE_NUMBER);
 
-            numericEncoding = findNumArrayBestEncoding(writer, numbers);
+            numericEncoding = findNumArrayBestEncoding(writer, numbers, false);
         }
 
         // collect info for objects

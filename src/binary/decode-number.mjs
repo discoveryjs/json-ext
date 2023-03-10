@@ -3,8 +3,8 @@ import {
     ARRAY_ENCODING_INT_TYPE_INDEX,
     ARRAY_ENCODING_VLQ,
     ARRAY_ENCODING_INT_VLQ,
-    ARRAY_ENCODING_VLQ2,
-    ARRAY_ENCODING_INT_VLQ2,
+    ARRAY_ENCODING_VLQ_4BIT_INDEX,
+    ARRAY_ENCODING_INT_VLQ_4BIT_INDEX,
     ARRAY_ENCODING_PROGRESSION,
 
     UINT_8,
@@ -25,7 +25,9 @@ import {
     FLOAT_BITS,
     BIT_COUNT,
     ARRAY_LOWERING_DELTA,
-    ARRAY_LOWERING_MIN
+    ARRAY_LOWERING_MIN,
+    ARRAY_ENCODING_BIT_PACKING,
+    ARRAY_ENCODING_INT_BIT_PACKING
 } from './const.mjs';
 
 export function readNumber(reader, numericType) {
@@ -51,8 +53,13 @@ export function readNumericArrayEncoding(reader) {
     let encoding = reader.readUint8();
     const method = encoding & 0x0f;
 
-    if (method === ARRAY_ENCODING_TYPE_INDEX || method === ARRAY_ENCODING_INT_TYPE_INDEX) {
-        encoding |= reader.readUint8() << 8;
+    switch (method) {
+        case ARRAY_ENCODING_TYPE_INDEX:
+        case ARRAY_ENCODING_INT_TYPE_INDEX:
+        case ARRAY_ENCODING_BIT_PACKING:
+        case ARRAY_ENCODING_INT_BIT_PACKING:
+            encoding |= reader.readUint8() << 8;
+            break;
     }
 
     return encoding;
@@ -101,7 +108,7 @@ export function readNumbers(reader, encoding, arrayLength, output = new Array(ar
             break;
         }
 
-        case ARRAY_ENCODING_VLQ2: {
+        case ARRAY_ENCODING_VLQ_4BIT_INDEX: {
             const indexBytes = reader.readBytes(Math.ceil(numberCount / 2));
 
             for (let i = 0, indexByte = 0; i < numberCount; i++) {
@@ -120,7 +127,7 @@ export function readNumbers(reader, encoding, arrayLength, output = new Array(ar
             break;
         }
 
-        case ARRAY_ENCODING_INT_VLQ2: {
+        case ARRAY_ENCODING_INT_VLQ_4BIT_INDEX: {
             const indexBytes = reader.readBytes(Math.ceil(numberCount / 2));
 
             for (let i = 0, indexByte = 0; i < numberCount; i++) {
@@ -137,6 +144,56 @@ export function readNumbers(reader, encoding, arrayLength, output = new Array(ar
                 output[start + i] = indexByte & 0x08
                     ? sign * (reader.readVlq() * 4 + (indexByte & 0x03))
                     : sign * (indexByte & 0x03);
+            }
+
+            break;
+        }
+
+        case ARRAY_ENCODING_BIT_PACKING: {
+            const bitsPerNumber = encoding >> 8;
+            const mask = (1 << bitsPerNumber) - 1;
+            const bytes = reader.readBytes(Math.ceil(numberCount * bitsPerNumber / 8));
+
+            let bytesPos = 0;
+            let left = 0;
+            let buffer = 0;
+
+            for (let i = 0; i < numberCount; i++) {
+                while (left < bitsPerNumber) {
+                    buffer |= bytes[bytesPos] << left;
+                    left += 8;
+                    bytesPos++;
+                }
+
+                output[start + i] = buffer & mask;
+
+                buffer >>= bitsPerNumber;
+                left -= bitsPerNumber;
+            }
+
+            break;
+        }
+
+        case ARRAY_ENCODING_INT_BIT_PACKING: {
+            const bitsPerNumber = encoding >> 8;
+            const mask = (1 << bitsPerNumber) - 1;
+            const bytes = reader.readBytes(Math.ceil(numberCount * bitsPerNumber / 8));
+
+            let bytesPos = 0;
+            let left = 0;
+            let buffer = 0;
+
+            for (let i = 0; i < numberCount; i++) {
+                while (left < bitsPerNumber) {
+                    buffer |= bytes[bytesPos] << left;
+                    left += 8;
+                    bytesPos++;
+                }
+
+                output[start + i] = buffer & 1 ? -((buffer & mask) >> 1) : (buffer & mask) >> 1;
+
+                buffer >>= bitsPerNumber;
+                left -= bitsPerNumber;
             }
 
             break;
