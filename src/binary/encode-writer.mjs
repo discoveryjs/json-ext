@@ -33,6 +33,27 @@ for (let i = 0; i < 33; i++) {
     VLQ_BYTES_NEEDED[32 - i] = Math.ceil(i / 7) || 1;
 }
 
+function remapByFrequency(array, dict) {
+    const frequency = new Uint32Array(dict.length);
+    const valueIndex = new Uint32Array(dict.length).map((_, idx) => idx);
+    const dictBase = dict.slice();
+
+    for (let i = 0; i < array.length; i++) {
+        frequency[array[i]]++;
+    }
+
+    valueIndex.sort((a, b) => (frequency[b] - frequency[a]) || (a - b));
+
+    for (let i = 0; i < valueIndex.length; i++) {
+        frequency[valueIndex[i]] = i;
+        dict[i] = dictBase[valueIndex[i]];
+    }
+
+    for (let i = 0; i < array.length; i++) {
+        array[i] = frequency[array[i]];
+    }
+}
+
 export class Writer {
     constructor(chunkSize) {
         this.backend = new WriterBackend(chunkSize);
@@ -64,7 +85,9 @@ export class Writer {
 
         // Write array header dictionaries
         this.backend.reset();
-        writeNumericArray(this, [...this.arrayHeaders.keys()]);
+        const arrayHeaders = [...this.arrayHeaders.keys()];
+        remapByFrequency(this.arrayHeaderRefs, arrayHeaders);
+        writeNumericArray(this, arrayHeaders);
         writeNumericArray(this, this.arrayHeaderRefs);
 
         const arrayHeaderBytes = this.backend.emit();
