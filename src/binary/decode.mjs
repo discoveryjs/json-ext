@@ -1,6 +1,6 @@
 import { Reader } from './decode-reader.mjs';
 import { getTypeCount } from './encode-get-type.mjs';
-import { readNumber, readNumbers, readNumericArray, readNumericArrayEncoding } from './decode-number.mjs';
+import { readNumber, readNumbers, readNumericArray } from './decode-number.mjs';
 import {
     TYPE_UNDEF,
     TYPE_NULL,
@@ -44,9 +44,20 @@ function loadStrings(reader) {
     return { stringRefs, strings };
 }
 
+function loadArrayDefs(reader) {
+    const arrayHeaders = readNumericArray(reader);
+    const arrayHeaderRefs = readNumericArray(reader);
+
+    return { arrayHeaders, arrayHeaderRefs };
+}
+
 export function decode(bytes) {
     function readString() {
         return strings[stringRefs[stringRefIdx++]];
+    }
+
+    function readArrayHeader() {
+        return arrayHeaders[arrayHeaderRefs[arrayDefRefIdx++]];
     }
 
     function readObject(object = {}) {
@@ -92,27 +103,17 @@ export function decode(bytes) {
             return [];
         }
 
-        const prelude = reader.readVlq();
-        const isReference = prelude & 1;
+        const header = readArrayHeader();
+        const headerTypes = header >> 16;
+        const numericEncoding = header & 0xffff;
 
-        const header = isReference
-            ? arrayHeaders[prelude >> 1]
-            : prelude >> 1;
-        const numericEncoding = isReference
-            ? header >> 16
-            : readNumericArrayEncoding(reader);
+        const hasObjectInlineKeys = headerTypes & 1;
+        const hasObjectColumnKeys = (headerTypes >> 5) & 1;
+        const hasFlattenArrays = (headerTypes >> 9) & 1;
+        const typeBitmap = ((headerTypes >> 1) & 0xff) | ((headerTypes & 1) << 4);
 
-        if (!isReference) {
-            arrayHeaders.push((numericEncoding << 16) | header);
-        }
-
-        const hasObjectInlineKeys = header & 1;
-        const hasObjectColumnKeys = (header >> 5) & 1;
-        const hasFlattenArrays = (header >> 9) & 1;
-        const typeBitmap = ((header >> 1) & 0xff) | ((header & 1) << 4);
-
-        // console.log('readArray len:', arrayLength, isReference ? '(ref)' : '(def)',
-        //     'header:', header.toString(2).padStart(8, 0),
+        // console.log('readArray len:', arrayLength,
+        //     'header:', headerTypes.toString(2).padStart(8, 0),
         //     'typeBitmap:', typeBitmap.toString(2).padStart(8, 0),
         //     'numericEncoding:', numericEncoding.toString(2).padStart(8, 0),
         //     { hasObjectColumnKeys, hasObjectInlineKeys }
@@ -277,9 +278,10 @@ export function decode(bytes) {
 
     const reader = new Reader(bytes);
     const objectEntryDefs = [];
-    const arrayHeaders = [];
     const { strings, stringRefs } = loadStrings(reader, readNumericArray);
     let stringRefIdx = 0;
+    const { arrayHeaders, arrayHeaderRefs } = loadArrayDefs(reader, readNumericArray);
+    let arrayDefRefIdx = 0;
 
     const ret = readPackedTypeValue(reader.readUint8());
 

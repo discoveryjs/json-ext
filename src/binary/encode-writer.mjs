@@ -37,7 +37,8 @@ export class Writer {
     constructor(chunkSize) {
         this.backend = new WriterBackend(chunkSize);
 
-        this.arrayDefs = new Map();
+        this.arrayHeaders = new Map();
+        this.arrayHeaderRefs = [];
         this.strings = new Map();
         this.stringRefs = [];
         this.stringIdx = 0;
@@ -51,7 +52,7 @@ export class Writer {
 
         const structureBytes = this.backend.emit();
 
-        // Write string bytes
+        // Write string dictionaries
         this.backend.reset();
         this.writeVlq(Buffer.byteLength(strings));
         this.backend.writeString(strings);
@@ -61,8 +62,16 @@ export class Writer {
 
         const stringBytes = this.backend.emit();
 
+        // Write array header dictionaries
+        this.backend.reset();
+        writeNumericArray(this, [...this.arrayHeaders.keys()]);
+        writeNumericArray(this, this.arrayHeaderRefs);
+
+        const arrayHeaderBytes = this.backend.emit();
+
         return Buffer.concat([
             stringBytes,
+            arrayHeaderBytes,
             structureBytes
         ]);
     }
@@ -130,48 +139,46 @@ export class Writer {
     //
     //   7 6 5 4 3 2 1 0
     //   ┬ ┬ ┬ ┬ ┬ ┬ ┬ ┬
-    //   │ │ │ │ │ │ │ └ 0 - definition, 1 - defenition reference
-    //   │ │ │ │ │ │ └ has inlined objects
-    //   │ │ │ │ │ └ undefined (holes)
-    //   │ │ │ │ └ null
-    //   │ │ │ └ number
-    //   │ │ └ string
-    //   │ └ has object columns
-    //   └ true
+    //   │ │ │ │ │ │ │ └ has inlined objects
+    //   │ │ │ │ │ │ └ undefined (holes)
+    //   │ │ │ │ │ └ null
+    //   │ │ │ │ └ number
+    //   │ │ │ └ string
+    //   │ │ └ has object columns
+    //   │ └ true
+    //   └ false
     //
     // 2nd byte (optional, carry bit = 1):
     //
-    //   x x 3 2 1 09 8
-    //   ┬ ┬ ┬ ┬ ┬ ┬─ ┬
-    //   │ │ │ │ │ │  └ false
-    //   │ │ │ │ │ └ array: 00 - no, 01 - as is, 11 - flatten, 10 - ?
+    //   x x 3 2 1 0 98
+    //   ┬ ┬ ┬ ┬ ┬ ┬ ┬─
+    //   │ │ │ │ │ │ └ array: 00 - no, 01 - as is, 11 - flatten, 10 - ?
+    //   │ │ │ │ │ └ (reserved)
     //   │ │ │ │ └ (reserved)
     //   │ │ │ └ (reserved)
     //   │ │ └ (reserved)
-    //   │ └ (carry bit)
-    //   └ (carry bit) = always 0
+    //   │ └ (reserved)
+    //   └ always 0 (sign bit safe encoding)
     //
     // ...numericEncoding bytes (optional, number = 1)
     //
     writeArrayHeader(typeBitmap, numericEncoding, hasObjectColumnKeys, hasObjectInlinedEntries, hasFlattenArrays) {
         const arrayTypeBytes =
-            (hasFlattenArrays << 10) |
-            (hasObjectColumnKeys << 6) |         // PACK_TYPE[TYPE_OBJECT] + 2
-            ((typeBitmap & ~TYPE_OBJECT) << 2) | // disable object type bit
-            (hasObjectInlinedEntries << 1);
+            (hasFlattenArrays << 9) |
+            (hasObjectColumnKeys << 5) |         // PACK_TYPE[TYPE_OBJECT] + 2
+            ((typeBitmap & ~TYPE_OBJECT) << 1) | // disable object type bit
+            (hasObjectInlinedEntries);
 
         // console.log(arrayTypeBytes.toString(2), {hasObjectColumnKeys,hasObjectInlinedEntries}, array);
 
-        const arrayDef = (arrayTypeBytes << 16) | numericEncoding;
-        const arrayDefId = this.arrayDefs.get(arrayDef);
+        const arrayDef = (arrayTypeBytes << 16) | numericEncoding; // Use arrayTypeBytes as high bits to avoid a sign bit occupation
+        let arrayDefRef = this.arrayHeaders.get(arrayDef);
 
-        if (arrayDefId !== undefined) {
-            this.writeVlq(arrayDefId);
-        } else {
-            this.arrayDefs.set(arrayDef, (this.arrayDefs.size << 1) | 1);
-            this.writeVlq(arrayTypeBytes);
-            writeNumericArrayHeader(this, numericEncoding);
+        if (arrayDefRef === undefined) {
+            this.arrayHeaders.set(arrayDef, arrayDefRef = this.arrayHeaders.size);
         }
+
+        this.arrayHeaderRefs.push(arrayDefRef);
     }
 
     // ========================================================================

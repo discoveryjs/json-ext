@@ -120,9 +120,9 @@ export function encode(input, options = {}) {
         const hasObjectColumnKeys = objectColumns.size !== 0;
         const hasFlattenArrays = 0;
         // typeBitmap & TYPE_ARRAY
-        //     ? ((typeCount === 1) || getTypeCount(elemTypes, TYPE_ARRAY) > 1) &&
+        //     ? ((BIT_COUNT[typeBitmap] === 1) || getTypeCount(elemTypes, TYPE_ARRAY) > 1) &&
         //         // don't flatten arrays of object arrays for now
-        //         array.every(elem => !Array.isArray(elem) || elem.every(elem2 => getType(elem2) !== TYPE_OBJECT))
+        //         // array.every(elem => !Array.isArray(elem) || elem.every(elem2 => getType(elem2) !== TYPE_OBJECT))
         //     : 0;
 
         if (!knownLength) {
