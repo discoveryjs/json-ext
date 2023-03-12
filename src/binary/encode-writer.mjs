@@ -19,8 +19,8 @@ import {
     FLOAT_32,
     FLOAT_64,
 
-    TYPE_OBJECT,
-    PACK_TYPE
+    PACK_TYPE,
+    DISABLE_TYPE_OBJECT_MASK
 } from './const.mjs';
 import { writeNumericArray, writeNumericArrayHeader } from './encode-number.mjs';
 import { bakeStrings } from './encode-string.mjs';
@@ -135,7 +135,9 @@ export class Writer {
     // array header
     // =====================
     //
-    // 1st byte:
+    // 2 bytes – numericEncoding (when number = 1, otherwise 0)
+    //
+    // 3rd byte:
     //
     //   7 6 5 4 3 2 1 0
     //   ┬ ┬ ┬ ┬ ┬ ┬ ┬ ┬
@@ -148,7 +150,7 @@ export class Writer {
     //   │ └ true
     //   └ false
     //
-    // 2nd byte (optional, carry bit = 1):
+    // 4th byte (optional, carry bit = 1):
     //
     //   x x 3 2 1 0 98
     //   ┬ ┬ ┬ ┬ ┬ ┬ ┬─
@@ -160,18 +162,14 @@ export class Writer {
     //   │ └ (reserved)
     //   └ always 0 (sign bit safe encoding)
     //
-    // ...numericEncoding bytes (optional, number = 1)
-    //
     writeArrayHeader(typeBitmap, numericEncoding, hasObjectColumnKeys, hasObjectInlinedEntries, hasFlattenArrays) {
-        const arrayTypeBytes =
-            (hasFlattenArrays << 9) |
-            (hasObjectColumnKeys << 5) |         // PACK_TYPE[TYPE_OBJECT] + 2
-            ((typeBitmap & ~TYPE_OBJECT) << 1) | // disable object type bit
-            (hasObjectInlinedEntries);
+        const arrayTypes =
+            (hasObjectInlinedEntries) |                      // hasObjectInlinedEntries is the first bit
+            ((typeBitmap & DISABLE_TYPE_OBJECT_MASK) << 1) | // Use typeBitmap as is but disable the object type bit
+            (hasObjectColumnKeys << 5) |                     // Set hasObjectColumnKeys flag on the place of TYPE_OBJECT bit
+            (hasFlattenArrays << 9);
 
-        // console.log(arrayTypeBytes.toString(2), {hasObjectColumnKeys,hasObjectInlinedEntries}, array);
-
-        const arrayDef = (arrayTypeBytes << 16) | numericEncoding; // Use arrayTypeBytes as high bits to avoid a sign bit occupation
+        const arrayDef = (arrayTypes << 16) | numericEncoding; // Use arrayTypes as high bits to avoid a sign bit occupation
         let arrayDefRef = this.arrayHeaders.get(arrayDef);
 
         if (arrayDefRef === undefined) {

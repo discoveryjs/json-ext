@@ -7,31 +7,33 @@ import {
 } from './const.mjs';
 
 const EMPTY_MAP = new Map();
-const INFO_NO_OBJECTS = Object.freeze({
+const NO_OBJECTS = Object.freeze({
     hasInlinedEntries: false,
     columns: EMPTY_MAP
 });
-const INFO_INLINED_ENTRIES_ONLY = Object.freeze({
+const INLINED_ENTRIES_ONLY = Object.freeze({
     hasInlinedEntries: true,
     columns: EMPTY_MAP
 });
 
 export function collectArrayObjectInfo(array, elemTypes, typeBitmap) {
+    // Bail out if there are no objects in the array
     if ((typeBitmap & TYPE_OBJECT) === 0) {
-        return INFO_NO_OBJECTS;
+        return NO_OBJECTS;
     }
 
-    // count objects number
+    // Count objects number
     const onlyObjects = typeBitmap === TYPE_OBJECT;
     const objectCount = onlyObjects
-        ? array.length // when TYPE_OBJECT is a single type in an array
+        ? array.length // When TYPE_OBJECT is a single type in the array
         : getTypeCount(elemTypes, TYPE_OBJECT);
 
+    // Columns can only be effective if there is more than one object
     if (objectCount > 1) {
         const columns = new Map();
         let hasInlinedEntries = false;
 
-        // collect a condidate keys for a column representation
+        // Process the keys of all objects as candidates for a column representation
         for (let i = 0, objIdx = 0; i < array.length; i++) {
             if (onlyObjects || elemTypes[i] === TYPE_OBJECT) {
                 const object = array[i];
@@ -103,7 +105,7 @@ export function collectArrayObjectInfo(array, elemTypes, typeBitmap) {
             }
         }
 
-        // Return columns only when there are at least one column
+        // Return columns only if there is at least one column
         if (columns.size > 0) {
             return {
                 hasInlinedEntries,
@@ -112,5 +114,5 @@ export function collectArrayObjectInfo(array, elemTypes, typeBitmap) {
         }
     }
 
-    return INFO_INLINED_ENTRIES_ONLY;
+    return INLINED_ENTRIES_ONLY;
 }

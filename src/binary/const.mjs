@@ -66,6 +66,7 @@ export const ARRAY_LOWERING_DELTA = 0x10;
 export const ARRAY_LOWERING_MIN = 0x20;
 
 // type groups & packing
+export const DISABLE_TYPE_OBJECT_MASK = ~TYPE_OBJECT;
 export const VALUE_CONTAINING_TYPE =
     // TYPE_UNDEF |
     TYPE_NULL |
