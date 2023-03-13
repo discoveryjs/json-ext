@@ -24,6 +24,7 @@ function loadStrings(reader) {
     const slices = readNumericArray(reader);
     const stringRefs = readNumericArray(reader);
     const strings = new Array(defs);
+    let readStringIdx = 0;
 
     for (let i = 0, offset = 0, sliceIdx = 0, prevString = ''; i < defs.length; i++) {
         const def = defs[i];
@@ -41,58 +42,68 @@ function loadStrings(reader) {
         prevString = str;
     }
 
-    return { stringRefs, strings };
+    return {
+        readStrings(start, end) {
+            return stringRefs.slice(start, end).map(idx => strings[idx]);
+        },
+        readString() {
+            return strings[stringRefs[readStringIdx++]];
+        }
+    };
 }
 
 function loadArrayDefs(reader) {
     const arrayHeaders = readNumericArray(reader);
     const arrayHeaderRefs = readNumericArray(reader);
+    let arrayDefRefIdx = 0;
 
-    return { arrayHeaders, arrayHeaderRefs };
+    return function readArrayHeader() {
+        return arrayHeaders[arrayHeaderRefs[arrayDefRefIdx++]];
+    };
+}
+
+function loadObjectEntries(reader, readStrings) {
+    const defsCount = reader.readVlq();
+    const keysCount = reader.readVlq();
+
+    if (defsCount === 0) {
+        return () => null;
+    }
+
+    const keys = keysCount ? readStrings(-keysCount) : [];
+    const defs = new Array(defsCount);
+
+    for (let i = 0; i < defsCount; i++) {
+        defs[i] = {
+            dict: readNumericArray(reader),
+            refs: readNumericArray(reader),
+            index: 0
+        };
+    }
+
+    return function readObjectEntry(entryIdx) {
+        const def = defs[entryIdx];
+        const refId = def.refs[def.index++];
+        const entry = def.dict[refId];
+
+        if (entry === 0) {
+            return null;
+        }
+
+        return {
+            key: keys[entry >> 8],
+            type: entry & 0xff
+        };
+    };
 }
 
 export function decode(bytes) {
-    function readString() {
-        return strings[stringRefs[stringRefIdx++]];
-    }
-
-    function readArrayHeader() {
-        return arrayHeaders[arrayHeaderRefs[arrayDefRefIdx++]];
-    }
-
     function readObject(object = {}) {
         let entryIdx = 0;
+        let entry;
 
-        while (true) {
-            const firstByte = reader.readUint8();
-
-            // zero byte is the end of the entry list
-            if (firstByte === 0) {
-                break;
-            }
-
-            if (firstByte & 1) {
-                // reference
-                const defId = (firstByte & 0x80 ? reader.readUintVar() << 6 : 0) | ((firstByte >> 1) & 0x3f);
-                const { key, entryType } = objectEntryDefs[entryIdx][defId];
-
-                object[key] = readPackedTypeValue(entryType);
-            } else {
-                // definition
-                const key = readString();
-                const entryType = firstByte >> 1;
-                const def = { key, entryType };
-
-                if (entryIdx >= objectEntryDefs.length) {
-                    objectEntryDefs[entryIdx] = [def];
-                } else {
-                    objectEntryDefs[entryIdx].push(def);
-                }
-
-                object[key] = readPackedTypeValue(entryType);
-            }
-
-            entryIdx++;
+        while (entry = readObjectEntry(entryIdx++)) {
+            object[entry.key] = readPackedTypeValue(entry.type);
         }
 
         return object;
@@ -277,11 +288,9 @@ export function decode(bytes) {
     }
 
     const reader = new Reader(bytes);
-    const objectEntryDefs = [];
-    const { strings, stringRefs } = loadStrings(reader, readNumericArray);
-    let stringRefIdx = 0;
-    const { arrayHeaders, arrayHeaderRefs } = loadArrayDefs(reader, readNumericArray);
-    let arrayDefRefIdx = 0;
+    const { readStrings, readString } = loadStrings(reader);
+    const readArrayHeader = loadArrayDefs(reader);
+    const readObjectEntry = loadObjectEntries(reader, readStrings);
 
     const ret = readPackedTypeValue(reader.readUint8());
 

@@ -22,7 +22,7 @@ import {
     PACK_TYPE,
     DISABLE_TYPE_OBJECT_MASK
 } from './const.mjs';
-import { writeNumericArray, writeNumericArrayHeader } from './encode-number.mjs';
+import { writeNumericArray } from './encode-number.mjs';
 import { bakeStrings } from './encode-string.mjs';
 import { WriterBackend } from './encode-writer-backend.mjs';
 
@@ -58,6 +58,8 @@ export class Writer {
     constructor(chunkSize) {
         this.backend = new WriterBackend(chunkSize);
 
+        this.objectKeys = new Map();
+        this.objectEntryDefs = [];
         this.arrayHeaders = new Map();
         this.arrayHeaderRefs = [];
         this.strings = new Map();
@@ -66,12 +68,18 @@ export class Writer {
     }
 
     emit() {
+        const structureBytes = this.backend.emit();
+
+        // Add object keys to strings. Doing it at the end to avoid mixing up keys with string values
+        for (const key of this.objectKeys.keys()) {
+            this.writeString(key);
+        }
+
         const { strings, stringDefs, stringSlices, stringRefs } = bakeStrings(
             [...this.strings.keys()],
             this.stringRefs
         );
 
-        const structureBytes = this.backend.emit();
 
         // Write string dictionaries
         this.backend.reset();
@@ -90,11 +98,27 @@ export class Writer {
         writeNumericArray(this, arrayHeaders);
         writeNumericArray(this, this.arrayHeaderRefs);
 
-        const arrayHeaderBytes = this.backend.emit();
+        // Write object entry keys
+        this.writeVlq(this.objectEntryDefs.length);
+        this.writeVlq(this.objectKeys.size);
+
+        for (const defsMap of this.objectEntryDefs) {
+            const defs = [0, ...defsMap.keys()];
+            const refs = defsMap.refs;
+
+            remapByFrequency(refs, defs);
+
+            writeNumericArray(this, defs);
+            writeNumericArray(this, refs);
+        }
+
+        // Emit dictionaries
+        const dictionariesBytes = this.backend.emit();
 
         return Buffer.concat([
             stringBytes,
             arrayHeaderBytes,
+            dictionariesBytes,
             structureBytes
         ]);
     }
@@ -114,6 +138,36 @@ export class Writer {
         this.stringRefs.push(ref);
     }
 
+        // entryType
+        //
+        //   7 6543 210
+        //   ┬ ───┬ ──┬
+        //   │    │   └ type
+        //   │    └ numericType (type = TYPE_NUMBER)
+        //   └ (reserved for ref/def bit as a lowest bit)
+        //
+        let keyId = this.objectKeys.get(key);
+
+        if (keyId === undefined) {
+            this.objectKeys.set(key, keyId = this.objectKeys.size);
+        }
+
+        const defMap = entryIdx >= this.objectEntryDefs.length
+            ? this.objectEntryDefs[entryIdx] = Object.assign(new Map(), { refs: [] })
+            : this.objectEntryDefs[entryIdx];
+        const defId = (keyId << 8) | entryType;
+        let refId = this.objectEntryDefs[entryIdx].get(defId);
+
+        if (refId === undefined) {
+            defMap.set(defId, refId = defMap.size + 1);
+        }
+
+        defMap.refs.push(refId);
+    }
+
+    writeObjectEntriesEnd(entryIdx) {
+        if (entryIdx >= this.objectEntryDefs.length) {
+            this.objectEntryDefs[entryIdx] = Object.assign(new Map(), { refs: [0] });
     // ========================================================================
     // Type index
     // ========================================================================

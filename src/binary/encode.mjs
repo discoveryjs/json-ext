@@ -41,43 +41,13 @@ export function encode(input, options = {}) {
                     continue;
                 }
 
-                // entryType
-                //
-                //   7 6543 210
-                //   ┬ ───┬ ──┬
-                //   │    │   └ type
-                //   │    └ numericType (type = TYPE_NUMBER)
-                //   └ (reserved for ref/def bit as a lowest bit)
-                //
-                let keyId = objectKeys.get(key);
-
-                if (keyId === undefined) {
-                    objectKeys.set(key, keyId = objectKeys.size);
-                }
-
-                if (entryIdx >= objectEntryDefs.length) {
-                    objectEntryDefs[entryIdx] = new Map();
-                }
-
-                const defId = (keyId << 8) | entryType;
-                const refId = objectEntryDefs[entryIdx].get(defId);
-
-                if (refId !== undefined) {
-                    // entry def reference
-                    writer.writeUintVar(refId);
-                } else {
-                    writer.writeNumber(entryType << 1, UINT_8);
-                    writer.writeString(key);
-
-                    objectEntryDefs[entryIdx].set(defId, (objectEntryDefs[entryIdx].size << 1) | 1);
-                }
-
+                writer.writeObjectEntryKey(entryIdx, key, entryType);
                 writePackedTypeValue(entryType, object[key]);
                 entryIdx++;
             }
         }
 
-        writer.writeNumber(0, UINT_8);
+        writer.writeObjectEntriesEnd(entryIdx);
     }
 
     function writeArray(array, knownLength = false, typeBitmap = 0) {
@@ -211,8 +181,6 @@ export function encode(input, options = {}) {
     }
 
     const writer = new Writer(options.chunkSize);
-    const objectKeys = new Map();
-    const objectEntryDefs = [];
     const inputType = packedType(input);
 
     resetStat();
