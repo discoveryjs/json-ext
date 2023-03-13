@@ -181,9 +181,9 @@ export function decode(bytes) {
                 const arraysLength = readNumericArray(reader, arrayCount);
                 const values = readArray();
 
-                for (let i = 0, offset = 0; i < arrayLength; i++) {
+                for (let i = 0, lenIdx = 0, offset = 0; i < arrayLength; i++) {
                     if (elemTypes === null || elemTypes[i] === TYPE_ARRAY) {
-                        array[i] = values.slice(offset, offset += arraysLength[i]);
+                        array[i] = values.slice(offset, offset += arraysLength[lenIdx++]);
                     }
                 }
             } else {
