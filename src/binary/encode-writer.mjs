@@ -64,7 +64,6 @@ export class Writer {
         this.arrayHeaderRefs = [];
         this.strings = new Map();
         this.stringRefs = [];
-        this.stringIdx = 0;
     }
 
     emit() {
@@ -75,11 +74,11 @@ export class Writer {
             this.writeString(key);
         }
 
+        // Preprocess strings before writing
         const { strings, stringDefs, stringSlices, stringRefs } = bakeStrings(
             [...this.strings.keys()],
             this.stringRefs
         );
-
 
         // Write string dictionaries
         this.backend.reset();
@@ -89,10 +88,8 @@ export class Writer {
         writeNumericArray(this, stringSlices);
         writeNumericArray(this, stringRefs);
 
-        const stringBytes = this.backend.emit();
 
         // Write array header dictionaries
-        this.backend.reset();
         const arrayHeaders = [...this.arrayHeaders.keys()];
         remapByFrequency(this.arrayHeaderRefs, arrayHeaders);
         writeNumericArray(this, arrayHeaders);
@@ -116,8 +113,6 @@ export class Writer {
         const dictionariesBytes = this.backend.emit();
 
         return Buffer.concat([
-            stringBytes,
-            arrayHeaderBytes,
             dictionariesBytes,
             structureBytes
         ]);
@@ -131,13 +126,17 @@ export class Writer {
         let ref = this.strings.get(str);
 
         if (ref === undefined) {
-            ref = this.stringIdx++;
-            this.strings.set(str, ref);
+            this.strings.set(str, ref = this.strings.size);
         }
 
         this.stringRefs.push(ref);
     }
 
+    // ========================================================================
+    // Object entries
+    // ========================================================================
+
+    writeObjectEntryKey(entryIdx, key, entryType) {
         // entryType
         //
         //   7 6543 210
@@ -168,6 +167,11 @@ export class Writer {
     writeObjectEntriesEnd(entryIdx) {
         if (entryIdx >= this.objectEntryDefs.length) {
             this.objectEntryDefs[entryIdx] = Object.assign(new Map(), { refs: [0] });
+        } else {
+            this.objectEntryDefs[entryIdx].refs.push(0);
+        }
+    }
+
     // ========================================================================
     // Type index
     // ========================================================================
