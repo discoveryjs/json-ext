@@ -6,8 +6,8 @@ function roundTripJson(value) {
 }
 
 describe('binary', () => {
-    let encode, decode, Writer;
-    before(async () => ({encode, decode, Writer} = await import('../src/binary.mjs')));
+    let encode, decode, Writer, WriterBackend;
+    before(async () => ({encode, decode, Writer, WriterBackend} = await import('../src/binary.mjs')));
     function roundTrip(value) {
         return decode(encode(value));
     }
@@ -192,9 +192,10 @@ describe('binary', () => {
             // strings with common prefix/postfix
             [
                 'foo/bar', 'foo/bar/baz', 'foo/bar/baz/qux', 'foo/bar/a/b/c/d',
-                'hello', 'hello world', 'hello',
+                'hello', 'hello world', 'world',
                 'foo/bar/123'
             ],
+            ['foo/barbar', 'foo/baz/barbar', 'fooooo/bar/baz/arbar', 'foo/bar/a/b/c/d', 'a/b/c/d'],
             ['hello', 'hello world', 'hello - abc - world', 'hello - world', 'world']
         ];
 
@@ -203,6 +204,11 @@ describe('binary', () => {
                 assert.deepStrictEqual(roundTrip(value), value)
             );
         }
+
+        it('converting to null values [undefined, () => {}, Symbol()]', () => {
+            const value = [undefined, () => {}, Symbol()];
+            assert.deepStrictEqual(roundTrip(value), value.map(() => null));
+        });
     });
 
     describe('array with undefined', () => {
@@ -293,9 +299,9 @@ describe('binary', () => {
             );
         });
 
-        it('{ foo: undefined, bar: 1, baz: undefined }', () =>
+        it('{ foo: undefined, bar: 1, baz: undefined, fn() {}, sym: Symbol() }', () =>
             assert.deepStrictEqual(
-                roundTrip({ foo: undefined, bar: 1, baz: undefined }),
+                roundTrip({ foo: undefined, bar: 1, baz: undefined, fn() {}, sym: Symbol() }),
                 { bar: 1 }
             )
         );
@@ -384,6 +390,15 @@ describe('binary', () => {
                     { foo: 3, more: [1, 2] },
                     { foo: 4, more: [1, 2, 3] },
                     { foo: 5, more: [1, 2, 3, 4] }
+                ],
+                [ // object + null + hole
+                    { foo: { id: 1 } },
+                    { foo: { id: 2 } },
+                    { foo: null },
+                    { },
+                    { foo: { id: 3 } },
+                    { foo: { id: 4 } },
+                    { foo: { id: 5 } }
                 ]
             ],
 
@@ -478,58 +493,77 @@ describe('binary', () => {
         }
     });
 
+    describe('array with arrays', () => {
+        const testcaseGroups = {
+            'array of numbers': [
+                [[1, 2, 3], [4, 5, 6]],
+                [[1, 2, 3], null, [4, 5, 6]]
+            ]
+        };
+
+        for (const [title, testcases] of Object.entries(testcaseGroups)) {
+            describe(title, () => {
+                for (const [idx, value] of Object.entries(testcases)) {
+                    it(`(${idx}) ${JSON.stringify(value)}`, () =>
+                        assert.deepStrictEqual(roundTrip(value), roundTripJson(value))
+                    );
+                }
+            });
+        }
+    });
+
     describe('writer', () => {
         describe('dynamic size', () => {
             describe('raw', () => {
                 it('on size', () => {
-                    const writer = new Writer(7);
+                    const writer = new WriterBackend(7);
                     writer.writeUint32(0x01020304);
-                    assert.deepStrictEqual(writer.value, Buffer.from([4, 3, 2, 1]));
+                    assert.deepStrictEqual(writer.emit(), Buffer.from([4, 3, 2, 1]));
                 });
 
                 it('over size', () => {
-                    const writer = new Writer(7);
+                    const writer = new WriterBackend(7);
                     writer.writeUint32(0x01020304);
                     writer.writeUint32(0x01020304);
-                    assert.deepStrictEqual(writer.value, Buffer.from([4, 3, 2, 1, 4, 3, 2, 1]));
+                    assert.deepStrictEqual(writer.emit(), Buffer.from([4, 3, 2, 1, 4, 3, 2, 1]));
                 });
 
                 it('default size', () => {
-                    const writer = new Writer(5);
+                    const writer = new WriterBackend(5);
                     writer.writeUint64(0x0102030405060708);
-                    assert.deepStrictEqual(writer.value, Buffer.from([0, 7, 6, 5, 4, 3, 2, 1]));
+                    assert.deepStrictEqual(writer.emit(), Buffer.from([0, 7, 6, 5, 4, 3, 2, 1]));
                 });
 
                 it('fail after second getting value', () => {
-                    const writer = new Writer(7);
+                    const writer = new WriterBackend(7);
                     writer.writeUint32(0x01020304);
-                    assert.deepStrictEqual(writer.value, Buffer.from([4, 3, 2, 1]));
-                    assert.throws(() => writer.value);
+                    assert.deepStrictEqual(writer.emit(), Buffer.from([4, 3, 2, 1]));
+                    assert.throws(() => writer.emit());
                 });
             });
 
             describe('string', () => {
                 it('fit to chunk size', () => {
-                    const writer = new Writer(7);
-                    writer.writeString('123');
+                    const writer = new WriterBackend(7);
+                    writer.writeString('1234');
 
-                    assert.deepStrictEqual(writer.value, Buffer.from([6, 49, 50, 51]));
+                    assert.deepStrictEqual(writer.emit(), Buffer.from([49, 50, 51, 52]));
                 });
 
                 it('over size', () => {
-                    const writer = new Writer(4);
+                    const writer = new WriterBackend(4);
                     writer.writeString('123');
                     writer.writeString('123');
                     writer.writeString('1234567');
                     writer.writeString('12345678');
                     writer.writeString('123456789999999999999999');
 
-                    assert.deepStrictEqual(writer.value, Buffer.from([
-                        6, 49, 50, 51, // 123
-                        6, 49, 50, 51, // 123
-                        14, 49, 50, 51, 52, 53, 54, 55, // 1234567 (without tail)
-                        16, 49, 50, 51, 52, 53, 54, 55, 56, // 12345678 (write tail (8) into another chunk)
-                        48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57 // 123456789999999999999999 (write tail into another chunks)
+                    assert.deepStrictEqual(writer.emit(), Buffer.from([
+                        49, 50, 51, // 123
+                        49, 50, 51, // 123
+                        49, 50, 51, 52, 53, 54, 55, // 1234567 (without tail)
+                        49, 50, 51, 52, 53, 54, 55, 56, // 12345678 (write tail (8) into another chunk)
+                        49, 50, 51, 52, 53, 54, 55, 56, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57 // 123456789999999999999999 (write tail into another chunks)
                     ]));
                 });
             });
