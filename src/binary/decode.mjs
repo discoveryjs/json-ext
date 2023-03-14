@@ -21,21 +21,22 @@ const stringDecoder = new TextDecoder('utf8', { ignoreBOM: true });
 function loadStrings(reader) {
     const allStrings = stringDecoder.decode(reader.readBytes(reader.readVlq()));
     const defs = readNumericArray(reader);
-    const slices = readNumericArray(reader);
+    const slicesStart = readNumericArray(reader);
+    const slicesEnd = readNumericArray(reader);
     const stringRefs = readNumericArray(reader);
     const strings = new Array(defs);
     let readStringIdx = 0;
 
-    for (let i = 0, offset = 0, sliceIdx = 0, prevString = ''; i < defs.length; i++) {
+    for (let i = 0, offset = 0, sliceStartIdx = 0, sliceEndIdx = 0, prevString = ''; i < defs.length; i++) {
         const def = defs[i];
         let str = allStrings.slice(offset, offset += def >> 2);
 
         if (def & 0b10) {
-            str = prevString.slice(0, slices[sliceIdx++]) + str;
+            str = prevString.slice(0, slicesStart[sliceStartIdx++]) + str;
         }
 
         if (def & 0b01) {
-            str = str + prevString.slice(-slices[sliceIdx++]);
+            str = str + prevString.slice(-slicesEnd[sliceEndIdx++]);
         }
 
         strings[i] = str;

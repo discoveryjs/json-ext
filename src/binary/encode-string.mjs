@@ -38,7 +38,7 @@ export function findCommonStringPostfix(string1, string2, start2) {
     return 0;
 }
 
-function writeStringsSection(stringIndecies, strings, stringDefs, stringSlices, stringRefRemap, offset) {
+function writeStringsSection(stringIndecies, strings, stringDefs, stringSlicesStart, stringSlicesEnd, stringRefRemap, offset) {
     let allStrings = '';
     let prevString = '';
 
@@ -62,11 +62,11 @@ function writeStringsSection(stringIndecies, strings, stringDefs, stringSlices, 
         prevString = str;
 
         if (prefixSlice) {
-            stringSlices.push(start);
+            stringSlicesStart.push(start);
         }
 
         if (postfixSlice) {
-            stringSlices.push(-end);
+            stringSlicesEnd.push(-end);
         }
     }
 
@@ -75,7 +75,8 @@ function writeStringsSection(stringIndecies, strings, stringDefs, stringSlices, 
 
 export function bakeStrings(strings, stringRefs) {
     const stringDefs = new Uint32Array(strings.length);
-    const stringSlices = [];
+    const stringSlicesStart = [];
+    const stringSlicesEnd = [];
     const stringRefCount = new Uint32Array(strings.length);
     const stringRefRemap = new Uint32Array(strings.length);
     const referredStringsSet = new Set();
@@ -102,7 +103,15 @@ export function bakeStrings(strings, stringRefs) {
         if (referredStrings.length > offset) {
             const referredStringsSlice = referredStrings.subarray(range[0], range[1]);
 
-            allStrings += writeStringsSection(referredStringsSlice, strings, stringDefs, stringSlices, stringRefRemap, offset);
+            allStrings += writeStringsSection(
+                referredStringsSlice,
+                strings,
+                stringDefs,
+                stringSlicesStart,
+                stringSlicesEnd,
+                stringRefRemap,
+                offset
+            );
             offset += referredStringsSlice.length;
 
             for (let i = 0; i < referredStringsSlice.length; i++) {
@@ -121,7 +130,8 @@ export function bakeStrings(strings, stringRefs) {
         stringRefCount.subarray(0, stringRefCount.length - offset),
         strings,
         stringDefs,
-        stringSlices,
+        stringSlicesStart,
+        stringSlicesEnd,
         stringRefRemap,
         offset
     );
@@ -134,7 +144,8 @@ export function bakeStrings(strings, stringRefs) {
     return {
         strings: allStrings,
         stringDefs,
-        stringSlices,
+        stringSlicesStart,
+        stringSlicesEnd,
         stringRefs
     };
 }

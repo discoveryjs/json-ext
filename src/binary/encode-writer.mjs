@@ -76,7 +76,7 @@ export class Writer {
         }
 
         // Preprocess strings before writing
-        const { strings, stringDefs, stringSlices, stringRefs } = bakeStrings(
+        const { strings, stringDefs, stringSlicesStart, stringSlicesEnd, stringRefs } = bakeStrings(
             [...this.strings.keys()],
             this.stringRefs
         );
@@ -86,7 +86,8 @@ export class Writer {
         this.writeVlq(Buffer.byteLength(strings));
         this.backend.writeString(strings);
         writeNumericArray(this, stringDefs);
-        writeNumericArray(this, stringSlices);
+        writeNumericArray(this, stringSlicesStart);
+        writeNumericArray(this, stringSlicesEnd);
         writeNumericArray(this, stringRefs);
 
 
