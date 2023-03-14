@@ -53,7 +53,7 @@ export function encode(input, options = {}) {
     function writeArray(array, knownLength = false, typeBitmap = 0) {
         // an empty array
         if (array.length === 0) {
-            writer.writeNumber(0, UINT_8);
+            writer.writeArrayLength(0);
             return;
         }
 
@@ -96,7 +96,7 @@ export function encode(input, options = {}) {
         //     : 0;
 
         if (!knownLength) {
-            writer.writeVlq(array.length);
+            writer.writeArrayLength(array.length);
         }
 
         writer.writeArrayHeader(

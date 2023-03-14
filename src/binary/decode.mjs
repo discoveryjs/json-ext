@@ -52,7 +52,16 @@ function loadStrings(reader) {
     };
 }
 
-function loadArrayDefs(reader) {
+function loadArrayLengths(reader) {
+    const arrayLengths = readNumericArray(reader);
+    let arrayLengthIdx = 0;
+
+    return function readArrayLength() {
+        return arrayLengths[arrayLengthIdx++];
+    };
+}
+
+function loadArrayHeaderDefs(reader) {
     const arrayHeaders = readNumericArray(reader);
     const arrayHeaderRefs = readNumericArray(reader);
     let arrayDefRefIdx = 0;
@@ -109,7 +118,7 @@ export function decode(bytes) {
         return object;
     }
 
-    function readArray(arrayLength = reader.readVlq()) {
+    function readArray(arrayLength = readArrayLength()) {
         if (arrayLength === 0) {
             return [];
         }
@@ -289,7 +298,8 @@ export function decode(bytes) {
 
     const reader = new Reader(bytes);
     const { readStrings, readString } = loadStrings(reader);
-    const readArrayHeader = loadArrayDefs(reader);
+    const readArrayLength = loadArrayLengths(reader);
+    const readArrayHeader = loadArrayHeaderDefs(reader);
     const readObjectEntry = loadObjectEntries(reader, readStrings);
 
     const ret = readPackedTypeValue(reader.readUint8());

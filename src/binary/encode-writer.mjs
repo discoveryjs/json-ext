@@ -60,6 +60,7 @@ export class Writer {
 
         this.objectKeys = new Map();
         this.objectEntryDefs = [];
+        this.arrayLengths = [];
         this.arrayHeaders = new Map();
         this.arrayHeaderRefs = [];
         this.strings = new Map();
@@ -90,6 +91,7 @@ export class Writer {
 
 
         // Write array header dictionaries
+        writeNumericArray(this, this.arrayLengths);
         const arrayHeaders = [...this.arrayHeaders.keys()];
         remapByFrequency(this.arrayHeaderRefs, arrayHeaders);
         writeNumericArray(this, arrayHeaders);
@@ -212,6 +214,10 @@ export class Writer {
     // ========================================================================
     // Array
     // ========================================================================
+
+    writeArrayLength(length) {
+        this.arrayLengths.push(length);
+    }
 
     // array header
     // =====================
