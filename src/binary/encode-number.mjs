@@ -51,7 +51,7 @@ const TEST_FLOAT_32 = new Float32Array(1);
 const allCosts = new Uint32Array(16);
 const noLoweringCosts = allCosts.subarray(0, 8);
 const deltaLoweringCosts = allCosts.subarray(8, 16);
-// const minLoweringCosts = encodingBytes.subarray(16);
+// const minLoweringCosts = allCosts.subarray(16);
 
 export function getFloatType(num) {
     TEST_FLOAT_32[0] = num;
@@ -401,7 +401,14 @@ export function minNumArraySliceEncoding(writer, array, countHeaderBytes = true,
         ARRAY_LOWERING_DELTA,
         maxMinMaxBits(minDelta, maxDelta)
     );
-    // let minLowering = pickMinBytesEncoding(arrayLength, minLoweringCosts, minTypeBitmap, countHeaderBytes, ARRAY_LOWERING_MIN);
+    // let minLowering = pickIntAdvancedEncoding(
+    //     arrayLength,
+    //     minLoweringCosts,
+    //     minTypeBitmap,
+    //     countHeaderBytes,
+    //     ARRAY_LOWERING_MIN,
+    //     maxMinMaxBits(0, maxNum - minNum)
+    // );
 
     // Add costs for the first number encoding
     let deltaLoweringMinBytes = deltaLowering.minBytes + writer.vlqBytesNeeded(Math.abs(array[start]) * 2);
@@ -435,6 +442,7 @@ export function minNumArraySliceEncoding(writer, array, countHeaderBytes = true,
 
 // function sectionEncoding(writer, array, sectionSize) {
 //     let sectionBytes = Infinity;
+//     let minWin = stat.minWin;
 //     if (sectionSize < array.length) {
 //         sectionBytes = 0;
 //         for (let i = 0; i < array.length; i += sectionSize) {
@@ -443,11 +451,14 @@ export function minNumArraySliceEncoding(writer, array, countHeaderBytes = true,
 //         }
 //     }
 
+//     stat['min' + sectionSize] = stat.minWin - minWin;
+//     stat.minWin = minWin;
+
 //     return sectionBytes;
 // }
 
 export function findNumArrayBestEncoding(writer, array, countHeaderBytes = true) {
-    // const sectionStatTemp = {};
+    // const minWin = stat.minWin;
     const { encoding } = minNumArraySliceEncoding(writer, array, countHeaderBytes);
     // console.log(array, {encoding:encoding&0x0f, lowering: encoding&0x30, minBytes});
 
@@ -456,14 +467,16 @@ export function findNumArrayBestEncoding(writer, array, countHeaderBytes = true)
     //     let sectionBytes64 = sectionEncoding(writer, array, 64);
     //     let sectionBytes96 = sectionEncoding(writer, array, 96);
     //     let sectionBytes128 = sectionEncoding(writer, array, 128);
-    //     const sectionMin = Math.min(sectionBytes32, sectionBytes64, sectionBytes96, sectionBytes128);
+    //     let sectionBytes256 = sectionEncoding(writer, array, 256);
+    //     const sectionMin = Math.min(sectionBytes32, sectionBytes64, sectionBytes96, sectionBytes128, sectionBytes256);
 
     //     if (sectionMin < minBytes) {
-    //         const minIdx = [sectionBytes32, sectionBytes64, sectionBytes96, sectionBytes128].indexOf(sectionMin);
-    //         const minProp = [32, 64, 96, 128][minIdx];
+    //         const minIdx = [sectionBytes32, sectionBytes64, sectionBytes96, sectionBytes128, sectionBytes256].indexOf(sectionMin);
+    //         const minProp = [32, 64, 96, 128, 256][minIdx];
     //         stat.sections['_32'] = (stat.sections['_32'] || 0) + minBytes - sectionBytes32;
     //         stat.sections[minProp] = (stat.sections[minProp] || 0) + minBytes - sectionMin;
     //         stat.sectionsWin += minBytes - sectionMin;
+    //         stat.minWin = minWin + stat['min' + minProp];
     //     }
     // }
 
