@@ -1,4 +1,7 @@
 import {
+    MAGIC_NUMBER,
+    VERSION,
+
     MAX_UINT_28,
     MAX_UINT_30,
     MAX_UINT_32,
@@ -68,6 +71,14 @@ export class Writer {
     }
 
     emit() {
+        // Header
+        const headerBytes = new Uint8Array(12);
+        const headerView = new DataView(headerBytes.buffer);
+
+        headerBytes.set(MAGIC_NUMBER);
+        headerView.setUint16(8, VERSION, true);
+
+        // Emit structure
         const structureBytes = this.backend.emit();
 
         // Add object keys to strings. Doing it at the end to avoid mixing up keys with string values
@@ -115,7 +126,9 @@ export class Writer {
         // Emit dictionaries
         const dictionariesBytes = this.backend.emit();
 
+        // Concat buffers
         return Buffer.concat([
+            headerBytes,
             dictionariesBytes,
             structureBytes
         ]);

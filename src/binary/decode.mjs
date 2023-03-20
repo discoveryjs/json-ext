@@ -2,6 +2,9 @@ import { Reader } from './decode-reader.mjs';
 import { getTypeCount } from './encode-get-type.mjs';
 import { readNumber, readNumbers, readNumericArray } from './decode-number.mjs';
 import {
+    MAGIC_NUMBER,
+    VERSION,
+
     TYPE_UNDEF,
     TYPE_NULL,
     TYPE_NUMBER,
@@ -17,6 +20,24 @@ import {
 } from './const.mjs';
 
 const stringDecoder = new TextDecoder('utf8', { ignoreBOM: true });
+
+function consumeHeader(reader) {
+    const magicNumber = reader.readBytes(8);
+
+    if (magicNumber.some((byte, idx) => byte !== MAGIC_NUMBER[idx])) {
+        throw new Error('Bad magic number');
+    }
+
+    const version = reader.readUint16();
+
+    if (version !== VERSION) {
+        throw new Error('Unsupported version');
+    }
+
+    const flags = reader.readUint16();
+
+    return { version, flags };
+}
 
 function loadStrings(reader) {
     const allStrings = stringDecoder.decode(reader.readBytes(reader.readVlq()));
@@ -298,6 +319,9 @@ export function decode(bytes) {
     }
 
     const reader = new Reader(bytes);
+
+    consumeHeader(reader);
+
     const { readStrings, readString } = loadStrings(reader);
     const readArrayLength = loadArrayLengths(reader);
     const readArrayHeader = loadArrayHeaderDefs(reader);
