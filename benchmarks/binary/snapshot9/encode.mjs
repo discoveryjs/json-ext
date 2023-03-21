@@ -9,14 +9,11 @@ import {
     TYPE_OBJECT,
     TYPE_ARRAY,
 
-    // TYPE_NAME,
-
     PACK_TYPE,
     UNPACK_TYPE,
     BIT_COUNT,
     UINT_8
 } from './const.mjs';
-import { resetStat } from './debug-stat.mjs';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const EMPTY_MAP = new Map();
@@ -90,11 +87,6 @@ export function encode(input, options = {}) {
 
         const hasObjectColumnKeys = objectColumns.size !== 0;
         const hasFlattenArrays = 0;
-        // typeBitmap & TYPE_ARRAY
-        //     ? ((BIT_COUNT[typeBitmap] === 1) || getTypeCount(elemTypes, TYPE_ARRAY) > 1) &&
-        //         // don't flatten arrays of object arrays for now
-        //         // array.every(elem => !Array.isArray(elem) || elem.every(elem2 => getType(elem2) !== TYPE_OBJECT))
-        //     : 0;
 
         if (!knownLength) {
             writer.writeArrayLength(array.length);
@@ -107,9 +99,6 @@ export function encode(input, options = {}) {
             hasObjectInlinedEntries,
             hasFlattenArrays
         );
-
-        // console.log('array', array, 'header', writer.written - written, 'enc', encoding);
-        // written = writer.written;
 
         // write type index when there is more than a single type
         if (BIT_COUNT[typeBitmap] > 1) {
@@ -183,8 +172,6 @@ export function encode(input, options = {}) {
 
     const writer = new Writer(options.chunkSize);
     const inputType = packedType(input);
-
-    resetStat();
 
     writer.writeNumber(inputType, UINT_8);
     writePackedTypeValue(inputType, input);

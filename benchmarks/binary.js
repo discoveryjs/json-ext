@@ -7,6 +7,7 @@ const jsonExtStage5 = require('./binary/snapshot5'); //
 const jsonExtStage6 = require('./binary/snapshot6'); //
 let jsonExtStage7; // new string encondig approach (ahead of structure), refs for array headers, initial work on improved numeric encoding
 let jsonExtStage8; // less general types, more numeric types, new array headers, improved numeric enconding including deltas lowering
+let jsonExtStage9; // header, bit packing number encoding, array length/header and object entries as number vectors in dictionary part, logical layers
 let jsonExtCurrent;
 const v8 = require('v8');
 const cbor = require('cbor');
@@ -220,6 +221,16 @@ const solutions = {
             fn: encoded => jsonExtStage8.decode(encoded)
         }
     },
+    'json-ext (snapshot 9) 2023-03-21': {
+        encode: {
+            name: 'encode()',
+            fn: data => jsonExtStage9.encode(data)
+        },
+        decode: {
+            name: 'decode()',
+            fn: encoded => jsonExtStage9.decode(encoded)
+        }
+    },
     'json-ext (current)': {
         encode: {
             name: 'encode()',
@@ -312,6 +323,8 @@ async function runBenchmarks() {
     console.log();
 
     jsonExtStage7 = await import('./binary/snapshot7.mjs');
+    jsonExtStage8 = await import('./binary/snapshot8.mjs');
+    jsonExtStage9 = await import('./binary/snapshot9.mjs');
     jsonExtCurrent = await import('../src/binary.mjs');
 
     for (const solutionName of [
@@ -332,6 +345,7 @@ async function runBenchmarks() {
         // 'json-ext (snapshot 6) 2023-02-08',
         // 'json-ext (snapshot 7) 2023-02-20',
         'json-ext (snapshot 8) 2023-03-07',
+        'json-ext (snapshot 9) 2023-03-21',
         'json-ext (current)'
     ]) {
         if (solutionName !== 'cbor' || fixtureSize < 200000000) {

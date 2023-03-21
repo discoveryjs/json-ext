@@ -1,5 +1,5 @@
 export const MAGIC_NUMBER = new Uint8Array([0x00, 0x00, 0x4a, 0x53, 0x4f, 0x4e, 0x58, 0x4c]); // \x0\x0JSONXL
-export const VERSION = 0x0000;
+export const VERSION = 0x0009;
 
 export const MAX_UINT_8  = 0x0000_00ff;
 export const MAX_UINT_16 = 0x0000_ffff;
