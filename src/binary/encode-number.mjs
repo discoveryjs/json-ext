@@ -47,15 +47,13 @@ import {
 } from './const.mjs';
 
 const USE_INT_FLAG = 0x0001_0000;
-const TEST_FLOAT_32 = new Float32Array(1);
 const allCosts = new Uint32Array(16);
 const noLoweringCosts = allCosts.subarray(0, 8);
 const deltaLoweringCosts = allCosts.subarray(8, 16);
 // const minLoweringCosts = allCosts.subarray(16);
 
 export function getFloatType(num) {
-    TEST_FLOAT_32[0] = num;
-    return TEST_FLOAT_32[0] === num ? FLOAT_32 : FLOAT_64;
+    return Math.fround(num) === num ? FLOAT_32 : FLOAT_64;
 }
 
 export function getIntType(num) {
