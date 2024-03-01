@@ -1,20 +1,18 @@
-const assert = require('assert');
-const { inspect } = require('util');
-const { Readable } = require('stream');
-const { stringifyInfo } = require('./helpers/lib');
-const wellformedStringify = require('./helpers/well-formed-stringify');
+import assert from 'assert';
+import {inspect} from 'util';
+import {Readable} from 'stream';
+import lib from './helpers/lib.js';
+import wellformedStringify from './helpers/well-formed-stringify.js';
+import {allUtf8LengthDiffChars, spaces, spaceTests, tests} from './fixture/stringify-cases.js';
+
+const {stringifyInfo} = lib;
+
 const strBytesLength = str => Buffer.byteLength(str, 'utf8');
-const {
-    allUtf8LengthDiffChars,
-    tests,
-    spaceTests,
-    spaces
-} = require('./fixture/stringify-cases');
 
 function createInfoTest(value, ...args) {
     const title = value === allUtf8LengthDiffChars
         ? `All UTF8 length diff chars ${value[0]}..${value[value.length - 1]}`
-        : inspect(value, { depth: null });
+        : inspect(value, {depth: null});
 
     it(title.replace(/[\u0000-\u001f\u0100-\uffff]/g, m => '\\u' + m.charCodeAt().toString(16).padStart(4, '0')), () => {
         const native = String(wellformedStringify(value, ...args));
@@ -39,8 +37,9 @@ describe('stringifyInfo()', () => {
     describe('replacer option', () => {
         // various values for a replace as an allowlist
         createInfoTest(
-            { '3': 'ok', b: [2, 3, { c: 5, a: 4 }, 7, { d: 1 }], 2: 'fail', 1: 'ok', a: 1, c: 6, '': 'fail' },
-            ['a', 'a', new String('b'), { toString: () => 'c' }, 1, '2', new Number(3), null, () => {}, Symbol(), false]
+            {'3': 'ok', b: [2, 3, {c: 5, a: 4}, 7, {d: 1}], 2: 'fail', 1: 'ok', a: 1, c: 6, '': 'fail'},
+            ['a', 'a', new String('b'), {toString: () => 'c'}, 1, '2', new Number(3), null, () => {
+            }, Symbol(), false]
         );
     });
 
@@ -74,7 +73,7 @@ describe('stringifyInfo()', () => {
             circularRef.b = 1234567890;
             circularRef.c = circularRef2;
             circularRef2.push(circularRef, circularRef2);
-            const info = stringifyInfo(circularRef, null, null, { continueOnCircular: true });
+            const info = stringifyInfo(circularRef, null, null, {continueOnCircular: true});
 
             assert.deepStrictEqual(info.circular, [circularRef, circularRef2]);
         });
@@ -102,7 +101,7 @@ describe('stringifyInfo()', () => {
                 objectMode: true,
                 read() {
                     this.read = () => null;
-                    return { test: true };
+                    return {test: true};
                 }
             });
             const info = stringifyInfo([
@@ -126,14 +125,14 @@ describe('stringifyInfo()', () => {
                 objectMode: true,
                 read() {
                     this.read = () => null;
-                    return { test: true };
+                    return {test: true};
                 }
             });
             const info = stringifyInfo([
                 promise,
                 stream,
                 objectStream
-            ], null, null, { async: true });
+            ], null, null, {async: true});
 
             assert.strictEqual(info.minLength, '[,,[]]'.length);
             assert.deepStrictEqual(info.async, [promise, stream, objectStream]);
@@ -147,7 +146,8 @@ describe('stringifyInfo()', () => {
     describe('undefined return', () => {
         const values = [
             undefined,
-            function() {},
+            function () {
+            },
             Symbol()
         ];
 
@@ -166,7 +166,7 @@ describe('stringifyInfo()', () => {
             value.push({
                 foo: str,
                 bar: 12312313,
-                baz: [str, 123, str, new Date(2021, 05, 15), str],
+                baz: [str, 123, str, new Date(2021, 5, 15), str],
                 [str]: str,
                 prev: value[i - 1] || null,
                 a: value[i - 1] || null

@@ -1,1 +1,3 @@
-module.exports = require('../package.json').version;
+const version = process.env.npm_package_version;
+
+export default version;

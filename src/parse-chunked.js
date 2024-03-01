@@ -1,5 +1,5 @@
-const { isReadableStream } = require('./utils');
-const TextDecoder = require('./text-decoder');
+import {isReadableStream} from './utils.js';
+import TextDecoder from './text-decoder.js';
 
 const STACK_OBJECT = 1;
 const STACK_ARRAY = 2;
@@ -30,7 +30,7 @@ function append(array, elements) {
     }
 }
 
-module.exports = function(chunkEmitter) {
+function parseChunked(chunkEmitter) {
     let parser = new ChunkParser();
 
     if (isObject(chunkEmitter) && isReadableStream(chunkEmitter)) {
@@ -122,7 +122,7 @@ class ChunkParser {
     }
 
     prepareAddition(fragment) {
-        const { value } = this.valueStack;
+        const {value} = this.valueStack;
         const expectComma = Array.isArray(value)
             ? value.length !== 0
             : Object.keys(value).length !== 0;
@@ -199,7 +199,9 @@ class ChunkParser {
                     // find last entry
                     let key;
                     // eslint-disable-next-line curly
-                    for (key in value);
+                    for (key in value) {
+                        ;
+                    }
                     value = value[key];
                 } else {
                     // last element
@@ -381,4 +383,6 @@ class ChunkParser {
 
         return this.value;
     }
-};
+}
+
+export default parseChunked;

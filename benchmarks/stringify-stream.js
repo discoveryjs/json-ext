@@ -4,7 +4,7 @@ const chalk = require('chalk');
 const { Readable } = require('stream');
 const bfj = require('bfj');
 const JsonStreamStringify = require('json-stream-stringify');
-const jsonExt = require('../src');
+const jsonExt = require('../dist/index.cjs');
 const {
     runBenchmark,
     prettySize,

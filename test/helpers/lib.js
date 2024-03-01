@@ -1,8 +1,11 @@
-const chalk = require('chalk');
+import chalk from 'chalk';
+import {TextDecoder} from 'node:util';
+import {createRequire} from 'node:module';
+
 const libPaths = {
     'src': 'src/index.js',
-    'dist': 'dist/json-ext.js',
-    'dist-min': 'dist/json-ext.min.js'
+    'node': 'dist/index.cjs',
+    'browser': 'dist/browser.cjs'
 };
 const mode = process.env.MODE || 'src';
 const libPath = libPaths[mode];
@@ -12,10 +15,17 @@ if (!libPaths.hasOwnProperty(mode)) {
     process.exit(1);
 }
 
-if (mode !== 'src' && typeof TextDecoder === 'undefined') {
-    global.TextDecoder = require('util').TextDecoder;
+if (mode !== 'node' && typeof global.TextDecoder === 'undefined') {
+    global.TextDecoder = TextDecoder;
 }
 
 console.info('Test lib entry:', chalk.yellow(libPath));
 
-module.exports = require('../../' + libPath);
+let libModule;
+if (mode === 'src') {
+    libModule = await import(`../../${libPath}`);
+} else {
+    libModule = createRequire(import.meta.url)(`../../${libPath}`);
+}
+
+export default libModule;

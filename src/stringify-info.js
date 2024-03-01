@@ -1,22 +1,25 @@
-const {
+import {
+    escapableCharCodeSubstitution,
+    getTypeAsync,
+    getTypeNative,
+    isLeadingSurrogate,
+    isTrailingSurrogate,
     normalizeReplacer,
     normalizeSpace,
     replaceValue,
-    getTypeNative,
-    getTypeAsync,
-    isLeadingSurrogate,
-    isTrailingSurrogate,
-    escapableCharCodeSubstitution,
-    type: {
-        PRIMITIVE,
-        OBJECT,
-        ARRAY,
-        PROMISE,
-        STRING_STREAM,
-        OBJECT_STREAM
-    }
-} = require('./utils');
-const charLength2048 = Array.from({ length: 2048 }).map((_, code) => {
+    type
+} from './utils.js';
+
+const {
+    PRIMITIVE,
+    OBJECT,
+    ARRAY,
+    PROMISE,
+    STRING_STREAM,
+    OBJECT_STREAM
+} = type;
+
+const charLength2048 = Array.from({length: 2048}).map((_, code) => {
     if (escapableCharCodeSubstitution.hasOwnProperty(code)) {
         return 2; // \X
     }
@@ -80,7 +83,7 @@ function spaceLength(space) {
     return typeof space === 'string' ? space.length : 0;
 }
 
-module.exports = function jsonStringifyInfo(value, replacer, space, options) {
+function jsonStringifyInfo(value, replacer, space, options) {
     function walk(holder, key, value) {
         if (stop) {
             return;
@@ -216,7 +219,7 @@ module.exports = function jsonStringifyInfo(value, replacer, space, options) {
     const circular = new Set();
     const async = new Set();
     const getType = options.async ? getTypeAsync : getTypeNative;
-    const root = { '': value };
+    const root = {'': value};
     let stop = false;
     let length = 0;
 
@@ -229,3 +232,5 @@ module.exports = function jsonStringifyInfo(value, replacer, space, options) {
         async: [...async]
     };
 };
+
+export default jsonStringifyInfo;

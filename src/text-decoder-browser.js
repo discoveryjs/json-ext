@@ -1,1 +1,1 @@
-module.exports = TextDecoder;
+export default TextDecoder;

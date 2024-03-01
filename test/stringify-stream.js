@@ -1,34 +1,26 @@
 // Fork of https://github.com/Faleij/json-stream-stringify
-const assert = require('assert');
-const fs = require('fs');
-const path = require('path');
-const { Readable, Transform } = require('stream');
-const { inspect } = require('util');
-const { stringifyStream } = require('./helpers/lib');
-const wellformedStringify = require('./helpers/well-formed-stringify');
+import assert from 'assert';
+import fs from 'fs';
+import path from 'path';
+import {Readable, Transform} from 'stream';
+import {fileURLToPath} from 'url';
+import {inspect} from 'util';
+import lib from './helpers/lib.js';
+import wellformedStringify from './helpers/well-formed-stringify.js';
+import {allUtf8LengthDiffChars, date, spaces, spaceTests, tests} from './fixture/stringify-cases.js';
+
+const {stringifyStream} = lib;
+const dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const FIXTURE1 = 'fixture/stringify-stream-small.json';
 const FIXTURE2 = 'fixture/stringify-stream-medium.json';
-const {
-    date,
-    allUtf8LengthDiffChars,
-    tests,
-    spaceTests,
-    spaces
-} = require('./fixture/stringify-cases');
-
-// Not supported in dist mode
-try {
-    stringifyStream();
-} catch (e) {
-    return;
-}
 
 inspect.defaultOptions.breakLength = Infinity;
 
 function testTitleWithValue(title) {
     title = title === allUtf8LengthDiffChars
         ? `All UTF8 length diff chars ${title[0]}..${title[title.length - 1]}`
-        : inspect(title, { depth: null });
+        : inspect(title, {depth: null});
 
     return title.replace(/[\u0000-\u001f\u0100-\uffff]/g, m => '\\u' + m.charCodeAt().toString(16).padStart(4, '0'));
 }
@@ -53,7 +45,7 @@ function createStringifyCompareFn(input, expected, ...args) {
     });
 }
 
-const streamRead = (chunks, timeout) => async function() {
+const streamRead = (chunks, timeout) => async function () {
     if (!chunks.length) {
         this.push(null); // end of stream
         return;
@@ -114,8 +106,8 @@ describe('stringifyStream()', () => {
     describe('toJSON()', () => {
         const values = [
             date,
-            { toJSON: () => 123 },
-            { a: date, b: { a: 1, toJSON: () => 'ok' } }
+            {toJSON: () => 123},
+            {a: date, b: {a: 1, toJSON: () => 'ok'}}
         ];
 
         for (const value of values) {
@@ -131,18 +123,18 @@ describe('stringifyStream()', () => {
             [Promise.resolve(Promise.resolve(1)), '1'],
 
             // inside objects
-            [{ a: Promise.resolve(1) }, '{"a":1}'],
-            [{ a: 1, b: Promise.resolve(undefined) }, '{"a":1}'],
-            [{ a: Promise.resolve(undefined), b: 2 }, '{"b":2}'],
-            [{ a: Promise.resolve(undefined), b: Promise.resolve(undefined) }, '{}'],
+            [{a: Promise.resolve(1)}, '{"a":1}'],
+            [{a: 1, b: Promise.resolve(undefined)}, '{"a":1}'],
+            [{a: Promise.resolve(undefined), b: 2}, '{"b":2}'],
+            [{a: Promise.resolve(undefined), b: Promise.resolve(undefined)}, '{}'],
 
             // inside arrays
             [[Promise.resolve(1)], '[1]'],
             [[1, Promise.resolve(2), Promise.resolve(), 3], '[1,2,null,3]'],
 
             // fake promise
-            [{ then: fn => Promise.resolve(1).then(fn) }, '1'],
-            [{ then: fn => fn(2) }, '2']
+            [{then: fn => Promise.resolve(1).then(fn)}, '1'],
+            [{then: fn => fn(2)}, '2']
         ];
 
         for (const [value, expected] of entries) {
@@ -165,15 +157,22 @@ describe('stringifyStream()', () => {
     describe('Stream', () => {
         const createTestFixture = StreamClass => [
             [new StreamClass(1), '[1]'],
-            [new StreamClass({ foo: 1, bar: 2 }, { baz: 3 }), '[{"foo":1,"bar":2},{"baz":3}]'],
+            [new StreamClass({foo: 1, bar: 2}, {baz: 3}), '[{"foo":1,"bar":2},{"baz":3}]'],
             [new StreamClass('{', '"b":1', '}'), '{"b":1}'],
             [new StreamClass({}, 'a', undefined, 'c'), '[{},"a",null,"c"]'],
-            [new StreamClass({ foo: 1 }, { bar: 2 }, { baz: 3 }), '[{"foo":1},{"bar":2},{"baz":3}]'],
-            [{ a: new StreamClass(1, 2, 3) }, '{"a":[1,2,3]}'],
-            [{ a: new StreamClass({ name: 'name', date }) }, `{"a":[{"name":"name","date":"${date.toJSON()}"}]}`],
-            [{ a: new StreamClass({ name: 'name', arr: [], obj: {}, date }) }, `{"a":[{"name":"name","arr":[],"obj":{},"date":"${date.toJSON()}"}]}`],
+            [new StreamClass({foo: 1}, {bar: 2}, {baz: 3}), '[{"foo":1},{"bar":2},{"baz":3}]'],
+            [{a: new StreamClass(1, 2, 3)}, '{"a":[1,2,3]}'],
+            [{a: new StreamClass({name: 'name', date})}, `{"a":[{"name":"name","date":"${date.toJSON()}"}]}`],
+            [{
+                a: new StreamClass({
+                    name: 'name',
+                    arr: [],
+                    obj: {},
+                    date
+                })
+            }, `{"a":[{"name":"name","arr":[],"obj":{},"date":"${date.toJSON()}"}]}`],
             [Promise.resolve(new StreamClass(1)), '[1]'],
-            [new StreamClass({ foo: 1 }, { bar: new Promise(resolve => setTimeout(() => resolve(2), 100)) }), '[{"foo":1},{"bar":2}]']
+            [new StreamClass({foo: 1}, {bar: new Promise(resolve => setTimeout(() => resolve(2), 100))}), '[{"foo":1},{"bar":2}]']
         ];
 
         describe('test cases w/o timeout', () => {
@@ -191,14 +190,14 @@ describe('stringifyStream()', () => {
 
         it('fs.createReadStream(path) should be content of file (' + FIXTURE1 + ')',
             createStringifyCompareFn(
-                fs.createReadStream(path.join(__dirname, FIXTURE1)),
-                fs.readFileSync(path.join(__dirname, FIXTURE1), 'utf8')
+                fs.createReadStream(path.join(dirname, FIXTURE1)),
+                fs.readFileSync(path.join(dirname, FIXTURE1), 'utf8')
             )
         );
         it('fs.createReadStream(path) should be content of file (' + FIXTURE2 + ')',
             createStringifyCompareFn(
-                fs.createReadStream(path.join(__dirname, FIXTURE2)),
-                fs.readFileSync(path.join(__dirname, FIXTURE2), 'utf8')
+                fs.createReadStream(path.join(dirname, FIXTURE2)),
+                fs.readFileSync(path.join(dirname, FIXTURE2), 'utf8')
             )
         );
 
@@ -252,7 +251,7 @@ describe('stringifyStream()', () => {
     describe('replacer', () => {
         const entries = [
             [1, () => 2],
-            [{ a: undefined }, (k, v) => {
+            [{a: undefined}, (k, v) => {
                 if (k) {
                     assert.strictEqual(k, 'a');
                     assert.strictEqual(v, undefined);
@@ -260,7 +259,7 @@ describe('stringifyStream()', () => {
                 }
                 return v;
             }],
-            [{ a: 1, b: 2 }, (k, v) => {
+            [{a: 1, b: 2}, (k, v) => {
                 if (k === 'a' && v === 1) {
                     return v;
                 }
@@ -271,19 +270,19 @@ describe('stringifyStream()', () => {
             }],
 
             // replacer as an allowlist of keys
-            [{ a: 1, b: 2 }, ['b']],
-            [{ 1: 1, b: 2 }, [1]],
+            [{a: 1, b: 2}, ['b']],
+            [{1: 1, b: 2}, [1]],
 
             // toJSON/replacer order
             [{
                 source: 'replacer',
-                toJSON: () => ({ source: 'toJSON' })
+                toJSON: () => ({source: 'toJSON'})
             }, (_, value) => value.source],
 
             // `this` should refer to holder
             [
                 (() => {
-                    const ar = [4, 5, { a: 7 }, { m: 2, a: 8 }];
+                    const ar = [4, 5, {a: 7}, {m: 2, a: 8}];
                     ar.m = 6;
                     return {
                         a: 2,
@@ -292,7 +291,7 @@ describe('stringifyStream()', () => {
                         c: ar
                     };
                 })(),
-                function(key, value) {
+                function (key, value) {
                     return typeof value === 'number' && key !== 'm' && typeof this.m === 'number'
                         ? value * this.m
                         : value;
@@ -307,10 +306,10 @@ describe('stringifyStream()', () => {
         }
 
         it('walk sequence should be the same', () => {
-            const data = { a: 1, b: 'asd', c: [1, 2, 3, { d: true, e: null }] };
+            const data = {a: 1, b: 'asd', c: [1, 2, 3, {d: true, e: null}]};
             const actual = [];
             const expected = [];
-            const replacer = function(key, value) {
+            const replacer = function (key, value) {
                 currentLog.push(this, key, value);
                 return value;
             };
@@ -338,8 +337,17 @@ describe('stringifyStream()', () => {
             // in asceding numeric order disregarding of actual position.
             // Therefore, the result is not the same as for JSON.stringify()
             // where keys goes in order of definition, e.g. "1" key goes last.
-            const value = { '3': 'ok', b: [2, 3, { c: 5, a: 4 }, 7, { d: 1 }], 2: 'fail', 1: 'ok', a: 1, c: 6, '': 'fail' };
-            const replacer = ['a', 'a', new String('b'), { toString: () => 'c' }, 1, '2', new Number(3), null, () => {}, Symbol(), false];
+            const value = {
+                '3': 'ok',
+                b: [2, 3, {c: 5, a: 4}, 7, {d: 1}],
+                2: 'fail',
+                1: 'ok',
+                a: 1,
+                c: 6,
+                '': 'fail'
+            };
+            const replacer = ['a', 'a', new String('b'), {toString: () => 'c'}, 1, '2', new Number(3), null, () => {
+            }, Symbol(), false];
 
             return createStringifyCompareFn(
                 value,
@@ -390,7 +398,7 @@ describe('stringifyStream()', () => {
 
         it('[{ a: $ }] should emit error when object refers to ancestor array', () => {
             const circularRef = [];
-            circularRef.push({ a: circularRef });
+            circularRef.push({a: circularRef});
 
             assert.rejects(
                 createStringifyCompareFn(circularRef, '')(),
@@ -455,7 +463,7 @@ describe('stringifyStream()', () => {
 
         it('should not fail on reuse empty object/array', () => {
             const obj = {};
-            const obj2 = { a: 1 };
+            const obj2 = {a: 1};
             const arr = [];
             const arr2 = [1];
             const noCycle = {
@@ -469,14 +477,16 @@ describe('stringifyStream()', () => {
 
     describe('errors', () => {
         it('"Do not know how to serialize" error', () => assert.rejects(
-            createStringifyCompareFn({ test: 1n }, '')(),
+            createStringifyCompareFn({test: 1n}, '')(),
             /TypeError: Do not know how to serialize a BigInt/
         ));
 
         it('should catch errors on value resolving', () => assert.rejects(
-            createStringifyCompareFn({ toJSON() {
-                throw new Error('test');
-            } }, '')(),
+            createStringifyCompareFn({
+                toJSON() {
+                    throw new Error('test');
+                }
+            }, '')(),
             /Error: test/
         ));
     });
