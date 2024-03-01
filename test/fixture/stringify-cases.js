@@ -1,8 +1,8 @@
 const date = new Date(2020, 8, 3, 15, 21, 55);
-const allUtf8LengthDiffChars = Array.from({ length: 0x900 }).map((_, i) => String.fromCharCode(i)).join(''); // all chars 0x00..0x8FF
+const allUtf8LengthDiffChars = Array.from({length: 0x900}).map((_, i) => String.fromCharCode(i)).join(''); // all chars 0x00..0x8FF
 const fixture = {
     a: 1,
-    b: [2, null, true, false, 'string', { o: 3 }],
+    b: [2, null, true, false, 'string', {o: 3}],
     c: 'asd',
     d: {
         e: 4,
@@ -47,21 +47,35 @@ const tests = [
 
     // object
     {},
-    { a: undefined }, // {}
-    { a: null }, // {"a":null}
-    { a: undefined, b: undefined }, // {}
-    { a: undefined, b: 1 }, // {"b":1}
-    { a: 1, b: undefined },
-    { a: 1, b: undefined, c: 2 },
-    { a: 1 },
-    { foo: 1, bar: 2 },
-    { a: 1, b: { c: 2 } },
-    { a: [1], b: 2 },
-    { a() {}, b: 'b' },
-    { a: 10, b: undefined, c: function() { }, d: Symbol('test') },
-    { foo: 1, bar: undefined, baz: { a: undefined, b: 123, c: [1, 2] } },
-    { foo: 1, bar: NaN, baz: Infinity, qux: -Infinity, num: new Number(3), str: new String('str'), bool: new Boolean(false) },
-    { foo: 1, bar: () => 123 },
+    {a: undefined}, // {}
+    {a: null}, // {"a":null}
+    {a: undefined, b: undefined}, // {}
+    {a: undefined, b: 1}, // {"b":1}
+    {a: 1, b: undefined},
+    {a: 1, b: undefined, c: 2},
+    {a: 1},
+    {foo: 1, bar: 2},
+    {a: 1, b: {c: 2}},
+    {a: [1], b: 2},
+    {
+        a() {
+        }, b: 'b'
+    },
+    {
+        a: 10, b: undefined, c: function () {
+        }, d: Symbol('test')
+    },
+    {foo: 1, bar: undefined, baz: {a: undefined, b: 123, c: [1, 2]}},
+    {
+        foo: 1,
+        bar: NaN,
+        baz: Infinity,
+        qux: -Infinity,
+        num: new Number(3),
+        str: new String('str'),
+        bool: new Boolean(false)
+    },
+    {foo: 1, bar: () => 123},
 
     // array
     [],
@@ -72,13 +86,16 @@ const tests = [
     [1, , 2],
     [1, 'a'],
     [undefined],
-    [[[]],[[]]],
-    [function a() {}],
-    [function a() {}, undefined],
-    [{}, [], { a: [], o: {} }],
-    [{ a: 1 }, 'test', { b: [{ c: 3, d: 4 }]}],
-    [{ foo: 1 }, undefined, true, new Boolean(false), 123, NaN, Infinity, -Infinity, new Number(3), 'test', new String('asd')],
-    [10, undefined, function() { }, Symbol('')],
+    [[[]], [[]]],
+    [function a() {
+    }],
+    [function a() {
+    }, undefined],
+    [{}, [], {a: [], o: {}}],
+    [{a: 1}, 'test', {b: [{c: 3, d: 4}]}],
+    [{foo: 1}, undefined, true, new Boolean(false), 123, NaN, Infinity, -Infinity, new Number(3), 'test', new String('asd')],
+    [10, undefined, function () {
+    }, Symbol('')],
 
 
     // special cases
@@ -94,11 +111,13 @@ const spaceTests = tests
     .filter(t => typeof t === 'object')
     .concat('foo', 123, null, false);
 
-module.exports = {
+const spaces = [undefined, 0, '', 2, '  ', '\t', '___', 20, '-'.repeat(20)];
+
+export {
     allUtf8LengthDiffChars,
     fixture,
     date,
     tests,
     spaceTests,
-    spaces: [undefined, 0, '', 2, '  ', '\t', '___', 20, '-'.repeat(20)]
+    spaces
 };

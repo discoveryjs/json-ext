@@ -1,1 +1,3 @@
-module.exports = require('util').TextDecoder;
+import {TextDecoder} from 'node:util';
+
+export default TextDecoder;

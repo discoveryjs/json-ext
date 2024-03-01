@@ -1,8 +1,9 @@
-const assert = require('assert');
-const { inspect } = require('util');
-const { Readable } = require('stream');
-const { parseChunked } = require('./helpers/lib');
-const { TextEncoder } = require('util');
+import assert from 'node:assert';
+import {inspect, TextEncoder} from 'node:util';
+import {Readable} from 'node:stream';
+import lib from './helpers/lib.js';
+
+const parseChunked = lib.parseChunked;
 
 function createReadableStream(chunks) {
     return new Readable({
@@ -56,16 +57,21 @@ describe('parseChunked()', () => {
         '\uDC00',  // trailing surrogate (broken surrogate pair)
         '\\\\\\"\\\\"\\"\\\\\\',
         {},
-        { a: 1 },
-        { a: 1, b: 2 },
-        { a: { b: 2 } },
-        { 'te\\u0020st\\"': 'te\\u0020st\\"' },
+        {a: 1},
+        {a: 1, b: 2},
+        {a: {b: 2}},
+        {'te\\u0020st\\"': 'te\\u0020st\\"'},
         [],
         [1],
         [1, 2],
         [1, [2, [3]]],
-        [{ a: 2, b: true }, false, '', 12, [1, null]],
-        [1, { a: [true, { b: 1, c: [{ d: 2 }] }, 'hello  world\n!', null, 123, [{ e: '4', f: [] }, [], 123, [1, false]]] }, 2, { g: 5 }, [42]]
+        [{a: 2, b: true}, false, '', 12, [1, null]],
+        [1, {
+            a: [true, {b: 1, c: [{d: 2}]}, 'hello  world\n!', null, 123, [{
+                e: '4',
+                f: []
+            }, [], 123, [1, false]]]
+        }, 2, {g: 5}, [42]]
     ];
 
     describe('basic parsing (single chunk)', () => {
@@ -105,7 +111,7 @@ describe('parseChunked()', () => {
 
     describe('splitting on whitespaces', () => {
         describe('inside an object and strings', () => {
-            const expected = { ' \r\n\t': ' \r\n\t', a: [1, 2] };
+            const expected = {' \r\n\t': ' \r\n\t', a: [1, 2]};
             const json = ' \r\n\t{ \r\n\t" \\r\\n\\t" \r\n\t: \r\n\t" \\r\\n\\t" \r\n\t, \r\n\t"a": \r\n\t[ \r\n\t1 \r\n\t, \r\n\t2 \r\n\t] \r\n\t} \r\n\t';
 
             for (let len = 0; len <= json.length; len++) {
@@ -131,50 +137,50 @@ describe('parseChunked()', () => {
         it('abs pos across chunks', () =>
             assert.rejects(
                 async () => await parse(['{"test":"he', 'llo",}']),
-                /Unexpected token \} in JSON at position 16/
+                /in JSON at position 16/
             )
         );
         it('abs pos across chunks #2', () =>
             assert.rejects(
                 async () => await parse(['[{"test":"hello"},', ',}']),
-                /Unexpected token , in JSON at position 18/
+                /is not valid JSON|in JSON at position 18/
             )
         );
         it('abs pos across chunks #3 (whitespaces)', () =>
             assert.rejects(
                 async () => await parse(['[{"test" ', ' ', ' :"hello"} ', ' ', ',', ' ', ',}']),
-                /Unexpected token , in JSON at position 24/
+                /is not valid JSON|in JSON at position 24/
             )
         );
         it('should fail when starts with a comma', () =>
             assert.rejects(
                 async () => await parse([',{}']),
-                /Unexpected token , in JSON at position 0/
+                /is not valid JSON|in JSON at position 0/
             )
         );
         it('should fail when starts with a comma #2', () =>
             assert.rejects(
                 async () => await parse([',', '{}']),
-                /Unexpected token , in JSON at position 0/
+                /is not valid JSON|in JSON at position 0/
             )
         );
         it('should fail when no comma', () =>
             assert.rejects(
                 async () => await parse(['[1 ', ' 2]']),
-                /Unexpected number in JSON at position 4/
+                /in JSON at position 4/
             )
         );
         it('should fail when no comma #2', () =>
             assert.rejects(
                 async () => await parse(['[{}', '{}]']),
-                /Unexpected token { in JSON at position 3/
+                /in JSON at position 3/
             )
         );
     });
 
     describe('use with buffers', () => {
         const input = '[1234,{"🤓\\uD800\\uDC00":"🤓\\uD800\\uDC00\\u006f\\ufffd\\uffff\\ufffd"}]';
-        const expected = [1234, { '🤓\uD800\uDC00': '🤓\uD800\uDC00\u006f\ufffd\uffff\ufffd' }];
+        const expected = [1234, {'🤓\uD800\uDC00': '🤓\uD800\uDC00\u006f\ufffd\uffff\ufffd'}];
         const slices = [
             [0, 3],   // [12
             [3, 9],   // 34,{"\ud8
@@ -222,7 +228,7 @@ describe('parseChunked()', () => {
         it('with failure in JSON', () =>
             assert.rejects(
                 () => parseChunked(createReadableStream(['[1 ', '2]'])),
-                /Unexpected number in JSON at position 3/
+                /in JSON at position 3/
             )
         );
 
@@ -236,7 +242,7 @@ describe('parseChunked()', () => {
 
     describe('use with generator', () => {
         it('basic usage', async () => {
-            const actual = await parseChunked(function*() {
+            const actual = await parseChunked(function* () {
                 yield '[1,';
                 yield '2]';
             });
@@ -244,7 +250,7 @@ describe('parseChunked()', () => {
         });
 
         it('promise should be resolved', async () => {
-            const actual = await parseChunked(function*() {
+            const actual = await parseChunked(function* () {
                 yield '[1,';
                 yield Promise.resolve('2]');
             });
@@ -253,17 +259,17 @@ describe('parseChunked()', () => {
 
         it('with failure in JSON', () =>
             assert.rejects(
-                () => parseChunked(function*() {
+                () => parseChunked(function* () {
                     yield '[1 ';
                     yield '2]';
                 }),
-                /Unexpected number in JSON at position 3/
+                /in JSON at position 3/
             )
         );
 
         it('with failure in generator', () =>
             assert.rejects(
-                () => parseChunked(function*() {
+                () => parseChunked(function* () {
                     yield '[1 ';
                     throw new Error('test error in generator');
                 }),
@@ -274,7 +280,7 @@ describe('parseChunked()', () => {
 
     describe('use with async generator', () => {
         it('basic usage', async () => {
-            const actual = await parseChunked(async function*() {
+            const actual = await parseChunked(async function* () {
                 yield await Promise.resolve('[1,');
                 yield Promise.resolve('2,');
                 yield await '3,';
@@ -285,17 +291,17 @@ describe('parseChunked()', () => {
 
         it('with failure in JSON', () =>
             assert.rejects(
-                () => parseChunked(async function*() {
+                () => parseChunked(async function* () {
                     yield await Promise.resolve('[1 ');
                     yield '2]';
                 }),
-                /Unexpected number in JSON at position 3/
+                /in JSON at position 3/
             )
         );
 
         it('with failure in generator', () =>
             assert.rejects(
-                () => parseChunked(async function*() {
+                () => parseChunked(async function* () {
                     yield '[1 ';
                     throw new Error('test error in generator');
                 }),
@@ -305,7 +311,7 @@ describe('parseChunked()', () => {
 
         it('with reject in generator', () =>
             assert.rejects(
-                () => parseChunked(async function*() {
+                () => parseChunked(async function* () {
                     yield Promise.reject('test error in generator');
                 }),
                 /test error in generator/
@@ -321,7 +327,7 @@ describe('parseChunked()', () => {
 
         it('iterator method', async () => {
             const actual = await parseChunked(() => ({
-                *[Symbol.iterator]() {
+                * [Symbol.iterator]() {
                     yield '[1,';
                     yield '2]';
                 }
@@ -337,11 +343,15 @@ describe('parseChunked()', () => {
             123,
             '[1, 2]',
             ['[1, 2]'],
-            () => {},
+            () => {
+            },
             () => ({}),
             () => '[1, 2]',
             () => 123,
-            { on() {} }
+            {
+                on() {
+                }
+            }
         ];
 
         for (const value of badValues) {

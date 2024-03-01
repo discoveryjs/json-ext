@@ -1,5 +1,5 @@
 const fs = require('fs');
-const stringifyStream = require('../src/stringify-stream');
+const { stringifyStream } = require('../dist/index.cjs');
 const pattern = __dirname + '/fixture/big.json';
 
 module.exports = function(times, stream) {

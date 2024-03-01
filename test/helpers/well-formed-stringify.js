@@ -2,7 +2,7 @@
 // Node.js 10 has no well-formed JSON.stringify()
 // https://github.com/tc39/proposal-well-formed-stringify
 // Adopted code from https://bugs.chromium.org/p/v8/issues/detail?id=7782#c12
-module.exports = (...args) => {
+export default (...args) => {
     let json = JSON.stringify(...args);
 
     if (typeof json === 'string') {

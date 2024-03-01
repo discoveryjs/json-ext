@@ -2,7 +2,7 @@ const { inspect } = require('util');
 const chalk = require('chalk');
 const bfj = require('bfj');
 const JsonStreamStringify = require('json-stream-stringify');
-const jsonExt = require('../src');
+const jsonExt = require('../dist/index.cjs');
 const { tests, fixture, spaces, allUtf8LengthDiffChars } = require('../test/fixture/stringify-cases');
 
 function escape(s) {

@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const chalk = require('chalk');
-const parseChunked = require('../src/parse-chunked');
+const { parseChunked } = require('../dist/index.cjs');
 const { runBenchmark, prettySize, outputToReadme, updateReadmeTable } = require('./benchmark-utils');
 const benchmarkName = 'parse-chunked';
 const fixtures = [

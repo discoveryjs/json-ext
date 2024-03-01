@@ -1,31 +1,17 @@
-const { Readable } = require('stream');
-const {
-    normalizeReplacer,
-    normalizeSpace,
-    replaceValue,
-    getTypeAsync,
-    type: {
-        PRIMITIVE,
-        OBJECT,
-        ARRAY,
-        PROMISE,
-        STRING_STREAM,
-        OBJECT_STREAM
-    }
-} = require('./utils');
-const noop = () => {};
-const hasOwnProperty = Object.prototype.hasOwnProperty;
+import {Readable} from 'node:stream';
+import {getTypeAsync, normalizeReplacer, normalizeSpace, replaceValue, type} from './utils.js';
 
-// TODO: Remove when drop support for Node.js 10
-// Node.js 10 has no well-formed JSON.stringify()
-// https://github.com/tc39/proposal-well-formed-stringify
-// Adopted code from https://bugs.chromium.org/p/v8/issues/detail?id=7782#c12
-const wellformedStringStringify = JSON.stringify('\ud800') === '"\\ud800"'
-    ? JSON.stringify
-    : s => JSON.stringify(s).replace(
-        /\p{Surrogate}/gu,
-        m => `\\u${m.charCodeAt(0).toString(16)}`
-    );
+const {
+    PRIMITIVE,
+    OBJECT,
+    ARRAY,
+    PROMISE,
+    STRING_STREAM,
+    OBJECT_STREAM
+} = type;
+const noop = () => {
+};
+const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 function push() {
     this.push(this._stack.value);
@@ -122,7 +108,7 @@ function processArray() {
 }
 
 function createStreamReader(fn) {
-    return function() {
+    return function () {
         const current = this._stack;
         const data = current.value.read(this._readSize);
 
@@ -140,12 +126,12 @@ function createStreamReader(fn) {
     };
 }
 
-const processReadableObject = createStreamReader(function(data, current) {
+const processReadableObject = createStreamReader(function (data, current) {
     this.processValue(current.value, current.index, data, processArrayItem);
     current.index++;
 });
 
-const processReadableString = createStreamReader(function(data) {
+const processReadableString = createStreamReader(function (data) {
     this.push(data);
 });
 
@@ -181,14 +167,14 @@ class JsonStringifyStream extends Readable {
         this.pushStack({
             handler: () => {
                 this.popStack();
-                this.processValue({ '': value }, '', value, noop);
+                this.processValue({'': value}, '', value, noop);
             }
         });
     }
 
     encodeString(value) {
         if (/[^\x20-\uD799]|[\x22\x5c]/.test(value)) {
-            return wellformedStringStringify(value);
+            return JSON.stringify(value);
         }
 
         return '"' + value + '"';
@@ -321,7 +307,7 @@ class JsonStringifyStream extends Readable {
     }
 
     popStack() {
-        const { handler, value } = this._stack;
+        const {handler, value} = this._stack;
 
         if (handler === processObject || handler === processArray || handler === processReadableObject) {
             this._visited.delete(value);
@@ -403,6 +389,8 @@ class JsonStringifyStream extends Readable {
     }
 }
 
-module.exports = function createJsonStringifyStream(value, replacer, space) {
+function createJsonStringifyStream(value, replacer, space) {
     return new JsonStringifyStream(value, replacer, space);
 };
+
+export default createJsonStringifyStream;
