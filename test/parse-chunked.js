@@ -131,43 +131,43 @@ describe('parseChunked()', () => {
         it('abs pos across chunks', () =>
             assert.rejects(
                 async () => await parse(['{"test":"he', 'llo",}']),
-                /Unexpected token \} in JSON at position 16/
+                /(Unexpected token \}|Expected double-quoted property name) in JSON at position 16/
             )
         );
         it('abs pos across chunks #2', () =>
             assert.rejects(
                 async () => await parse(['[{"test":"hello"},', ',}']),
-                /Unexpected token , in JSON at position 18/
+                /Unexpected token , in JSON at position 18|Unexpected token ',', "\[,}" is not valid JSON$/
             )
         );
         it('abs pos across chunks #3 (whitespaces)', () =>
             assert.rejects(
                 async () => await parse(['[{"test" ', ' ', ' :"hello"} ', ' ', ',', ' ', ',}']),
-                /Unexpected token , in JSON at position 24/
+                /Unexpected token , in JSON at position 24|Unexpected token ',', "\[,}" is not valid JSON$/
             )
         );
         it('should fail when starts with a comma', () =>
             assert.rejects(
                 async () => await parse([',{}']),
-                /Unexpected token , in JSON at position 0/
+                /Unexpected token , in JSON at position 0|Unexpected token ',', ",{}" is not valid JSON$/
             )
         );
         it('should fail when starts with a comma #2', () =>
             assert.rejects(
                 async () => await parse([',', '{}']),
-                /Unexpected token , in JSON at position 0/
+                /Unexpected token , in JSON at position 0|Unexpected token ',', ",{}" is not valid JSON/
             )
         );
         it('should fail when no comma', () =>
             assert.rejects(
                 async () => await parse(['[1 ', ' 2]']),
-                /Unexpected number in JSON at position 4/
+                /(Unexpected number|Expected ',' or ']' after array element) in JSON at position 4/
             )
         );
         it('should fail when no comma #2', () =>
             assert.rejects(
                 async () => await parse(['[{}', '{}]']),
-                /Unexpected token { in JSON at position 3/
+                /(Unexpected token {|Expected ',' or ']' after array element) in JSON at position 3/
             )
         );
     });
@@ -222,7 +222,7 @@ describe('parseChunked()', () => {
         it('with failure in JSON', () =>
             assert.rejects(
                 () => parseChunked(createReadableStream(['[1 ', '2]'])),
-                /Unexpected number in JSON at position 3/
+                /(Unexpected number|Expected ',' or ']' after array element) in JSON at position 3/
             )
         );
 
@@ -257,7 +257,7 @@ describe('parseChunked()', () => {
                     yield '[1 ';
                     yield '2]';
                 }),
-                /Unexpected number in JSON at position 3/
+                /(Unexpected number|Expected ',' or ']' after array element) in JSON at position 3/
             )
         );
 
@@ -289,7 +289,7 @@ describe('parseChunked()', () => {
                     yield await Promise.resolve('[1 ');
                     yield '2]';
                 }),
-                /Unexpected number in JSON at position 3/
+                /(Unexpected number|Expected ',' or ']' after array element) in JSON at position 3/
             )
         );
 
