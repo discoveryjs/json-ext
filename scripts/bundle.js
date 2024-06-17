@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs from 'node:fs';
 import esbuild from 'esbuild';
 
 const log = async (outfile, fn) => {
