@@ -78,6 +78,9 @@ export const tests = {
     [selfPackageJson.name]: data =>
         jsonExt.stringifyStream(data),
 
+    [selfPackageJson.name + '/stringifyChunked']: data =>
+        Readable.from(jsonExt.stringifyChunked(data)),
+
     'bfj': data => sizeLessThan(500 * 1024 * 1024) &&
         bfj.streamify(data),
 

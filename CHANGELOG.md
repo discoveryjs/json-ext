@@ -1,6 +1,7 @@
 ## next
 
 - Fixed conformance with `JSON.stringify()` when replacer a list of keys and a key refer to an entry in a prototype chain
+- Implemented `stringifyChunked()` used as a generator function
 
 ## 0.5.7 (2022-03-09)
 
