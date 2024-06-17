@@ -212,6 +212,6 @@ export function* stringifyChunked(value, optionsOrReplacer, space) {
 
     function push(data) {
         buffer += data;
-        processing = buffer.length <= highWaterMark;
+        processing = buffer.length < highWaterMark;
     }
 };
