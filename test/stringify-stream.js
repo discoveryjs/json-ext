@@ -17,8 +17,8 @@ import {
 } from './fixture/stringify-cases.js';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
-const FIXTURE1 = 'fixture/stringify-stream-small.json';
-const FIXTURE2 = 'fixture/stringify-stream-medium.json';
+const FIXTURE1 = '../test-fixture/stringify-small.json';
+const FIXTURE2 = '../test-fixture/stringify-medium.json';
 
 inspect.defaultOptions.breakLength = Infinity;
 
