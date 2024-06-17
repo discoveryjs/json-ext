@@ -1,8 +1,8 @@
-const assert = require('assert');
-const { inspect } = require('util');
-const { Readable } = require('stream');
-const { parseChunked } = require('./helpers/lib');
-const { TextEncoder } = require('util');
+import assert from 'node:assert';
+import { inspect } from 'node:util';
+import { Readable } from 'node:stream';
+import { TextEncoder } from 'node:util';
+import { parseChunked } from '../src/parse-chunked.js';
 
 function createReadableStream(chunks) {
     return new Readable({

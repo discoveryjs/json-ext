@@ -1,1 +1,1 @@
-module.exports = require('../package.json').version;
+export const version = 'dev'; // require('../package.json').version;

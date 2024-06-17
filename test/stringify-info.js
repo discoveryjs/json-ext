@@ -1,15 +1,16 @@
-const assert = require('assert');
-const { inspect } = require('util');
-const { Readable } = require('stream');
-const { stringifyInfo } = require('./helpers/lib');
-const wellformedStringify = require('./helpers/well-formed-stringify');
-const strBytesLength = str => Buffer.byteLength(str, 'utf8');
-const {
+import assert from 'node:assert';
+import { inspect } from 'node:util';
+import { Readable } from 'node:stream';
+import { stringifyInfo } from '../src/stringify-info.js';
+import { wellformedStringify } from './helpers/well-formed-stringify.js';
+import {
     allUtf8LengthDiffChars,
     tests,
     spaceTests,
     spaces
-} = require('./fixture/stringify-cases');
+} from './fixture/stringify-cases.js';
+
+const strBytesLength = str => Buffer.byteLength(str, 'utf8');
 
 function createInfoTest(value, ...args) {
     const title = value === allUtf8LengthDiffChars
@@ -166,7 +167,7 @@ describe('stringifyInfo()', () => {
             value.push({
                 foo: str,
                 bar: 12312313,
-                baz: [str, 123, str, new Date(2021, 05, 15), str],
+                baz: [str, 123, str, new Date(2021, 5, 15), str],
                 [str]: str,
                 prev: value[i - 1] || null,
                 a: value[i - 1] || null

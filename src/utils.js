@@ -14,6 +14,14 @@ const escapableCharCodeSubstitution = { // JSON Single Character Escape Sequence
     0x22: '\\\"',
     0x5c: '\\\\'
 };
+const type = {
+    PRIMITIVE: PrimitiveType,
+    PROMISE: PromiseType,
+    ARRAY: ArrayType,
+    OBJECT: ObjectType,
+    STRING_STREAM: ReadableStringType,
+    OBJECT_STREAM: ReadableObjectType
+};
 
 function isLeadingSurrogate(code) {
     return code >= 0xD800 && code <= 0xDBFF;
@@ -127,18 +135,11 @@ function normalizeSpace(space) {
     return false;
 }
 
-module.exports = {
+export {
     escapableCharCodeSubstitution,
     isLeadingSurrogate,
     isTrailingSurrogate,
-    type: {
-        PRIMITIVE: PrimitiveType,
-        PROMISE: PromiseType,
-        ARRAY: ArrayType,
-        OBJECT: ObjectType,
-        STRING_STREAM: ReadableStringType,
-        OBJECT_STREAM: ReadableObjectType
-    },
+    type,
 
     isReadableStream,
     replaceValue,

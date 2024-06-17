@@ -1,8 +1,10 @@
-const fs = require('fs');
-const path = require('path');
-const chalk = require('chalk');
-const parseChunked = require('../src/parse-chunked');
-const { runBenchmark, prettySize, outputToReadme, updateReadmeTable } = require('./benchmark-utils');
+import fs from 'node:fs';
+import path from 'node:path';
+import url from 'node:url';
+import chalk from 'chalk';
+import { parseChunked } from '../src/parse-chunked.js';
+import { runBenchmark, prettySize, outputToReadme, updateReadmeTable, getSelfPackageJson, isMain } from './benchmark-utils.js';
+
 const benchmarkName = 'parse-chunked';
 const fixtures = [
     './fixture/small.json',
@@ -11,6 +13,8 @@ const fixtures = [
     './fixture/500mb.json', // 3 | auto-generate from big.json
     './fixture/1gb.json'    // 4 | auto-generate from big.json
 ];
+const selfPackageJson = getSelfPackageJson();
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const fixtureIndex = process.argv[2] || 0;
 const filename = fixtureIndex in fixtures ? path.join(__dirname, fixtures[fixtureIndex]) : false;
 
@@ -27,14 +31,14 @@ if (!filename) {
 }
 
 const chunkSize = 512 * 1024; // chunk size for generator
-const tests = module.exports = {
+export const tests = {
     'JSON.parse()': () =>
         JSON.parse(fs.readFileSync(filename, 'utf8')),
 
-    [require('../package.json').name + ' fs.createReadStream()']: () =>
+    [selfPackageJson.name + ' fs.createReadStream()']: () =>
         parseChunked(fs.createReadStream(filename, { highWaterMark: chunkSize })),
 
-    [require('../package.json').name + ' fs.readFileSync()']: () =>
+    [selfPackageJson.name + ' fs.readFileSync()']: () =>
         parseChunked(function*() {
             let json = fs.readFileSync(filename, 'utf8');
             for (let i = 0; i < json.length; i += chunkSize) {
@@ -43,7 +47,7 @@ const tests = module.exports = {
         })
 };
 
-if (require.main === module) {
+if (isMain(import.meta)) {
     run();
 }
 

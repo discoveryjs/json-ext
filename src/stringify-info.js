@@ -1,4 +1,4 @@
-const {
+import {
     normalizeReplacer,
     normalizeSpace,
     replaceValue,
@@ -7,15 +7,17 @@ const {
     isLeadingSurrogate,
     isTrailingSurrogate,
     escapableCharCodeSubstitution,
-    type: {
-        PRIMITIVE,
-        OBJECT,
-        ARRAY,
-        PROMISE,
-        STRING_STREAM,
-        OBJECT_STREAM
-    }
-} = require('./utils');
+    type
+} from './utils.js';
+
+const {
+    PRIMITIVE,
+    OBJECT,
+    ARRAY,
+    PROMISE,
+    STRING_STREAM,
+    OBJECT_STREAM
+} = type;
 const charLength2048 = Array.from({ length: 2048 }).map((_, code) => {
     if (escapableCharCodeSubstitution.hasOwnProperty(code)) {
         return 2; // \X
@@ -80,7 +82,7 @@ function spaceLength(space) {
     return typeof space === 'string' ? space.length : 0;
 }
 
-module.exports = function jsonStringifyInfo(value, replacer, space, options) {
+export function stringifyInfo(value, replacer, space, options) {
     function walk(holder, key, value) {
         if (stop) {
             return;

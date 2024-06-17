@@ -1,6 +1,6 @@
-const date = new Date(2020, 8, 3, 15, 21, 55);
-const allUtf8LengthDiffChars = Array.from({ length: 0x900 }).map((_, i) => String.fromCharCode(i)).join(''); // all chars 0x00..0x8FF
-const fixture = {
+export const date = new Date(2020, 8, 3, 15, 21, 55);
+export const allUtf8LengthDiffChars = Array.from({ length: 0x900 }).map((_, i) => String.fromCharCode(i)).join(''); // all chars 0x00..0x8FF
+export const fixture = {
     a: 1,
     b: [2, null, true, false, 'string', { o: 3 }],
     c: 'asd',
@@ -13,7 +13,7 @@ const fixture = {
         i: [5, 6]
     }
 };
-const tests = [
+export const tests = [
     // scalar
     null,
     true,
@@ -90,15 +90,8 @@ const tests = [
 
     fixture
 ];
-const spaceTests = tests
+export const spaceTests = tests
     .filter(t => typeof t === 'object')
     .concat('foo', 123, null, false);
 
-module.exports = {
-    allUtf8LengthDiffChars,
-    fixture,
-    date,
-    tests,
-    spaceTests,
-    spaces: [undefined, 0, '', 2, '  ', '\t', '___', 20, '-'.repeat(20)]
-};
+export const spaces = [undefined, 0, '', 2, '  ', '\t', '___', 20, '-'.repeat(20)];

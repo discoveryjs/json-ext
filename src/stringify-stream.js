@@ -1,20 +1,22 @@
-const { Readable } = require('stream');
-const {
+import { Readable } from 'node:stream';
+import {
     normalizeReplacer,
     normalizeSpace,
     replaceValue,
     getTypeAsync,
-    type: {
-        PRIMITIVE,
-        OBJECT,
-        ARRAY,
-        PROMISE,
-        STRING_STREAM,
-        OBJECT_STREAM
-    }
-} = require('./utils');
+    type
+} from './utils.js';
+
 const noop = () => {};
 const hasOwnProperty = Object.prototype.hasOwnProperty;
+const {
+    PRIMITIVE,
+    OBJECT,
+    ARRAY,
+    PROMISE,
+    STRING_STREAM,
+    OBJECT_STREAM
+} = type;
 
 // TODO: Remove when drop support for Node.js 10
 // Node.js 10 has no well-formed JSON.stringify()
@@ -403,6 +405,6 @@ class JsonStringifyStream extends Readable {
     }
 }
 
-module.exports = function createJsonStringifyStream(value, replacer, space) {
+export function stringifyStream(value, replacer, space) {
     return new JsonStringifyStream(value, replacer, space);
 };

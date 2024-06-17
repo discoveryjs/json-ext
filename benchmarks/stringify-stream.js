@@ -1,17 +1,22 @@
-const fs = require('fs');
-const path = require('path');
-const chalk = require('chalk');
-const { Readable } = require('stream');
-const bfj = require('bfj');
-const JsonStreamStringify = require('json-stream-stringify');
-const jsonExt = require('../src');
-const {
+import fs from 'node:fs';
+import path from 'node:path';
+import url from 'node:url';
+import { Readable } from 'node:stream';
+import chalk from 'chalk';
+import bfj from 'bfj';
+import JsonStreamStringify from 'json-stream-stringify';
+import * as jsonExt from '../src/index.js';
+import {
     runBenchmark,
     prettySize,
     outputToReadme,
-    updateReadmeTable
-} = require('./benchmark-utils');
+    updateReadmeTable,
+    getSelfPackageJson,
+    isMain
+} from './benchmark-utils.js';
 
+const selfPackageJson = getSelfPackageJson();
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const benchmarkName = 'stringify-stream';
 const outputPath = name => __dirname + '/tmp/stringify-stream-' + name.replace(/[@\/]/g, '-').replace(/\s*\(.+$/, '') + '.json';
 const fixtures = [
@@ -66,11 +71,11 @@ class ChunkedStringStream extends Readable {
     }
 }
 
-const tests = module.exports = {
+export const tests = {
     'JSON.stringify()': data =>
         new ChunkedStringStream(JSON.stringify(data)),
 
-    [require('../package.json').name]: data =>
+    [selfPackageJson.name]: data =>
         jsonExt.stringifyStream(data),
 
     'bfj': data => sizeLessThan(500 * 1024 * 1024) &&
@@ -94,7 +99,7 @@ for (const [name, init] of Object.entries(tests)) {
     });
 }
 
-if (require.main === module) {
+if (isMain(import.meta)) {
     run();
 }
 
@@ -107,7 +112,7 @@ async function run() {
         let [, num, unit] = filename.match(/(\d+)([a-z]+).json/);
         const times = unit === 'mb' ? num / 100 : num * 10;
 
-        await require('./gen-fixture')(times, filename);
+        await require('./gen-fixture.js')(times, filename);
     }
 
     if (process.env.README) {

@@ -1,9 +1,12 @@
-const { inspect } = require('util');
-const chalk = require('chalk');
-const bfj = require('bfj');
-const JsonStreamStringify = require('json-stream-stringify');
-const jsonExt = require('../src');
-const { tests, fixture, spaces, allUtf8LengthDiffChars } = require('../test/fixture/stringify-cases');
+import { inspect } from 'node:util';
+import chalk from 'chalk';
+import bfj from 'bfj';
+import { JsonStreamStringify } from 'json-stream-stringify';
+import * as jsonExt from '../src/index.js';
+import { tests, fixture, spaces, allUtf8LengthDiffChars } from '../test/fixture/stringify-cases.js';
+import { getSelfPackageJson } from './benchmark-utils.js';
+
+const selfPackageJson = getSelfPackageJson();
 
 function escape(s) {
     s = s === allUtf8LengthDiffChars
@@ -39,7 +42,7 @@ async function test(createStream, value, replacer, space) {
 }
 
 const streamFactories = {
-    [require('../package.json').name]: (value, replacer, space) => jsonExt.stringifyStream(value, replacer, space),
+    [selfPackageJson.name]: (value, replacer, space) => jsonExt.stringifyStream(value, replacer, space),
     'bfj': (value, replacer, space) => bfj.streamify(value, { space }),
     'json-stream-stringify': (value, replacer, space) => new JsonStreamStringify(value, replacer, space)
 };

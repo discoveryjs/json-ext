@@ -1,13 +1,25 @@
-const fs = require('fs');
-const path = require('path');
-const { fork } = require('child_process');
-const chalk = require('chalk');
-const ANSI_REGEXP = /([\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><])/g;
+import fs from 'node:fs';
+import path from 'node:path';
+import url from 'node:url';
+import { fork } from 'node:child_process';
+import { createRequire } from 'node:module';
+import chalk from 'chalk';
 
-function runBenchmark(name, argv = process.argv.slice(2)) {
+const ANSI_REGEXP = /([\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><])/g;
+const require = createRequire(import.meta.url);
+const __main = require.resolve(process.argv[1]);
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+
+export function isMain(meta) {
+    const modulePath = url.fileURLToPath(meta.url);
+
+    return modulePath === __main;
+}
+
+export function runBenchmark(name, argv = process.argv.slice(2)) {
     return new Promise((resolve, reject) => {
         const child = fork(__dirname + '/run-test.js', [
-            require.main.filename,
+            __main, // require.main.filename
             name,
             ...argv
         ], {
@@ -35,7 +47,7 @@ function sanitizeErrorOutput(error) {
     return home ? text.replace(rx, '~') : text;
 }
 
-async function benchmark(name, fn, beforeFn, output = true) {
+export async function benchmark(name, fn, beforeFn, output = true) {
     const data = typeof beforeFn === 'function' ? await beforeFn() : undefined;
 
     await collectGarbage();
@@ -110,7 +122,7 @@ function stripAnsi(str) {
     return str.replace(ANSI_REGEXP, '');
 }
 
-function prettySize(size, options) {
+export function prettySize(size, options) {
     const unit = ['', 'kB', 'MB', 'GB'];
     const { signed, pad, preserveZero } = options || {};
 
@@ -126,7 +138,7 @@ function prettySize(size, options) {
     ).padStart(pad || 0);
 }
 
-function memDelta(_base, cur, skip = ['arrayBuffers']) {
+export function memDelta(_base, cur, skip = ['arrayBuffers']) {
     const current = cur || process.memoryUsage();
     const delta = {};
     const base = { ..._base };
@@ -157,11 +169,11 @@ function memDelta(_base, cur, skip = ['arrayBuffers']) {
     };
 }
 
-async function timeout(ms) {
+export async function timeout(ms) {
     await new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function traceMem(resolutionMs, sample = false) {
+export function traceMem(resolutionMs, sample = false) {
     const base = process.memoryUsage();
     const max = { ...base };
     const startTime = Date.now();
@@ -228,7 +240,7 @@ function traceMem(resolutionMs, sample = false) {
 }
 
 let exposeGcShowed = false;
-async function collectGarbage() {
+export async function collectGarbage() {
     if (typeof global.gc === 'function') {
         global.gc();
 
@@ -253,7 +265,7 @@ function captureStdio(stream, buffer) {
     return () => stream.write = oldWrite;
 }
 
-function captureOutput(callback) {
+export function captureOutput(callback) {
     let buffer = [];
     const cancelCapture = () => captures.forEach(fn => fn());
     const captures = [
@@ -270,7 +282,7 @@ function captureOutput(callback) {
     return cancelCapture;
 }
 
-function replaceInReadme(start, end, replace) {
+export function replaceInReadme(start, end, replace) {
     const filename = path.join(__dirname, '/README.md');
     const content = fs.readFileSync(filename, 'utf8');
     const mstart = content.match(start);
@@ -296,7 +308,7 @@ function replaceInReadme(start, end, replace) {
         content.slice(endOffset), 'utf8');
 }
 
-function outputToReadme(benchmarkName, fixtureIndex) {
+export function outputToReadme(benchmarkName, fixtureIndex) {
     captureOutput(output => replaceInReadme(
         new RegExp(`<!--${benchmarkName}-output:${fixtureIndex}-->`),
         new RegExp(`<!--/${benchmarkName}-output:${fixtureIndex}-->`),
@@ -304,7 +316,7 @@ function outputToReadme(benchmarkName, fixtureIndex) {
     ));
 }
 
-function updateReadmeTable(benchmarkName, fixtureIndex, fixtures, results) {
+export function updateReadmeTable(benchmarkName, fixtureIndex, fixtures, results) {
     for (const type of ['time', 'cpu', 'memory']) {
         replaceInReadme(
             new RegExp(`<!--${benchmarkName}-table:${type}-->`),
@@ -351,16 +363,6 @@ function updateReadmeTable(benchmarkName, fixtureIndex, fixtures, results) {
     }
 }
 
-module.exports = {
-    runBenchmark,
-    benchmark,
-    prettySize,
-    memDelta,
-    traceMem,
-    collectGarbage,
-    timeout,
-    captureOutput,
-    replaceInReadme,
-    outputToReadme,
-    updateReadmeTable
-};
+export function getSelfPackageJson() {
+    return JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json')));
+}

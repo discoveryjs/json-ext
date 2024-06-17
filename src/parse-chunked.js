@@ -1,5 +1,4 @@
-const { isReadableStream } = require('./utils');
-const TextDecoder = require('./text-decoder');
+import { isReadableStream } from './utils.js';
 
 const STACK_OBJECT = 1;
 const STACK_ARRAY = 2;
@@ -30,7 +29,7 @@ function append(array, elements) {
     }
 }
 
-module.exports = function(chunkEmitter) {
+export function parseChunked(chunkEmitter) {
     let parser = new ChunkParser();
 
     if (isObject(chunkEmitter) && isReadableStream(chunkEmitter)) {

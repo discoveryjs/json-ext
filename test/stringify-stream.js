@@ -1,27 +1,23 @@
 // Fork of https://github.com/Faleij/json-stream-stringify
-const assert = require('assert');
-const fs = require('fs');
-const path = require('path');
-const { Readable, Transform } = require('stream');
-const { inspect } = require('util');
-const { stringifyStream } = require('./helpers/lib');
-const wellformedStringify = require('./helpers/well-formed-stringify');
-const FIXTURE1 = 'fixture/stringify-stream-small.json';
-const FIXTURE2 = 'fixture/stringify-stream-medium.json';
-const {
+import assert from 'node:assert';
+import fs from 'node:fs';
+import path from 'node:path';
+import url from 'node:url';
+import { Readable, Transform } from 'node:stream';
+import { inspect } from 'node:util';
+import { stringifyStream } from '../src/stringify-stream.js';
+import { wellformedStringify } from './helpers/well-formed-stringify.js';
+import {
     date,
     allUtf8LengthDiffChars,
     tests,
     spaceTests,
     spaces
-} = require('./fixture/stringify-cases');
+} from './fixture/stringify-cases.js';
 
-// Not supported in dist mode
-try {
-    stringifyStream();
-} catch (e) {
-    return;
-}
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+const FIXTURE1 = 'fixture/stringify-stream-small.json';
+const FIXTURE2 = 'fixture/stringify-stream-medium.json';
 
 inspect.defaultOptions.breakLength = Infinity;
 

@@ -1,14 +1,9 @@
 {
   "name": "benchmarks",
-  "version": "1.0.0",
-  "description": "",
-  "main": "1.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "bfj": "^7.0.2",
     "chalk": "^4.1.0",

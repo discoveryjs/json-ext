@@ -1,5 +1,9 @@
-const fs = require('fs');
-const stringifyStream = require('../src/stringify-stream');
+import fs from 'node:fs';
+import path from 'node:path';
+import url from 'node:url';
+import stringifyStream from '../src/stringify-stream.js';
+
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const pattern = __dirname + '/fixture/big.json';
 
 module.exports = function(times, stream) {

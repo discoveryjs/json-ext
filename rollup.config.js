@@ -1,8 +1,8 @@
-const fs = require('fs');
-const { nodeResolve } = require('@rollup/plugin-node-resolve');
-const commonjs = require('@rollup/plugin-commonjs');
-const json = require('@rollup/plugin-json');
-const { terser } = require('rollup-plugin-terser');
+import fs from 'node:fs';
+import { nodeResolve } from '@rollup/plugin-node-resolve';
+import commonjs from '@rollup/plugin-commonjs';
+import json from '@rollup/plugin-json';
+import { terser } from 'rollup-plugin-terser';
 let versionWritten = false;
 
 module.exports = {
