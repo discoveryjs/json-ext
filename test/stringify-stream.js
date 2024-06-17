@@ -12,7 +12,8 @@ import {
     allUtf8LengthDiffChars,
     tests,
     spaceTests,
-    spaces
+    spaces,
+    replacerTests
 } from './fixture/stringify-cases.js';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
@@ -246,57 +247,7 @@ describe('stringifyStream()', () => {
     });
 
     describe('replacer', () => {
-        const entries = [
-            [1, () => 2],
-            [{ a: undefined }, (k, v) => {
-                if (k) {
-                    assert.strictEqual(k, 'a');
-                    assert.strictEqual(v, undefined);
-                    return 1;
-                }
-                return v;
-            }],
-            [{ a: 1, b: 2 }, (k, v) => {
-                if (k === 'a' && v === 1) {
-                    return v;
-                }
-                if (k === 'b' && v === 2) {
-                    return undefined;
-                }
-                return v;
-            }],
-
-            // replacer as an allowlist of keys
-            [{ a: 1, b: 2 }, ['b']],
-            [{ 1: 1, b: 2 }, [1]],
-
-            // toJSON/replacer order
-            [{
-                source: 'replacer',
-                toJSON: () => ({ source: 'toJSON' })
-            }, (_, value) => value.source],
-
-            // `this` should refer to holder
-            [
-                (() => {
-                    const ar = [4, 5, { a: 7 }, { m: 2, a: 8 }];
-                    ar.m = 6;
-                    return {
-                        a: 2,
-                        b: 3,
-                        m: 4,
-                        c: ar
-                    };
-                })(),
-                function(key, value) {
-                    return typeof value === 'number' && key !== 'm' && typeof this.m === 'number'
-                        ? value * this.m
-                        : value;
-                }
-            ]
-        ];
-
-        for (const [value, replacer] of entries) {
+        for (const [value, replacer] of replacerTests) {
             const expected = wellformedStringify(value, replacer);
             it(`${testTitleWithValue(value)} should be ${testTitleWithValue(expected)}`,
                 createStringifyCompareFn(value, expected, replacer));

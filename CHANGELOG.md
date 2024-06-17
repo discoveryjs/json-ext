@@ -1,3 +1,7 @@
+## next
+
+- Fixed conformance with `JSON.stringify()` when replacer a list of keys and a key refer to an entry in a prototype chain
+
 ## 0.5.7 (2022-03-09)
 
 - Fixed adding entire `package.json` content to a bundle when target is a browser

@@ -8,7 +8,6 @@ import {
 } from './utils.js';
 
 const noop = () => {};
-const hasOwnProperty = Object.prototype.hasOwnProperty;
 const {
     PRIMITIVE,
     OBJECT,
@@ -163,7 +162,7 @@ class JsonStringifyStream extends Readable {
         if (Array.isArray(this.replacer)) {
             const allowlist = this.replacer;
 
-            this.getKeys = (value) => allowlist.filter(key => hasOwnProperty.call(value, key));
+            this.getKeys = () => allowlist;
             this.replacer = null;
         }
 

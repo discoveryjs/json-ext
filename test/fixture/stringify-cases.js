@@ -1,3 +1,5 @@
+import assert from 'node:assert';
+
 export const date = new Date(2020, 8, 3, 15, 21, 55);
 export const allUtf8LengthDiffChars = Array.from({ length: 0x900 }).map((_, i) => String.fromCharCode(i)).join(''); // all chars 0x00..0x8FF
 export const fixture = {
@@ -93,5 +95,55 @@ export const tests = [
 export const spaceTests = tests
     .filter(t => typeof t === 'object')
     .concat('foo', 123, null, false);
+export const replacerTests = [
+    [1, () => 2],
+    [{ a: undefined }, (k, v) => {
+        if (k) {
+            assert.strictEqual(k, 'a');
+            assert.strictEqual(v, undefined);
+            return 1;
+        }
+        return v;
+    }],
+    [{ a: 1, b: 2 }, (k, v) => {
+        if (k === 'a' && v === 1) {
+            return v;
+        }
+        if (k === 'b' && v === 2) {
+            return undefined;
+        }
+        return v;
+    }],
+
+    // replacer as an allowlist of keys
+    [{ a: 1, b: 2 }, ['b']],
+    [{ a: 1, b: 2, __proto__: { c: 3 } }, ['c']],
+    [{ 1: 1, b: 2 }, [1]],
+
+    // toJSON/replacer order
+    [{
+        source: 'replacer',
+        toJSON: () => ({ source: 'toJSON' })
+    }, (_, value) => value.source],
+
+    // `this` should refer to holder
+    [
+        (() => {
+            const ar = [4, 5, { a: 7 }, { m: 2, a: 8 }];
+            ar.m = 6;
+            return {
+                a: 2,
+                b: 3,
+                m: 4,
+                c: ar
+            };
+        })(),
+        function(key, value) {
+            return typeof value === 'number' && key !== 'm' && typeof this.m === 'number'
+                ? value * this.m
+                : value;
+        }
+    ]
+];
 
 export const spaces = [undefined, 0, '', 2, '  ', '\t', '___', 20, '-'.repeat(20)];

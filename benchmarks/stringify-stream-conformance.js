@@ -1,9 +1,9 @@
 import { inspect } from 'node:util';
 import chalk from 'chalk';
 import bfj from 'bfj';
-import { JsonStreamStringify } from 'json-stream-stringify';
+import JsonStreamStringify from 'json-stream-stringify';
 import * as jsonExt from '../src/index.js';
-import { tests, fixture, spaces, allUtf8LengthDiffChars } from '../test/fixture/stringify-cases.js';
+import { tests, fixture, spaces, allUtf8LengthDiffChars, replacerTests } from '../test/fixture/stringify-cases.js';
 import { getSelfPackageJson } from './benchmark-utils.js';
 
 const selfPackageJson = getSelfPackageJson();
@@ -48,7 +48,7 @@ const streamFactories = {
 };
 
 async function run() {
-    const testCount = tests.length + spaces.length;
+    const testCount = tests.length + spaces.length + replacerTests.length;
 
     for (const [name, createStream] of Object.entries(streamFactories)) {
         let failures = 0;
@@ -79,6 +79,19 @@ async function run() {
                 failures++;
                 if (process.env.VERBOSE) {
                     console.error(name, 'SPACE FAILED', JSON.stringify(space));
+                    console.error();
+                }
+            }
+        }
+
+        for (const [input, replacer] of replacerTests) {
+            const { success, actual, expected } = await test(createStream, input, replacer);
+
+            if (!success) {
+                failures++;
+                if (process.env.VERBOSE) {
+                    console.error(name, 'REPLACER FAILED', expected);
+                    console.error('  result:', actual === '' ? '<empty string>' : actual[0] === '"' ? escape(actual) : actual);
                     console.error();
                 }
             }
