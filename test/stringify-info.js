@@ -1,7 +1,6 @@
 import assert from 'node:assert';
 import { inspect } from 'node:util';
-import { Readable } from 'node:stream';
-import { stringifyInfo } from '../src/stringify-info.js';
+import { stringifyInfo } from '@discoveryjs/json-ext';
 import { wellformedStringify } from './helpers/well-formed-stringify.js';
 import {
     allUtf8LengthDiffChars,
@@ -24,8 +23,7 @@ function createInfoTest(value, ...args) {
         assert.deepStrictEqual(info, {
             minLength: strBytesLength(native),
             circular: [],
-            duplicate: [],
-            async: []
+            duplicate: []
         });
     });
 }
@@ -88,56 +86,6 @@ describe('stringifyInfo()', () => {
             const info = stringifyInfo([object, array, array, object]);
 
             assert.deepStrictEqual(info.duplicate, [array, object]);
-        });
-    });
-
-    describe('async', () => {
-        it('should trace async things as a regular objects by default', () => {
-            const stream = new Readable({
-                read() {
-                    this.read = () => null;
-                    return '123456';
-                }
-            });
-            const objectStream = new Readable({
-                objectMode: true,
-                read() {
-                    this.read = () => null;
-                    return { test: true };
-                }
-            });
-            const info = stringifyInfo([
-                Promise.resolve(123456),
-                stream,
-                objectStream
-            ]);
-            assert.strictEqual(info.minLength, `[{},${wellformedStringify(stream)},${wellformedStringify(objectStream)}]`.length);
-            assert.deepStrictEqual(info.async, []);
-        });
-
-        it('should trace async things as special values when options.async=true', () => {
-            const promise = Promise.resolve(123456);
-            const stream = new Readable({
-                read() {
-                    this.read = () => null;
-                    return '123456';
-                }
-            });
-            const objectStream = new Readable({
-                objectMode: true,
-                read() {
-                    this.read = () => null;
-                    return { test: true };
-                }
-            });
-            const info = stringifyInfo([
-                promise,
-                stream,
-                objectStream
-            ], null, null, { async: true });
-
-            assert.strictEqual(info.minLength, '[,,[]]'.length);
-            assert.deepStrictEqual(info.async, [promise, stream, objectStream]);
         });
     });
 

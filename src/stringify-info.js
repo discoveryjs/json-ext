@@ -2,22 +2,11 @@ import {
     normalizeReplacer,
     normalizeSpace,
     replaceValue,
-    getTypeNative,
-    getTypeAsync,
     isLeadingSurrogate,
     isTrailingSurrogate,
-    escapableCharCodeSubstitution,
-    type
+    escapableCharCodeSubstitution
 } from './utils.js';
 
-const {
-    PRIMITIVE,
-    OBJECT,
-    ARRAY,
-    PROMISE,
-    STRING_STREAM,
-    OBJECT_STREAM
-} = type;
 const charLength2048 = Array.from({ length: 2048 }).map((_, code) => {
     if (escapableCharCodeSubstitution.hasOwnProperty(code)) {
         return 2; // \X
@@ -90,36 +79,60 @@ export function stringifyInfo(value, replacer, space, options) {
 
         value = replaceValue(holder, key, value, replacer);
 
-        let type = getType(value);
+        if (value === null || typeof value !== 'object') {
+            // primitive
+            if (value !== undefined || Array.isArray(holder)) {
+                length += primitiveLength(value);
+            } else if (holder === root) {
+                length += 9; // FIXME: that's the length of undefined, should we normalize behaviour to convert it to null?
+            }
+        } else {
+            // check for circular structure
+            if (stack.has(value)) {
+                circular.add(value);
+                length += 4; // treat as null
 
-        // check for circular structure
-        if (type !== PRIMITIVE && stack.has(value)) {
-            circular.add(value);
-            length += 4; // treat as null
+                if (!options.continueOnCircular) {
+                    stop = true;
+                }
 
-            if (!options.continueOnCircular) {
-                stop = true;
+                return;
             }
 
-            return;
-        }
+            // duplicates
+            if (visited.has(value)) {
+                duplicate.add(value);
+                length += visited.get(value);
 
-        switch (type) {
-            case PRIMITIVE:
-                if (value !== undefined || Array.isArray(holder)) {
-                    length += primitiveLength(value);
-                } else if (holder === root) {
-                    length += 9; // FIXME: that's the length of undefined, should we normalize behaviour to convert it to null?
+                return;
+            }
+
+            if (Array.isArray(value)) {
+                // array
+                const valueLength = length;
+
+                length += 2; // []
+
+                stack.add(value);
+
+                for (let i = 0; i < value.length; i++) {
+                    walk(value, i, value[i]);
                 }
-                break;
 
-            case OBJECT: {
-                if (visited.has(value)) {
-                    duplicate.add(value);
-                    length += visited.get(value);
-                    break;
+                if (value.length > 1) {
+                    length += value.length - 1; // commas
                 }
 
+                stack.delete(value);
+
+                if (space > 0 && value.length > 0) {
+                    length += (1 + (stack.size + 1) * space) * value.length; // for each element: \n{space}
+                    length += 1 + stack.size * space; // for ]
+                }
+
+                visited.set(value, length - valueLength);
+            } else {
+                // object
                 const valueLength = length;
                 let entries = 0;
 
@@ -152,52 +165,7 @@ export function stringifyInfo(value, replacer, space, options) {
                 }
 
                 visited.set(value, length - valueLength);
-
-                break;
             }
-
-            case ARRAY: {
-                if (visited.has(value)) {
-                    duplicate.add(value);
-                    length += visited.get(value);
-                    break;
-                }
-
-                const valueLength = length;
-
-                length += 2; // []
-
-                stack.add(value);
-
-                for (let i = 0; i < value.length; i++) {
-                    walk(value, i, value[i]);
-                }
-
-                if (value.length > 1) {
-                    length += value.length - 1; // commas
-                }
-
-                stack.delete(value);
-
-                if (space > 0 && value.length > 0) {
-                    length += (1 + (stack.size + 1) * space) * value.length; // for each element: \n{space}
-                    length += 1 + stack.size * space; // for ]
-                }
-
-                visited.set(value, length - valueLength);
-
-                break;
-            }
-
-            case PROMISE:
-            case STRING_STREAM:
-                async.add(value);
-                break;
-
-            case OBJECT_STREAM:
-                length += 2; // []
-                async.add(value);
-                break;
         }
     }
 
@@ -212,12 +180,10 @@ export function stringifyInfo(value, replacer, space, options) {
     space = spaceLength(space);
     options = options || {};
 
-    const visited = new Map();
+    const visited = new WeakMap();
     const stack = new Set();
     const duplicate = new Set();
     const circular = new Set();
-    const async = new Set();
-    const getType = options.async ? getTypeAsync : getTypeNative;
     const root = { '': value };
     let stop = false;
     let length = 0;
@@ -227,7 +193,6 @@ export function stringifyInfo(value, replacer, space, options) {
     return {
         minLength: isNaN(length) ? Infinity : length,
         circular: [...circular],
-        duplicate: [...duplicate],
-        async: [...async]
+        duplicate: [...duplicate]
     };
 };
