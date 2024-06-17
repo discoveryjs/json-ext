@@ -22,8 +22,7 @@
     "browser": {
         "./src/stringify-info.js": "./src/stringify-info.js",
         "./src/parse-chunked.js": "./src/parse-chunked.js",
-        "./src/stringify-stream.js": "./src/stringify-stream-browser.js",
-        "./src/version.js": "./dist/version.js"
+        "./src/stringify-stream.js": "./src/stringify-stream-browser.js"
     },
     "types": "./index.d.ts",
     "scripts": {
