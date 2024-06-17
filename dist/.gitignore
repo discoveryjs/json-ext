@@ -1,3 +1,5 @@
-*
+*.js
 !.gitignore
 !.npmignore
+!test/json-ext.js
+!test/json-ext.min.js

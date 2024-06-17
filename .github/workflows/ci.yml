@@ -5,7 +5,7 @@ on:
     pull_request:
 
 env:
-    PRIMARY_NODEJS_VERSION: 16
+    PRIMARY_NODEJS_VERSION: 20
     REPORTER: "min"
 
 jobs:
@@ -28,8 +28,7 @@ jobs:
         strategy:
             matrix:
                 node_version:
-                    - 10
-                    - 16
+                    - 20
         steps:
             - uses: actions/checkout@v2
             - name: Setup node ${{ matrix.node_version }}
@@ -68,7 +67,7 @@ jobs:
                 node-version: ${{ env.PRIMARY_NODEJS_VERSION }}
                 cache: "npm"
             - run: npm ci
-            - run: npm run build-and-test
+            - run: npm run bundle-and-test
 
     unit-tests:
         name: Unit tests
@@ -81,6 +80,8 @@ jobs:
                     - 12.20.0
                     - 14.13.0
                     - 16
+                    - 20
+                    - 22
 
         steps:
             - uses: actions/checkout@v2
@@ -90,4 +91,6 @@ jobs:
                 node-version: ${{ matrix.node_version }}
                 cache: "npm"
             - run: npm ci
+            - run: npm run transpile
             - run: npm run test
+            - run: npm run test:cjs
