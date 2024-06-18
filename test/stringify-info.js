@@ -1,7 +1,6 @@
 import assert from 'assert';
 import { inspect } from 'util';
 import { stringifyInfo } from '@discoveryjs/json-ext';
-import { wellformedStringify } from './helpers/well-formed-stringify.js';
 import {
     allUtf8LengthDiffChars,
     tests,
@@ -9,6 +8,7 @@ import {
     spaces
 } from './fixture/stringify-cases.js';
 
+const wellformedStringify = JSON.stringify;
 const strBytesLength = str => Buffer.byteLength(str, 'utf8');
 
 function createInfoTest(value, ...args) {
