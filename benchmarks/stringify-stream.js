@@ -75,11 +75,11 @@ export const tests = {
     'JSON.stringify()': data =>
         new ChunkedStringStream(JSON.stringify(data)),
 
-    [selfPackageJson.name]: data =>
-        jsonExt.stringifyStream(data),
-
     [selfPackageJson.name + '/stringifyChunked']: data =>
         Readable.from(jsonExt.stringifyChunked(data)),
+
+    [selfPackageJson.name + '/createStringifyWebStream']: data =>
+        Readable.from(jsonExt.createStringifyWebStream(data)),
 
     'bfj': data => sizeLessThan(500 * 1024 * 1024) &&
         bfj.streamify(data),

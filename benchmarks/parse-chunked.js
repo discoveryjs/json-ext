@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 import chalk from 'chalk';
-import { parseChunked } from '../src/parse-chunked.js';
+import { parseChunked, parseFromWebStream } from '../src/index.js';
 import { runBenchmark, prettySize, outputToReadme, updateReadmeTable, getSelfPackageJson, isMain } from './benchmark-utils.js';
 
 const benchmarkName = 'parse-chunked';
@@ -38,11 +38,14 @@ export const tests = {
     [selfPackageJson.name + ' fs.createReadStream()']: () =>
         parseChunked(fs.createReadStream(filename, { highWaterMark: chunkSize })),
 
+    [selfPackageJson.name + ' parseFromWebStream()']: () =>
+        parseFromWebStream(ReadableStream.from(fs.createReadStream(filename, { highWaterMark: chunkSize }))),
+
     [selfPackageJson.name + ' fs.readFileSync()']: () =>
         parseChunked(function*() {
-            let json = fs.readFileSync(filename, 'utf8');
+            let json = fs.readFileSync(filename);
             for (let i = 0; i < json.length; i += chunkSize) {
-                yield json.slice(i, i + chunkSize);
+                yield json.subarray(i, i + chunkSize);
             }
         })
 };
@@ -58,9 +61,10 @@ async function run() {
     if (!fs.existsSync(filename)) {
         // auto-generate fixture
         let [, num, unit] = filename.match(/(\d+)([a-z]+).json/);
-        const times = unit === 'mb' ? num / 100 : num * 10;
+        const times = unit === 'mb' ? Math.round(num / 100) : num * 10;
 
-        await require('./gen-fixture')(times, filename);
+        const { genFixture } = await import('./gen-fixture.js');
+        await genFixture(times, filename);
     }
 
     if (process.env.README) {

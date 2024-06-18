@@ -43,7 +43,6 @@ async function test(createStream, value, replacer, space) {
 }
 
 const streamFactories = {
-    [selfPackageJson.name]: (value, replacer, space) => jsonExt.stringifyStream(value, replacer, space),
     [selfPackageJson.name + '/strigifyChunked']: (value, replacer, space) => Readable.from(jsonExt.stringifyChunked(value, replacer, space)),
     'bfj': (value, replacer, space) => bfj.streamify(value, { space }),
     'json-stream-stringify': (value, replacer, space) => new JsonStreamStringify(value, replacer, space)
