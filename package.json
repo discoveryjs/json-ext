@@ -42,7 +42,7 @@
         "test:dist": "npm test -- dist/test",
         "bundle-and-test": "npm run bundle && npm run test:dist",
         "coverage": "c8 --reporter=lcovonly npm test",
-        "prepublishOnly": "npm run lint && npm run bundle && npm run transpile && npm test:all"
+        "prepublishOnly": "npm run lint && npm run bundle && npm run transpile && npm run test:all"
     },
     "devDependencies": {
         "c8": "^7.10.0",
@@ -53,6 +53,7 @@
         "rollup": "^2.67.3"
     },
     "files": [
+        "cjs",
         "dist",
         "src",
         "index.d.ts"
