@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 import chalk from 'chalk';
+import bfj from 'bfj';
 import { parseChunked, parseFromWebStream } from '../src/index.js';
 import { runBenchmark, prettySize, outputToReadme, updateReadmeTable, getSelfPackageJson, isMain } from './benchmark-utils.js';
 
@@ -47,7 +48,10 @@ export const tests = {
             for (let i = 0; i < json.length; i += chunkSize) {
                 yield json.subarray(i, i + chunkSize);
             }
-        })
+        }),
+
+    'bfj': () =>
+        bfj.parse(fs.createReadStream(filename))
 };
 
 if (isMain(import.meta)) {

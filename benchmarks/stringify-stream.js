@@ -4,7 +4,7 @@ import url from 'node:url';
 import { Readable } from 'node:stream';
 import chalk from 'chalk';
 import bfj from 'bfj';
-import JsonStreamStringify from 'json-stream-stringify';
+import { JsonStreamStringify } from 'json-stream-stringify';
 import * as jsonExt from '../src/index.js';
 import {
     runBenchmark,
