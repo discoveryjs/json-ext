@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
-import { Readable } from 'node:stream';
+// import { Readable } from 'node:stream';
 import chalk from 'chalk';
 import bfj from 'bfj';
 import { JsonStreamStringify } from 'json-stream-stringify';
@@ -18,7 +18,7 @@ import {
 const selfPackageJson = getSelfPackageJson();
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const benchmarkName = 'stringify-stream';
-const outputPath = name => __dirname + '/tmp/stringify-stream-' + name.replace(/[@\/]/g, '-').replace(/\s*\(.+$/, '') + '.json';
+// const outputPath = name => __dirname + '/tmp/stringify-stream-' + name.replace(/[@\/]/g, '-').replace(/\s*\(.+$/, '') + '.json';
 const fixtures = [
     'fixture/small.json',   // ~2,1MB
     'fixture/medium.json',  // ~13,7MB
@@ -52,40 +52,40 @@ function sizeLessThan(limit) {
     throw error;
 }
 
-class ChunkedStringStream extends Readable {
-    constructor(str) {
-        let offset = 0;
+// class ChunkedStringStream extends Readable {
+//     constructor(str) {
+//         let offset = 0;
 
-        super({
-            read(size) {
-                size = 512 * 1024;
-                if (offset < str.length) {
-                    this.push(str.substr(offset, size));
-                    offset += size;
-                    return;
-                }
+//         super({
+//             read(size) {
+//                 size = 512 * 1024;
+//                 if (offset < str.length) {
+//                     this.push(str.substr(offset, size));
+//                     offset += size;
+//                     return;
+//                 }
 
-                this.push(null);
-            }
-        });
-    }
-}
+//                 this.push(null);
+//             }
+//         });
+//     }
+// }
 
 export const tests = {
     'JSON.stringify()': data =>
-        new ChunkedStringStream(JSON.stringify(data)),
+        [JSON.stringify(data)],
 
-    [selfPackageJson.name + '/stringifyChunked']: data =>
-        Readable.from(jsonExt.stringifyChunked(data)),
+    [selfPackageJson.name + ' stringifyChunked()']: data =>
+        jsonExt.stringifyChunked(data),
 
-    [selfPackageJson.name + '/createStringifyWebStream']: data =>
-        Readable.from(jsonExt.createStringifyWebStream(data)),
+    [selfPackageJson.name + ' createStringifyWebStream()']: data =>
+        jsonExt.createStringifyWebStream(data),
 
-    'bfj': data => sizeLessThan(500 * 1024 * 1024) &&
-        bfj.streamify(data),
+    'json-stream-stringify': data =>
+        new JsonStreamStringify(data),
 
-    'json-stream-stringify': data => sizeLessThan(100 * 1024 * 1024) &&
-        new JsonStreamStringify(data)
+    'bfj': data => sizeLessThan(100 * 1024 * 1024) &&
+        bfj.streamify(data)
 };
 
 Object.defineProperty(tests, '__getData', {
@@ -93,13 +93,13 @@ Object.defineProperty(tests, '__getData', {
 });
 
 for (const [name, init] of Object.entries(tests)) {
-    tests[name] = (data) => new Promise((resolve, reject) => {
-        init(data)
-            .on('error', reject)
-            .pipe(fs.createWriteStream(outputPath(name)))
-            .on('close', resolve)
-            .on('error', reject);
-    });
+    tests[name] = async (data) => {
+        let len = 0;
+        for await (const chunk of init(data)) {
+            len += chunk.length;
+        }
+        console.log('Result:', len);
+    };
 }
 
 if (isMain(import.meta)) {
@@ -133,7 +133,7 @@ async function run() {
 
     const results = [];
     for (const name of Object.keys(tests)) {
-        results.push(await runBenchmark(name));
+        results.push(await runBenchmark(name) || { name, error: true, code: 'CRASH' });
     }
 
     if (process.env.README) {

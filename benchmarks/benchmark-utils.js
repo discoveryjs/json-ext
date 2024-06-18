@@ -324,7 +324,7 @@ export function updateReadmeTable(benchmarkName, fixtureIndex, fixtures, results
             content => {
                 const lines = content.trim().split(/\n/);
                 const current = Object.create(null);
-                const newValues = Object.fromEntries(results.map(item =>
+                const newValues = Object.fromEntries(results.filter(Boolean).map(item =>
                     [item.name, item.error
                         ? item.code || 'ERROR'
                         : type === 'memory'

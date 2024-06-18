@@ -18,6 +18,7 @@ const selfPackageJson = getSelfPackageJson();
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const fixtureIndex = process.argv[2] || 0;
 const filename = fixtureIndex in fixtures ? path.join(__dirname, fixtures[fixtureIndex]) : false;
+const filesize = fs.statSync(filename).size;
 
 if (!filename) {
     console.error('Fixture is not selected!');
@@ -36,13 +37,10 @@ export const tests = {
     'JSON.parse()': () =>
         JSON.parse(fs.readFileSync(filename, 'utf8')),
 
-    [selfPackageJson.name + ' fs.createReadStream()']: () =>
+    [selfPackageJson.name + ' parseChunked(fs.createReadStream())']: () =>
         parseChunked(fs.createReadStream(filename, { highWaterMark: chunkSize })),
 
-    [selfPackageJson.name + ' parseFromWebStream()']: () =>
-        parseFromWebStream(ReadableStream.from(fs.createReadStream(filename, { highWaterMark: chunkSize }))),
-
-    [selfPackageJson.name + ' fs.readFileSync()']: () =>
+    [selfPackageJson.name + ' parseChunked(fs.readFileSync())']: () =>
         parseChunked(function*() {
             let json = fs.readFileSync(filename);
             for (let i = 0; i < json.length; i += chunkSize) {
@@ -50,12 +48,25 @@ export const tests = {
             }
         }),
 
-    'bfj': () =>
+    [selfPackageJson.name + ' parseFromWebStream()']: () =>
+        parseFromWebStream(ReadableStream.from(fs.createReadStream(filename, { highWaterMark: chunkSize }))),
+
+    'bfj': () => sizeLessThan(500 * 1024 * 1024) &&
         bfj.parse(fs.createReadStream(filename))
 };
 
 if (isMain(import.meta)) {
     run();
+}
+
+function sizeLessThan(limit) {
+    if (filesize < limit) {
+        return true;
+    }
+
+    const error = new Error('Run takes too long time');
+    error.code = 'ERR_RUN_TOO_LONG';
+    throw error;
 }
 
 //
@@ -87,7 +98,7 @@ async function run() {
 
     const results = [];
     for (const name of Object.keys(tests)) {
-        results.push(await runBenchmark(name));
+        results.push(await runBenchmark(name) || { name, error: true, code: 'CRASH' });
     }
 
     if (process.env.README) {
