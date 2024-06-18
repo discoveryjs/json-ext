@@ -9,7 +9,8 @@ const external = [
     'node:path',
     'node:assert',
     'node:stream',
-    'node:util'
+    'node:util',
+    '@discoveryjs/json-ext'
 ];
 
 function resolvePath(ts = false, ext) {

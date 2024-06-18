@@ -1,14 +1,26 @@
 import {
     normalizeReplacer,
     normalizeSpace,
-    replaceValue,
-    isLeadingSurrogate,
-    isTrailingSurrogate,
-    escapableCharCodeSubstitution
+    replaceValue
 } from './utils.js';
 
+const hasOwn = typeof Object.hasOwn === 'function'
+    ? Object.hasOwn
+    : (object, key) => Object.hasOwnProperty.call(object, key);
+
+// https://tc39.es/ecma262/#table-json-single-character-escapes
+const escapableCharCodeSubstitution = { // JSON Single Character Escape Sequences
+    0x08: '\\b',
+    0x09: '\\t',
+    0x0a: '\\n',
+    0x0c: '\\f',
+    0x0d: '\\r',
+    0x22: '\\\"',
+    0x5c: '\\\\'
+};
+
 const charLength2048 = Array.from({ length: 2048 }).map((_, code) => {
-    if (escapableCharCodeSubstitution.hasOwnProperty(code)) {
+    if (hasOwn(escapableCharCodeSubstitution, code)) {
         return 2; // \X
     }
 
@@ -18,6 +30,14 @@ const charLength2048 = Array.from({ length: 2048 }).map((_, code) => {
 
     return code < 128 ? 1 : 2; // UTF8 bytes
 });
+
+function isLeadingSurrogate(code) {
+    return code >= 0xD800 && code <= 0xDBFF;
+}
+
+function isTrailingSurrogate(code) {
+    return code >= 0xDC00 && code <= 0xDFFF;
+}
 
 function stringLength(str) {
     let len = 0;
@@ -141,7 +161,7 @@ export function stringifyInfo(value, replacer, space, options) {
                 stack.add(value);
 
                 for (const key in value) {
-                    if (hasOwnProperty.call(value, key) && (allowlist === null || allowlist.has(key))) {
+                    if (hasOwn(value, key) && (allowlist === null || allowlist.has(key))) {
                         const prevLength = length;
                         walk(value, key, value[key]);
 

@@ -1,8 +1,12 @@
 ## next
 
-- Fixed conformance with `JSON.stringify()` when replacer a list of keys and a key refer to an entry in a prototype chain
-- Implemented `stringifyChunked()` as a generator function
-- Removed the `async` option from the `stringifyInfo()` function, and the function result no longer contains the `async` field
+- Added `stringifyChunked()` as a generator function
+- Added `createStringifyWebStream()` function
+- Added `parseFromWebStream()` function
+- Changed `parseChunked()` to accept an iterable or async iterable that iterates over string, Buffer, or TypedArray elements
+- Removed `stringifyStream()`, use `Readable.from(stringifyChunked())` instead
+- Fixed conformance `stringifyChunked()` and `stringifyInfo()` with `JSON.stringify()` when replacer a list of keys and a key refer to an entry in a prototype chain
+- Removed the `async` option for the `stringifyInfo()` function, and the function result no longer contains the `async` field
 - Discontinued exposing the `version` attribute
 
 ## 0.5.7 (2022-03-09)

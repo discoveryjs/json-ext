@@ -18,13 +18,18 @@
         "node": ">=14.17.0"
     },
     "type": "module",
-    "main": "./src/index.js",
-    "browser": {
-        "./src/stringify-info.js": "./src/stringify-info.js",
-        "./src/parse-chunked.js": "./src/parse-chunked.js",
-        "./src/stringify-stream.js": "./src/stringify-stream-browser.js"
-    },
+    "main": "./cjs/index.cjs",
+    "module": "./src/index.js",
     "types": "./index.d.ts",
+    "exports": {
+        ".": {
+            "require": "./cjs/index.cjs",
+            "import": "./src/index.js",
+            "types": "./index.d.ts"
+        },
+        "./dist/*": "./dist/*.js",
+        "./package.json": "./package.json"
+    },
     "scripts": {
         "test": "mocha --reporter progress",
         "lint": "eslint src test",
@@ -42,9 +47,8 @@
     "devDependencies": {
         "c8": "^7.10.0",
         "chalk": "^4.1.0",
-        "cross-env": "^7.0.3",
         "esbuild": "^0.21.5",
-        "eslint": "^8.10.0",
+        "eslint": "^8.57.0",
         "mocha": "^9.2.2",
         "rollup": "^2.67.3"
     },

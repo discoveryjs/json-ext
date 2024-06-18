@@ -1,5 +1,3 @@
-import { isReadableStream } from './utils.js';
-
 const STACK_OBJECT = 1;
 const STACK_ARRAY = 2;
 const decoder = new TextDecoder();
@@ -29,59 +27,34 @@ function append(array, elements) {
     }
 }
 
-export function parseChunked(chunkEmitter) {
-    let parser = new ChunkParser();
+export async function parseChunked(chunkEmitter) {
+    const iterator = typeof chunkEmitter === 'function'
+        ? chunkEmitter()
+        : chunkEmitter;
 
-    if (isObject(chunkEmitter) && isReadableStream(chunkEmitter)) {
-        return new Promise((resolve, reject) => {
-            chunkEmitter
-                .on('data', chunk => {
-                    try {
-                        parser.push(chunk);
-                    } catch (e) {
-                        reject(adjustPosition(e, parser));
-                        parser = null;
-                    }
-                })
-                .on('error', (e) => {
-                    parser = null;
-                    reject(e);
-                })
-                .on('end', () => {
-                    try {
-                        resolve(parser.finish());
-                    } catch (e) {
-                        reject(adjustPosition(e, parser));
-                    } finally {
-                        parser = null;
-                    }
-                });
-        });
-    }
+    if (isObject(iterator) && (Symbol.iterator in iterator || Symbol.asyncIterator in iterator)) {
+        let parser = new ChunkParser();
 
-    if (typeof chunkEmitter === 'function') {
-        const iterator = chunkEmitter();
-
-        if (isObject(iterator) && (Symbol.iterator in iterator || Symbol.asyncIterator in iterator)) {
-            return new Promise(async (resolve, reject) => {
-                try {
-                    for await (const chunk of iterator) {
-                        parser.push(chunk);
-                    }
-
-                    resolve(parser.finish());
-                } catch (e) {
-                    reject(adjustPosition(e, parser));
-                } finally {
-                    parser = null;
+        try {
+            for await (const chunk of iterator) {
+                if (typeof chunk !== 'string' && !ArrayBuffer.isView(chunk)) {
+                    throw new TypeError('Invalid chunk: Expected string, TypedArray or Buffer');
                 }
-            });
+
+                parser.push(chunk);
+            }
+
+            return parser.finish();
+        } catch (e) {
+            throw adjustPosition(e, parser);
+        } finally {
+            parser = null;
         }
     }
 
-    throw new Error(
-        'Chunk emitter should be readable stream, generator, ' +
-        'async generator or function returning an iterable object'
+    throw new TypeError(
+        'Invalid chunk emitter: Expected an Iterable, AsyncIterable, generator, ' +
+        'async generator, or a function returning an Iterable or AsyncIterable'
     );
 };
 

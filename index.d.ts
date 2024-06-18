@@ -1,31 +1,42 @@
 declare module '@discoveryjs/json-ext' {
-    import { Readable } from 'stream';
-
-    type TReplacer =
+    type Chunk = string | Buffer | Uint8Array;
+    type Replacer =
         | ((this: any, key: string, value: any) => any)
         | string[]
         | number[]
         | null;
-    type TSpace = string | number | null;
-    type TChunk = string | Buffer | Uint8Array;
-
-    export function parseChunked(input: Readable): Promise<any>;
-    export function parseChunked(input: () => (Iterable<TChunk> | AsyncIterable<TChunk>)): Promise<any>;
-
-    export function stringifyStream(value: any, replacer?: TReplacer, space?: TSpace): Readable;
-
-    export function stringifyInfo(
-        value: any,
-        replacer?: TReplacer,
-        space?: TSpace,
-        options?: {
-            async?: boolean;
-            continueOnCircular?: boolean;
-        }
-    ): {
+    type Space = string | number | null;
+    type StringifyOptions = {
+        replacer?: Replacer;
+        space?: Space;
+        highWaterMark?: number;
+    };
+    type StringifyInfoOptions = {
+        replacer?: Replacer;
+        space?: Space;
+        continueOnCircular?: boolean;
+    }
+    type StringifyInfoResult = {
         minLength: number;
         circular: any[];
         duplicate: any[];
-        async: any[];
     };
+
+    export function parseChunked(input: Iterable<Chunk> | AsyncIterable<Chunk>): Promise<any>;
+    export function parseChunked(input: () => (Iterable<Chunk> | AsyncIterable<Chunk>)): Promise<any>;
+
+    export function stringifyChunked(value: any, replacer?: Replacer, space?: Space): Generator<string, void, unknown>;
+    export function stringifyChunked(value: any, options: StringifyOptions): Generator<string, void, unknown>;
+
+    export function stringifyInfo(
+        value: any,
+        replacer?: Replacer,
+        space?: Space,
+        options?: StringifyInfoOptions
+    ): StringifyInfoResult;
+
+    // Web streams
+    export function parseFromWebStream(stream: ReadableStream<Chunk>): Promise<any>;
+    export function createStringifyWebStream(value: any, replacer?: Replacer, space?: Space): ReadableStream<string>;
+    export function createStringifyWebStream(value: any, options: StringifyOptions): ReadableStream<string>;
 }

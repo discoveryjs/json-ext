@@ -1,22 +1,7 @@
 import assert from 'node:assert';
-import { inspect } from 'node:util';
 import { Readable } from 'node:stream';
-import { TextEncoder } from 'node:util';
-import { parseChunked } from '../src/parse-chunked.js';
-
-function createReadableStream(chunks) {
-    return new Readable({
-        read() {
-            const value = chunks.shift() || null;
-
-            if (value instanceof Error) {
-                return this.destroy(value);
-            }
-
-            this.push(value);
-        }
-    });
-}
+import { inspect } from 'node:util';
+import { parseChunked } from '@discoveryjs/json-ext';
 
 function parse(chunks) {
     return parseChunked(() => chunks);
@@ -30,6 +15,20 @@ function split(str, chunkLen = 1) {
     }
 
     return chunks;
+}
+
+function createReadableNodejsStream(chunks) {
+    return new Readable({
+        read() {
+            const value = chunks.shift() || null;
+
+            if (value instanceof Error) {
+                return this.destroy(value);
+            }
+
+            this.push(value);
+        }
+    });
 }
 
 describe('parseChunked()', () => {
@@ -213,27 +212,6 @@ describe('parseChunked()', () => {
         });
     });
 
-    describe('use with stream', () => {
-        it('basic usage', async () => {
-            const actual = await parseChunked(createReadableStream(['[1,', '2]']));
-            assert.deepStrictEqual(actual, [1, 2]);
-        });
-
-        it('with failure in JSON', () =>
-            assert.rejects(
-                () => parseChunked(createReadableStream(['[1 ', '2]'])),
-                /(Unexpected number|Expected ',' or ']' after array element) in JSON at position 3/
-            )
-        );
-
-        it('with failure in stream', () =>
-            assert.rejects(
-                () => parseChunked(createReadableStream([new Error('test error in stream')])),
-                /test error in stream/
-            )
-        );
-    });
-
     describe('use with generator', () => {
         it('basic usage', async () => {
             const actual = await parseChunked(function*() {
@@ -336,22 +314,46 @@ describe('parseChunked()', () => {
             null,
             123,
             '[1, 2]',
-            ['[1, 2]'],
+            ['[1, 2,', 3, ']'],
+            new Uint8Array([1, 2, 3]),
             () => {},
             () => ({}),
             () => '[1, 2]',
+            () => ['[1, 2,', 3, ']'],
             () => 123,
+            () => new Uint8Array([1, 2, 3]),
             { on() {} }
         ];
 
         for (const value of badValues) {
             it(inspect(value), () =>
-                assert.throws(
+                assert.rejects(
                     () => parseChunked(value),
-                    /Chunk emitter should be readable stream, generator, async generator or function returning an iterable object/
+                    /Invalid chunk emitter: Expected an Iterable, AsyncIterable, generator, async generator, or a function returning an Iterable or AsyncIterable|Invalid chunk: Expected string, TypedArray or Buffer/
                 )
             );
         }
+    });
+
+    describe('use with nodejs stream', () => {
+        it('basic usage', async () => {
+            const actual = await parseChunked(createReadableNodejsStream(['[1,', '2]']));
+            assert.deepStrictEqual(actual, [1, 2]);
+        });
+
+        it('with failure in JSON', () =>
+            assert.rejects(
+                () => parseChunked(createReadableNodejsStream(['[1 ', '2]'])),
+                /(Unexpected number|Expected ',' or ']' after array element) in JSON at position 3/
+            )
+        );
+
+        it('with failure in stream', () =>
+            assert.rejects(
+                () => parseChunked(createReadableNodejsStream([new Error('test error in stream')])),
+                /test error in stream/
+            )
+        );
     });
 
     describe('should not fail on very long arrays (stack overflow)', () => {
