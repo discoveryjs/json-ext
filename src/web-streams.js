@@ -1,22 +1,23 @@
 /* eslint-env browser */
 import { parseChunked } from './parse-chunked.js';
 import { stringifyChunked } from './stringify-chunked.js';
+import { isIterable } from './utils.js';
 
 export function parseFromWebStream(stream) {
     // 2024/6/17: currently, an @@asyncIterator on a ReadableStream is not widely supported,
     // therefore use a fallback using a reader
     // https://caniuse.com/mdn-api_readablestream_--asynciterator
-    return parseChunked(stream && Symbol.asyncIterator in stream ? stream : async function*() {
+    return parseChunked(isIterable(stream) ? stream : async function*() {
         const reader = stream.getReader();
 
         while (true) {
-            const { done, chunk } = await reader.read();
+            const { value, done } = await reader.read();
 
             if (done) {
                 break;
             }
 
-            yield chunk;
+            yield value;
         }
     });
 }

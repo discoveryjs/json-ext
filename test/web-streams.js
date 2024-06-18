@@ -41,6 +41,15 @@ describeIfSupported('parseFromWebStream()', () => {
 
         assert.deepStrictEqual(actual, { foo: 123 });
     });
+
+    it('should parse ReadableStream with no @@asyncIterator', async () => {
+        const nonIterableReadableStream = Object.assign(createReadableStream(['{"foo', '":123', '}']), {
+            [Symbol.asyncIterator]: null
+        });
+        const actual = await parseFromWebStream(nonIterableReadableStream);
+
+        assert.deepStrictEqual(actual, { foo: 123 });
+    });
 });
 
 describeIfSupported('createStringifyWebStream()', () => {

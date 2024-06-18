@@ -1,10 +1,8 @@
+import { isIterable } from './utils.js';
+
 const STACK_OBJECT = 1;
 const STACK_ARRAY = 2;
 const decoder = new TextDecoder();
-
-function isObject(value) {
-    return value !== null && typeof value === 'object';
-}
 
 function adjustPosition(error, parser) {
     if (error.name === 'SyntaxError' && parser.jsonParseOffset) {
@@ -28,15 +26,15 @@ function append(array, elements) {
 }
 
 export async function parseChunked(chunkEmitter) {
-    const iterator = typeof chunkEmitter === 'function'
+    const iterable = typeof chunkEmitter === 'function'
         ? chunkEmitter()
         : chunkEmitter;
 
-    if (isObject(iterator) && (Symbol.iterator in iterator || Symbol.asyncIterator in iterator)) {
+    if (isIterable(iterable)) {
         let parser = new ChunkParser();
 
         try {
-            for await (const chunk of iterator) {
+            for await (const chunk of iterable) {
                 if (typeof chunk !== 'string' && !ArrayBuffer.isView(chunk)) {
                     throw new TypeError('Invalid chunk: Expected string, TypedArray or Buffer');
                 }
@@ -47,8 +45,6 @@ export async function parseChunked(chunkEmitter) {
             return parser.finish();
         } catch (e) {
             throw adjustPosition(e, parser);
-        } finally {
-            parser = null;
         }
     }
 

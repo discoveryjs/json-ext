@@ -1,4 +1,15 @@
-function replaceValue(holder, key, value, replacer) {
+export function isIterable(value) {
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        (
+            typeof value[Symbol.iterator] === 'function' ||
+            typeof value[Symbol.asyncIterator] === 'function'
+        )
+    );
+}
+
+export function replaceValue(holder, key, value, replacer) {
     if (value && typeof value.toJSON === 'function') {
         value = value.toJSON();
     }
@@ -26,7 +37,7 @@ function replaceValue(holder, key, value, replacer) {
     return value;
 }
 
-function normalizeReplacer(replacer) {
+export function normalizeReplacer(replacer) {
     if (typeof replacer === 'function') {
         return replacer;
     }
@@ -46,7 +57,7 @@ function normalizeReplacer(replacer) {
     return null;
 }
 
-function normalizeSpace(space) {
+export function normalizeSpace(space) {
     if (typeof space === 'number') {
         if (!Number.isFinite(space) || space < 1) {
             return false;
@@ -61,9 +72,3 @@ function normalizeSpace(space) {
 
     return false;
 }
-
-export {
-    replaceValue,
-    normalizeReplacer,
-    normalizeSpace
-};

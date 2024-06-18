@@ -322,7 +322,9 @@ describe('parseChunked()', () => {
             () => ['[1, 2,', 3, ']'],
             () => 123,
             () => new Uint8Array([1, 2, 3]),
-            { on() {} }
+            { on() {} },
+            { [Symbol.iterator]: null },
+            { [Symbol.asyncIterator]: null }
         ];
 
         for (const value of badValues) {
