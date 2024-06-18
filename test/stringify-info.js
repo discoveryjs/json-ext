@@ -73,7 +73,7 @@ describe('stringifyInfo()', () => {
             circularRef.b = 1234567890;
             circularRef.c = circularRef2;
             circularRef2.push(circularRef, circularRef2);
-            const info = stringifyInfo(circularRef, null, null, { continueOnCircular: true });
+            const info = stringifyInfo(circularRef, { continueOnCircular: true });
 
             assert.deepStrictEqual(info.circular, [circularRef, circularRef2]);
         });

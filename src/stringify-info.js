@@ -91,7 +91,41 @@ function spaceLength(space) {
     return typeof space === 'string' ? space.length : 0;
 }
 
-export function stringifyInfo(value, replacer, space, options) {
+export function stringifyInfo(value, optionsOrReplacer, space) {
+    if (optionsOrReplacer === null || Array.isArray(optionsOrReplacer) || typeof optionsOrReplacer !== 'object') {
+        optionsOrReplacer = {
+            replacer: optionsOrReplacer,
+            space
+        };
+    }
+
+    let allowlist = null;
+    let replacer = normalizeReplacer(optionsOrReplacer.replacer);
+    const continueOnCircular = Boolean(optionsOrReplacer.continueOnCircular);
+
+    if (Array.isArray(replacer)) {
+        allowlist = new Set(replacer);
+        replacer = null;
+    }
+
+    space = spaceLength(space);
+
+    const visited = new WeakMap();
+    const stack = new Set();
+    const duplicate = new Set();
+    const circular = new Set();
+    const root = { '': value };
+    let stop = false;
+    let length = 0;
+
+    walk(root, '', value);
+
+    return {
+        minLength: isNaN(length) ? Infinity : length,
+        circular: [...circular],
+        duplicate: [...duplicate]
+    };
+
     function walk(holder, key, value) {
         if (stop) {
             return;
@@ -112,7 +146,7 @@ export function stringifyInfo(value, replacer, space, options) {
                 circular.add(value);
                 length += 4; // treat as null
 
-                if (!options.continueOnCircular) {
+                if (!continueOnCircular) {
                     stop = true;
                 }
 
@@ -188,31 +222,4 @@ export function stringifyInfo(value, replacer, space, options) {
             }
         }
     }
-
-    let allowlist = null;
-    replacer = normalizeReplacer(replacer);
-
-    if (Array.isArray(replacer)) {
-        allowlist = new Set(replacer);
-        replacer = null;
-    }
-
-    space = spaceLength(space);
-    options = options || {};
-
-    const visited = new WeakMap();
-    const stack = new Set();
-    const duplicate = new Set();
-    const circular = new Set();
-    const root = { '': value };
-    let stop = false;
-    let length = 0;
-
-    walk(root, '', value);
-
-    return {
-        minLength: isNaN(length) ? Infinity : length,
-        circular: [...circular],
-        duplicate: [...duplicate]
-    };
 };

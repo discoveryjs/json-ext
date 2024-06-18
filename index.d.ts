@@ -2,8 +2,7 @@ declare module '@discoveryjs/json-ext' {
     type Chunk = string | Buffer | Uint8Array;
     type Replacer =
         | ((this: any, key: string, value: any) => any)
-        | string[]
-        | number[]
+        | (string | number)[]
         | null;
     type Space = string | number | null;
     type StringifyOptions = {
@@ -28,12 +27,8 @@ declare module '@discoveryjs/json-ext' {
     export function stringifyChunked(value: any, replacer?: Replacer, space?: Space): Generator<string, void, unknown>;
     export function stringifyChunked(value: any, options: StringifyOptions): Generator<string, void, unknown>;
 
-    export function stringifyInfo(
-        value: any,
-        replacer?: Replacer,
-        space?: Space,
-        options?: StringifyInfoOptions
-    ): StringifyInfoResult;
+    export function stringifyInfo(value: any, replacer?: Replacer, space?: Space): StringifyInfoResult;
+    export function stringifyInfo(value: any, options?: StringifyInfoOptions): StringifyInfoResult;
 
     // Web streams
     export function parseFromWebStream(stream: ReadableStream<Chunk>): Promise<any>;
