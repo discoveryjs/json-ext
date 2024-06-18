@@ -95,4 +95,15 @@ describeIfSupported('createStringifyWebStream()', () => {
             '\n}'
         ]);
     });
+
+    it('should support cancel', async () => {
+        const stream = createStringifyWebStream({ foo: 123, bar: 456 }, {
+            highWaterMark: 1
+        });
+        const reader = stream.getReader();
+
+        assert.deepStrictEqual(await reader.read(), { value: '{', done: false });
+        await reader.cancel();
+        assert.deepStrictEqual(await reader.read(), { value: undefined, done: true });
+    });
 });
