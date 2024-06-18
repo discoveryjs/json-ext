@@ -1,5 +1,5 @@
-import assert from 'node:assert';
-import { inspect } from 'node:util';
+import assert from 'assert';
+import { inspect } from 'util';
 import { stringifyChunked } from '@discoveryjs/json-ext';
 import { wellformedStringify } from './helpers/well-formed-stringify.js';
 import { date, allUtf8LengthDiffChars, tests, spaceTests, spaces, replacerTests } from './fixture/stringify-cases.js';

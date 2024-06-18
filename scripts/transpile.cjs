@@ -1,15 +1,15 @@
-const fs = require('node:fs');
-const path = require('node:path');
+const fs = require('fs');
+const path = require('path');
 const { rollup, watch } = require('rollup');
 const chalk = require('chalk');
 
 const external = [
-    'node:fs',
-    'node:url',
-    'node:path',
-    'node:assert',
-    'node:stream',
-    'node:util',
+    'fs',
+    'url',
+    'path',
+    'assert',
+    'stream',
+    'util',
     '@discoveryjs/json-ext'
 ];
 

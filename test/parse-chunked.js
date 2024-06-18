@@ -1,6 +1,6 @@
-import assert from 'node:assert';
-import { Readable } from 'node:stream';
-import { inspect } from 'node:util';
+import assert from 'assert';
+import { Readable } from 'stream';
+import { inspect } from 'util';
 import { parseChunked } from '@discoveryjs/json-ext';
 
 function parse(chunks) {

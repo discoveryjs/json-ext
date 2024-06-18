@@ -1,4 +1,4 @@
-import assert from 'node:assert';
+import assert from 'assert';
 
 export const date = new Date(2020, 8, 3, 15, 21, 55);
 export const allUtf8LengthDiffChars = Array.from({ length: 0x900 }).map((_, i) => String.fromCharCode(i)).join(''); // all chars 0x00..0x8FF
