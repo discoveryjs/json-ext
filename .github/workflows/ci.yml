@@ -84,6 +84,7 @@ jobs:
               node-version: ${{ env.PRIMARY_NODEJS_VERSION }}
               cache: "npm"
           - run: npm ci
+          - run: npm run bundle
           - run: npm run test:e2e
 
     unit-tests:
