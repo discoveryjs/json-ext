@@ -14,7 +14,7 @@ describe('dist/json-ext.js', () => {
 
     it('stringifyInfo', () => {
         const expected = '{"test":"ok"}'.length;
-        const { minLength: actual } = jsonExt.stringifyInfo({ test: 'ok' });
+        const { bytes: actual } = jsonExt.stringifyInfo({ test: 'ok' });
 
         assert.strictEqual(actual, expected);
     });

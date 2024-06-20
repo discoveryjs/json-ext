@@ -1,7 +1,7 @@
 import assert from 'assert';
 import { inspect } from 'util';
-import { stringifyChunked } from '@discoveryjs/json-ext';
-import { date, allUtf8LengthDiffChars, tests, spaceTests, spaces, replacerTests } from './fixture/stringify-cases.js';
+import { stringifyChunked } from './stringify-chunked.js';
+import { date, allUtf8LengthDiffChars, tests, spaceTests, spaces, replacerTests } from './stringify-cases.js';
 
 const wellformedStringify = JSON.stringify;
 

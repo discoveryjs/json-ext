@@ -4,7 +4,7 @@ import chalk from 'chalk';
 import bfj from 'bfj';
 import { JsonStreamStringify } from 'json-stream-stringify';
 import * as jsonExt from '../src/index.js';
-import { tests, fixture, spaces, allUtf8LengthDiffChars, replacerTests } from '../test/fixture/stringify-cases.js';
+import { tests, fixture, spaces, allUtf8LengthDiffChars, replacerTests } from '../src/stringify-cases.js';
 import { getSelfPackageJson } from './benchmark-utils.js';
 
 const selfPackageJson = getSelfPackageJson();

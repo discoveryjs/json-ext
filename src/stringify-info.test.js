@@ -1,12 +1,12 @@
 import assert from 'assert';
 import { inspect } from 'util';
-import { stringifyInfo } from '@discoveryjs/json-ext';
+import { stringifyInfo } from './stringify-info.js';
 import {
     allUtf8LengthDiffChars,
     tests,
     spaceTests,
     spaces
-} from './fixture/stringify-cases.js';
+} from './stringify-cases.js';
 
 const wellformedStringify = JSON.stringify;
 const strBytesLength = str => Buffer.byteLength(str, 'utf8');

@@ -1,7 +1,7 @@
 import assert from 'assert';
 import { Readable } from 'stream';
 import { inspect } from 'util';
-import { parseChunked } from '@discoveryjs/json-ext';
+import { parseChunked } from './parse-chunked.js';
 
 function parse(chunks) {
     return parseChunked(() => chunks);

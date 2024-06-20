@@ -113,15 +113,10 @@ async function transpile({
 async function transpileAll(options) {
     const { watch = false } = options || {};
 
+    fs.rmSync('cjs', { recursive: true, force: true });
     await transpile({
-        entryPoints: ['src/index.js'],
+        entryPoints: ['src/index.js', ...readDir('src').filter(fn => fn.includes('.test.'))],
         outputDir: './cjs',
-        format: 'cjs',
-        watch
-    });
-    await transpile({
-        entryPoints: readDir('test'),
-        outputDir: './cjs-test',
         format: 'cjs',
         watch
     });

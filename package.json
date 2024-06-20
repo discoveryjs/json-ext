@@ -31,15 +31,15 @@
         "./package.json": "./package.json"
     },
     "scripts": {
-        "test": "mocha --reporter progress",
-        "lint": "eslint src test",
+        "test": "npm run test:src",
+        "lint": "eslint src",
         "lint-and-test": "npm run lint && npm test",
         "bundle": "node scripts/bundle.js",
         "transpile": "node scripts/transpile.cjs",
         "test:all": "npm run test:src && npm run test:cjs && npm run test:dist",
-        "test:src": "npm test",
-        "test:cjs": "npm test -- cjs-test",
-        "test:dist": "npm test -- dist/test",
+        "test:src": "mocha --reporter progress src/*.test.js",
+        "test:cjs": "mocha --reporter progress cjs/*.test.cjs",
+        "test:dist": "mocha --reporter progress dist/test",
         "bundle-and-test": "npm run bundle && npm run test:dist",
         "coverage": "c8 --reporter=lcovonly npm test",
         "prepublishOnly": "npm run lint && npm run bundle && npm run transpile && npm run test:all"
@@ -54,8 +54,10 @@
     },
     "files": [
         "cjs",
+        "!cjs/*{.test,-cases}.cjs",
         "dist",
         "src",
+        "!src/*{.test,-cases}.js",
         "index.d.ts"
     ]
 }

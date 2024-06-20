@@ -1,6 +1,6 @@
 /* eslint-env browser */
 import assert from 'assert';
-import { createStringifyWebStream, parseFromWebStream } from '@discoveryjs/json-ext';
+import { createStringifyWebStream, parseFromWebStream } from './web-streams.js';
 
 const describeIfSupported = typeof ReadableStream === 'function' ? describe : describe.skip;
 
