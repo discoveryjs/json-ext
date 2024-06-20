@@ -13,7 +13,10 @@
     ],
     "author": "Roman Dvornov <rdvornov@gmail.com> (https://github.com/lahmatiy)",
     "license": "MIT",
-    "repository": "discoveryjs/json-ext",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/discoveryjs/json-ext.git"
+    },
     "engines": {
         "node": ">=14.17.0"
     },
