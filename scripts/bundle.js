@@ -48,6 +48,7 @@ async function build() {
         ...commonOptions,
         // write: false,
         outfile,
+        sourcemap: 'linked',
         minify: true
     }));
 }
