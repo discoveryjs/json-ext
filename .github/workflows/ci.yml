@@ -74,19 +74,19 @@ jobs:
             - run: npm run bundle-and-test
 
     e2e-tests:
-      name: E2E tests
-      runs-on: ubuntu-latest
-      steps:
-          - uses: actions/checkout@v4
-          - name: Setup node ${{ env.PRIMARY_NODEJS_VERSION }}
-            uses: actions/setup-node@v4
-            with:
-              node-version: ${{ env.PRIMARY_NODEJS_VERSION }}
-              cache: "npm"
-          - run: npm ci
-          - run: npm run transpile
-          - run: npm run bundle
-          - run: npm run test:e2e
+        name: E2E tests
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - name: Setup node ${{ env.PRIMARY_NODEJS_VERSION }}
+              uses: actions/setup-node@v4
+              with:
+                node-version: ${{ env.PRIMARY_NODEJS_VERSION }}
+                cache: "npm"
+            - run: npm ci
+            - run: npm run transpile
+            - run: npm run bundle
+            - run: npm run test:e2e
 
     unit-tests:
         name: Unit tests
@@ -115,3 +115,26 @@ jobs:
             - run: npm run transpile
             - run: npm run test
             - run: npm run test:cjs
+
+    test-bun:
+        name: Bun test
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                bun_version:
+                    - 1.1.15
+
+        steps:
+            - uses: actions/checkout@v4
+            - name: Setup node ${{ env.PRIMARY_NODEJS_VERSION }}
+              uses: actions/setup-node@v4
+              with:
+                node-version: ${{ env.PRIMARY_NODEJS_VERSION }}
+                cache: "npm"
+            - name: Setup Bun ${{ matrix.bun_version }}
+              uses: oven-sh/setup-bun@v1
+              with:
+                bun-version: ${{ matrix.bun_version }}
+            - run: npm ci
+            - run: npm run transpile
+            - run: bun test
