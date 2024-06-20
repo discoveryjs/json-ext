@@ -1,5 +1,6 @@
 import assert from 'assert';
 import { inspect } from 'util';
+import { setImmediate } from 'timers'; // needed for Deno
 import { stringifyChunked } from './stringify-chunked.js';
 import { date, allUtf8LengthDiffChars, tests, spaceTests, spaces, replacerTests } from './stringify-cases.js';
 

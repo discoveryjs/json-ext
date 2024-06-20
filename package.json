@@ -44,6 +44,7 @@
         "test:cjs": "mocha --reporter progress cjs/*.test.cjs",
         "test:e2e": "mocha --reporter progress test-e2e",
         "test:dist": "mocha --reporter progress dist/test",
+        "test:deno": "node scripts/deno-adapt-test.js && mocha --reporter progress deno-tests/*.test.js",
         "bundle-and-test": "npm run bundle && npm run test:dist",
         "coverage": "c8 --reporter=lcovonly npm test",
         "prepublishOnly": "npm run lint && npm run bundle && npm run transpile && npm run test:all"

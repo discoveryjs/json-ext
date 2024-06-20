@@ -1,4 +1,5 @@
 import assert from 'assert';
+import { Buffer } from 'buffer'; // needed for Deno
 import { Readable } from 'stream';
 import { inspect } from 'util';
 import { parseChunked } from './parse-chunked.js';

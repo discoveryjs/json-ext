@@ -4,4 +4,4 @@
 /.nyc_output/
 /.vscode/
 /cjs/
-/cjs-test/
+/deno-tests/

@@ -95,7 +95,7 @@ jobs:
             matrix:
                 # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
                 node_version:
-                    - 14.17.0
+                    - 14.17
                     - 16
                     - 18.0
                     - 18
@@ -138,3 +138,25 @@ jobs:
             - run: npm ci
             - run: npm run transpile
             - run: bun test
+
+    test-deno:
+        name: Deno test
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                deno_version:
+                    - 1.44
+
+        steps:
+            - uses: actions/checkout@v4
+            - name: Setup node ${{ env.PRIMARY_NODEJS_VERSION }}
+              uses: actions/setup-node@v4
+              with:
+                node-version: ${{ env.PRIMARY_NODEJS_VERSION }}
+                cache: "npm"
+            - name: Setup Deno ${{ matrix.deno_version }}
+              uses: denoland/setup-deno@v1
+              with:
+                deno-version: ${{ matrix.deno_version }}
+            - run: npm ci
+            - run: deno task test:deno

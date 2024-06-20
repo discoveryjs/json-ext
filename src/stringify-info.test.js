@@ -1,4 +1,5 @@
 import assert from 'assert';
+import { Buffer } from 'buffer'; // needed for Deno
 import { inspect } from 'util';
 import { stringifyInfo } from './stringify-info.js';
 import {
