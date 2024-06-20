@@ -21,9 +21,8 @@ function createInfoTest(value, ...args) {
         const info = stringifyInfo(value, ...args);
 
         assert.deepStrictEqual(info, {
-            minLength: strBytesLength(native),
-            circular: [],
-            duplicate: []
+            bytes: strBytesLength(native),
+            circular: []
         });
     });
 }
@@ -79,18 +78,8 @@ describe('stringifyInfo()', () => {
         });
     });
 
-    describe('visited', () => {
-        it('should track duplicates', () => {
-            const object = {};
-            const array = [];
-            const info = stringifyInfo([object, array, array, object]);
-
-            assert.deepStrictEqual(info.duplicate, [array, object]);
-        });
-    });
-
     it('should no throw on unsupported types', () =>
-        assert.strictEqual(stringifyInfo([1n, 123]).minLength, '[,123]'.length)
+        assert.strictEqual(stringifyInfo([1n, 123]).bytes, '[,123]'.length)
     );
 
     describe('undefined return', () => {
@@ -102,7 +91,7 @@ describe('stringifyInfo()', () => {
 
         for (const value of values) {
             it(String(value), () =>
-                assert.strictEqual(stringifyInfo(value).minLength, 9)
+                assert.strictEqual(stringifyInfo(value).bytes, 9)
             );
         }
     });
@@ -122,6 +111,6 @@ describe('stringifyInfo()', () => {
             });
         }
 
-        assert.strictEqual(stringifyInfo(value).minLength, Infinity);
+        assert.strictEqual(stringifyInfo(value).bytes, Infinity);
     });
 });

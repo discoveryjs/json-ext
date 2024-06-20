@@ -1,5 +1,5 @@
 declare module '@discoveryjs/json-ext' {
-    type Chunk = string | Buffer | Uint8Array;
+    type Chunk = string | Uint8Array | Buffer;
     type Replacer =
         | ((this: any, key: string, value: any) => any)
         | (string | number)[]
@@ -16,16 +16,15 @@ declare module '@discoveryjs/json-ext' {
         continueOnCircular?: boolean;
     }
     type StringifyInfoResult = {
-        minLength: number;
-        circular: any[];
-        duplicate: any[];
+        bytes: number;
+        circular: Object[];
     };
 
     export function parseChunked(input: Iterable<Chunk> | AsyncIterable<Chunk>): Promise<any>;
     export function parseChunked(input: () => (Iterable<Chunk> | AsyncIterable<Chunk>)): Promise<any>;
 
-    export function stringifyChunked(value: any, replacer?: Replacer, space?: Space): Generator<string, void, unknown>;
-    export function stringifyChunked(value: any, options: StringifyOptions): Generator<string, void, unknown>;
+    export function stringifyChunked(value: any, replacer?: Replacer, space?: Space): Generator<string>;
+    export function stringifyChunked(value: any, options: StringifyOptions): Generator<string>;
 
     export function stringifyInfo(value: any, replacer?: Replacer, space?: Space): StringifyInfoResult;
     export function stringifyInfo(value: any, options?: StringifyInfoOptions): StringifyInfoResult;

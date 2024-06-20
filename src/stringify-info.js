@@ -112,18 +112,16 @@ export function stringifyInfo(value, optionsOrReplacer, space) {
 
     const visited = new WeakMap();
     const stack = new Set();
-    const duplicate = new Set();
     const circular = new Set();
     const root = { '': value };
     let stop = false;
-    let length = 0;
+    let bytes = 0;
 
     walk(root, '', value);
 
     return {
-        minLength: isNaN(length) ? Infinity : length,
-        circular: [...circular],
-        duplicate: [...duplicate]
+        bytes: isNaN(bytes) ? Infinity : bytes,
+        circular: [...circular]
     };
 
     function walk(holder, key, value) {
@@ -136,15 +134,15 @@ export function stringifyInfo(value, optionsOrReplacer, space) {
         if (value === null || typeof value !== 'object') {
             // primitive
             if (value !== undefined || Array.isArray(holder)) {
-                length += primitiveLength(value);
+                bytes += primitiveLength(value);
             } else if (holder === root) {
-                length += 9; // FIXME: that's the length of undefined, should we normalize behaviour to convert it to null?
+                bytes += 9; // FIXME: that's the length of undefined, should we normalize behaviour to convert it to null?
             }
         } else {
             // check for circular structure
             if (stack.has(value)) {
                 circular.add(value);
-                length += 4; // treat as null
+                bytes += 4; // treat as null
 
                 if (!continueOnCircular) {
                     stop = true;
@@ -155,17 +153,16 @@ export function stringifyInfo(value, optionsOrReplacer, space) {
 
             // duplicates
             if (visited.has(value)) {
-                duplicate.add(value);
-                length += visited.get(value);
+                bytes += visited.get(value);
 
                 return;
             }
 
             if (Array.isArray(value)) {
                 // array
-                const valueLength = length;
+                const valueLength = bytes;
 
-                length += 2; // []
+                bytes += 2; // []
 
                 stack.add(value);
 
@@ -174,51 +171,51 @@ export function stringifyInfo(value, optionsOrReplacer, space) {
                 }
 
                 if (value.length > 1) {
-                    length += value.length - 1; // commas
+                    bytes += value.length - 1; // commas
                 }
 
                 stack.delete(value);
 
                 if (space > 0 && value.length > 0) {
-                    length += (1 + (stack.size + 1) * space) * value.length; // for each element: \n{space}
-                    length += 1 + stack.size * space; // for ]
+                    bytes += (1 + (stack.size + 1) * space) * value.length; // for each element: \n{space}
+                    bytes += 1 + stack.size * space; // for ]
                 }
 
-                visited.set(value, length - valueLength);
+                visited.set(value, bytes - valueLength);
             } else {
                 // object
-                const valueLength = length;
+                const valueLength = bytes;
                 let entries = 0;
 
-                length += 2; // {}
+                bytes += 2; // {}
 
                 stack.add(value);
 
                 for (const key in value) {
                     if (hasOwn(value, key) && (allowlist === null || allowlist.has(key))) {
-                        const prevLength = length;
+                        const prevLength = bytes;
                         walk(value, key, value[key]);
 
-                        if (prevLength !== length) {
+                        if (prevLength !== bytes) {
                             // value is printed
-                            length += stringLength(key) + 1; // "key":
+                            bytes += stringLength(key) + 1; // "key":
                             entries++;
                         }
                     }
                 }
 
                 if (entries > 1) {
-                    length += entries - 1; // commas
+                    bytes += entries - 1; // commas
                 }
 
                 stack.delete(value);
 
                 if (space > 0 && entries > 0) {
-                    length += (1 + (stack.size + 1) * space + 1) * entries; // for each key-value: \n{space}
-                    length += 1 + stack.size * space; // for }
+                    bytes += (1 + (stack.size + 1) * space + 1) * entries; // for each key-value: \n{space}
+                    bytes += 1 + stack.size * space; // for }
                 }
 
-                visited.set(value, length - valueLength);
+                visited.set(value, bytes - valueLength);
             }
         }
     }

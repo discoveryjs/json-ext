@@ -5,9 +5,17 @@
 - Added `parseFromWebStream()` function
 - Changed `parseChunked()` to accept an iterable or async iterable that iterates over string, Buffer, or TypedArray elements
 - Removed `stringifyStream()`, use `Readable.from(stringifyChunked())` instead
-- Fixed conformance `stringifyChunked()` and `stringifyInfo()` with `JSON.stringify()` when replacer a list of keys and a key refer to an entry in a prototype chain
-- Removed the `async` option for the `stringifyInfo()` function, and the function result no longer contains the `async` field
+- Fixed conformance `stringifyChunked()` with `JSON.stringify()` when replacer a list of keys and a key refer to an entry in a prototype chain
+- `stringifyInfo()`:
+    - Aligned API with `stringifyChunked` by accepting `options` as the second parameter. Now supports:
+        - `stringifyInfo(value, replacer?, space?)`
+        - `stringifyInfo(value, options?)`
+    - Renamed `minLength` field into `bytes` in functions result
+    - Removed the `async` option
+    - The function result no longer contains the `async` and `duplicate` fields
+    - Fixed conformance with `JSON.stringify()` when replacer a list of keys and a key refer to an entry in a prototype chain
 - Discontinued exposing the `version` attribute
+- Converted to Dual Package, i.e. ESM and CommonJS support
 
 ## 0.5.7 (2022-03-09)
 
