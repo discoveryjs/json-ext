@@ -1,6 +1,6 @@
 /* global jsonExt */
-import fs from 'node:fs';
-import assert from 'node:assert';
+const fs = require('node:fs');
+const assert = require('node:assert');
 
 describe('dist/json-ext.js', () => {
     before(() => new Function(fs.readFileSync('dist/json-ext.js'))());
