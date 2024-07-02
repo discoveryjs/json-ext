@@ -2,19 +2,31 @@
 
 [![NPM version](https://img.shields.io/npm/v/@discoveryjs/json-ext.svg)](https://www.npmjs.com/package/@discoveryjs/json-ext)
 [![Build Status](https://github.com/discoveryjs/json-ext/actions/workflows/ci.yml/badge.svg)](https://github.com/discoveryjs/json-ext/actions/workflows/ci.yml)
-[![Coverage Status](https://coveralls.io/repos/github/discoveryjs/json-ext/badge.svg?branch=master)](https://coveralls.io/github/discoveryjs/json-ext?)
+[![Coverage Status](https://coveralls.io/repos/github/discoveryjs/json-ext/badge.svg?branch=master)](https://coveralls.io/github/discoveryjs/json-ext)
 [![NPM Downloads](https://img.shields.io/npm/dm/@discoveryjs/json-ext.svg)](https://www.npmjs.com/package/@discoveryjs/json-ext)
 
-A set of utilities that extend the use of JSON. Designed to be fast and memory efficient
+A set of utilities that extend the use of JSON:
+
+- [parseChunked()](#parsechunked) – functions like [`JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse) but iterates over chunks, reconstructing the result object.
+- [stringifyChunked()](#stringifychunked) – functions like [`JSON.stringify()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify), but returns a generator yielding strings instead of a single string.
+- [stringifyInfo()](#stringifyinfo) – returns an object with the expected overall size of the stringify operation and any circular references.
+- [parseFromWebStream()](#parsefromwebstream) – a helper function to consume chunks from a Web Stream.
+- [createStringifyWebStream()](#createstringifywebstream) – a helper to create a Web Stream.
 
 Features:
 
-- [x] `parseChunked()` – Parse JSON that comes by chunks (e.g. FS readable stream or fetch response stream)
-- [x] `stringifyStream()` – Stringify stream (Node.js)
-- [x] `stringifyInfo()` – Get estimated size and other facts of JSON.stringify() without converting a value to string
-- [ ] **TBD** Support for circular references
-- [ ] **TBD** Binary representation [branch](https://github.com/discoveryjs/json-ext/tree/binary)
-- [ ] **TBD** WHATWG [Streams](https://streams.spec.whatwg.org/) support
+- Fast and memory-efficient
+- Compatible with browsers, Node.js, Deno, Bun
+- Supports Node.js and Web streams
+- Dual package: ESM and CommonJS
+- No dependencies
+- Size: 9.4Kb (minified), 3.6Kb (min+gzip)
+
+## Why?
+
+- Prevents main thread freezing during large JSON parsing by distributing the process over time.
+- Handles large JSON processing (e.g., V8 has a limitation for strings ~500MB, making JSON larger than 500MB unmanageable).
+- Reduces memory pressure. `JSON.parse()` and `JSON.stringify()` require the entire JSON content before processing. `parseChunked()` and `stringifyChunked()` allow processing and sending data incrementally, avoiding large memory consumption at a single time point and reducing GC pressure.
 
 ## Install
 
@@ -24,232 +36,198 @@ npm install @discoveryjs/json-ext
 
 ## API
 
-- [parseChunked(chunkEmitter)](#parsechunkedchunkemitter)
-- [stringifyStream(value[, replacer[, space]])](#stringifystreamvalue-replacer-space)
-- [stringifyInfo(value[, replacer[, space[, options]]])](#stringifyinfovalue-replacer-space-options)
-    - [Options](#options)
-        - [async](#async)
-        - [continueOnCircular](#continueoncircular)
-- [version](#version)
+### parseChunked()
 
-### parseChunked(chunkEmitter)
+Functions like [`JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse), iterating over chunks to reconstruct the result object, and returns a [Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise).
 
-Works the same as [`JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse) but takes `chunkEmitter` instead of string and returns [Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise).
+> Note: `reviver` parameter is not supported yet.
 
-> NOTE: `reviver` parameter is not supported yet, but will be added in next releases.
-> NOTE: WHATWG streams aren't supported yet
+```ts
+function parseChunked(input: Iterable<Chunk> | AsyncIterable<Chunk>): Promise<any>;
+function parseChunked(input: () => (Iterable<Chunk> | AsyncIterable<Chunk>)): Promise<any>;
 
-When to use:
-- It's required to avoid freezing the main thread during big JSON parsing, since this process can be distributed in time
-- Huge JSON needs to be parsed (e.g. >500MB on Node.js)
-- Needed to reduce memory pressure. `JSON.parse()` needs to receive the entire JSON before parsing it. With `parseChunked()` you may parse JSON as first bytes of it comes. This approach helps to avoid storing a huge string in the memory at a single time point and following GC.
+type Chunk = string | Buffer | Uint8Array;
+```
 
 [Benchmark](https://github.com/discoveryjs/json-ext/tree/master/benchmarks#parse-chunked)
 
 Usage:
 
 ```js
-const { parseChunked } = require('@discoveryjs/json-ext');
+import { parseChunked } from '@discoveryjs/json-ext';
 
-// as a regular Promise
-parseChunked(chunkEmitter)
-    .then(data => {
-        /* data is parsed JSON */
-    });
-
-// using await (keep in mind that not every runtime has a support for top level await)
 const data = await parseChunked(chunkEmitter);
 ```
 
-Parameter `chunkEmitter` can be:
-- [`ReadableStream`](https://nodejs.org/dist/latest-v14.x/docs/api/stream.html#stream_readable_streams) (Node.js only)
-```js
-const fs = require('fs');
-const { parseChunked } = require('@discoveryjs/json-ext');
+Parameter `chunkEmitter` can be an iterable or async iterable that iterates over chunks, or a function returning such a value. A chunk can be a `string`, `Uint8Array`, or Node.js `Buffer`.
 
-parseChunked(fs.createReadStream('path/to/file.json'))
-```
-- Generator, async generator or function that returns iterable (chunks). Chunk might be a `string`, `Uint8Array` or `Buffer` (Node.js only):
-```js
-const { parseChunked } = require('@discoveryjs/json-ext');
-const encoder = new TextEncoder();
+Examples:
 
-// generator
-parseChunked(function*() {
-    yield '{ "hello":';
-    yield Buffer.from(' "wor');    // Node.js only
-    yield encoder.encode('ld" }'); // returns Uint8Array(5) [ 108, 100, 34, 32, 125 ]
-});
-
-// async generator
-parseChunked(async function*() {
-    for await (const chunk of someAsyncSource) {
-        yield chunk;
-    }
-});
-
-// function that returns iterable
-parseChunked(() => ['{ "hello":', ' "world"}'])
-```
-
-Using with [fetch()](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API):
-
-```js
-async function loadData(url) {
-    const response = await fetch(url);
-    const reader = response.body.getReader();
-
-    return parseChunked(async function*() {
-        while (true) {
-            const { done, value } = await reader.read();
-
-            if (done) {
-                break;
-            }
-
-            yield value;
+- Generator:
+    ```js
+    parseChunked(function*() {
+        yield '{ "hello":';
+        yield Buffer.from(' "wor'); // Node.js only
+        yield new TextEncoder().encode('ld" }'); // returns Uint8Array
+    });
+    ```
+- Async generator:
+    ```js
+    parseChunked(async function*() {
+        for await (const chunk of someAsyncSource) {
+            yield chunk;
         }
     });
-}
+    ```
+- Array:
+    ```js
+    parseChunked(['{ "hello":', ' "world"}'])
+    ```
+- Function returning iterable:
+    ```js
+    parseChunked(() => ['{ "hello":', ' "world"}'])
+    ```
+- Node.js [`Readable`](https://nodejs.org/dist/latest-v14.x/docs/api/stream.html#stream_readable_streams) stream:
+    ```js
+    import { parseChunked } from '@discoveryjs/json-ext';
+    import fs from 'node:fs';
 
-loadData('https://example.com/data.json')
-    .then(data => {
-        /* data is parsed JSON */
-    })
+    parseChunked(fs.createReadStream('path/to/file.json'))
+    ```
+- Web stream (e.g., using [fetch()](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)):
+    > Note: Iterability for Web streams was added later in the Web platform, not all environments support it. Consider using `parseFromWebStream()` for broader compatibility.
+    ```js
+    const response = await fetch('https://example.com/data.json');
+    const data = await parseChunked(response.body); // body is ReadableStream
+    ```
+
+### stringifyChunked()
+
+Functions like [`JSON.stringify()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify), but returns a generator yielding strings instead of a single string.
+
+> Note: Returns `"null"` when `JSON.stringify()` returns `undefined` (since a chunk cannot be `undefined`).
+
+```ts
+function stringifyChunked(value: any, replacer?: Replacer, space?: Space): Generator<string, void, unknown>;
+function stringifyChunked(value: any, options: StringifyOptions): Generator<string, void, unknown>;
+
+type Replacer =
+    | ((this: any, key: string, value: any) => any)
+    | (string | number)[]
+    | null;
+type Space = string | number | null;
+type StringifyOptions = {
+    replacer?: Replacer;
+    space?: Space;
+    highWaterMark?: number;
+};
 ```
-
-### stringifyStream(value[, replacer[, space]])
-
-Works the same as [`JSON.stringify()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify), but returns an instance of [`ReadableStream`](https://nodejs.org/dist/latest-v14.x/docs/api/stream.html#stream_readable_streams) instead of string.
-
-> NOTE: WHATWG Streams aren't supported yet, so function available for Node.js only for now
-
-Departs from JSON.stringify():
-- Outputs `null` when `JSON.stringify()` returns `undefined` (since streams may not emit `undefined`)
-- A promise is resolving and the resulting value is stringifying as a regular one
-- A stream in non-object mode is piping to output as is
-- A stream in object mode is piping to output as an array of objects
-
-When to use:
-- Huge JSON needs to be generated (e.g. >500MB on Node.js)
-- Needed to reduce memory pressure. `JSON.stringify()` needs to generate the entire JSON before send or write it to somewhere. With `stringifyStream()` you may send a result to somewhere as first bytes of the result appears. This approach helps to avoid storing a huge string in the memory at a single time point.
-- The object being serialized contains Promises or Streams (see Usage for examples)
 
 [Benchmark](https://github.com/discoveryjs/json-ext/tree/master/benchmarks#stream-stringifying)
 
 Usage:
 
 ```js
-const { stringifyStream } = require('@discoveryjs/json-ext');
+import { stringifyStream } from '@discoveryjs/json-ext';
 
-// handle events
-stringifyStream(data)
-    .on('data', chunk => console.log(chunk))
-    .on('error', error => consold.error(error))
-    .on('finish', () => console.log('DONE!'));
-
-// pipe into a stream
-stringifyStream(data)
-    .pipe(writableStream);
-```
-
-Using Promise or ReadableStream in serializing object:
-
-```js
-const fs = require('fs');
-const { stringifyStream } = require('@discoveryjs/json-ext');
-
-// output will be
-// {"name":"example","willSerializeResolvedValue":42,"fromFile":[1, 2, 3],"at":{"any":{"level":"promise!"}}}
-stringifyStream({
-    name: 'example',
-    willSerializeResolvedValue: Promise.resolve(42),
-    fromFile: fs.createReadStream('path/to/file.json'), // support file content is "[1, 2, 3]", it'll be inserted as it
-    at: {
-        any: {
-            level: new Promise(resolve => setTimeout(() => resolve('promise!'), 100))
-        }
-    }
-})
-
-// in case several async requests are used in object, it's prefered
-// to put fastest requests first, because in this case
-stringifyStream({
-    foo: fetch('http://example.com/request_takes_2s').then(req => req.json()),
-    bar: fetch('http://example.com/request_takes_5s').then(req => req.json())
-});
-```
-
-Using with [`WritableStream`](https://nodejs.org/dist/latest-v14.x/docs/api/stream.html#stream_writable_streams) (Node.js only):
-
-```js
-const fs = require('fs');
-const { stringifyStream } = require('@discoveryjs/json-ext');
-
-// pipe into a console
-stringifyStream(data)
-    .pipe(process.stdout);
-
-// pipe into a file
-stringifyStream(data)
-    .pipe(fs.createWriteStream('path/to/file.json'));
-
-// wrapping into a Promise
-new Promise((resolve, reject) => {
-    stringifyStream(data)
-        .on('error', reject)
-        .pipe(stream)
-        .on('error', reject)
-        .on('finish', resolve);
-});
-```
-
-### stringifyInfo(value[, replacer[, space[, options]]])
-
-`value`, `replacer` and `space` arguments are the same as for `JSON.stringify()`.
-
-Result is an object:
-
-```js
-{
-    minLength: Number,  // minimal bytes when values is stringified
-    circular: [...],    // list of circular references
-    duplicate: [...],   // list of objects that occur more than once
-    async: [...]        // list of async values, i.e. promises and streams
+const chunks = [...stringifyChunked(data)];
+// or
+for (const chunk of stringifyChunked(data)) {
+    console.log(chunk);
 }
 ```
+
+Examples:
+
+- Streaming into a file (Node.js):
+    ```js
+    Readable.from(stringifyChunked(data))
+        .pipe(fs.createWriteStream('path/to/file.json'));
+    ```
+- Wrapping into a `Promise` for piping into a writable Node.js stream:
+    ```js
+    new Promise((resolve, reject) => {
+        Readable.from(stringifyChunked(data))
+            .on('error', reject)
+            .pipe(stream)
+            .on('error', reject)
+            .on('finish', resolve);
+    });
+    ```
+- Using with fetch (JSON streaming):
+    > Note: This feature has limited support in browsers, see [Streaming requests with the fetch API](https://developer.chrome.com/docs/capabilities/web-apis/fetch-streaming-requests)
+    > Note: `ReadableStream.from()` has limited [support in browsers](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream/from_static), use `createStringifyWebStream()` instead.
+    ```js
+    fetch('http://example.com', {
+        method: 'POST',
+        duplex: 'half',
+        body: ReadableStream.from(stringifyChunked(data))
+    });
+    ```
+
+### stringifyInfo()
+
+```ts
+export function stringifyInfo(value: any, replacer?: Replacer, space?: Space): StringifyInfoResult;
+export function stringifyInfo(value: any, options?: StringifyInfoOptions): StringifyInfoResult;
+
+type StringifyInfoOptions = {
+    replacer?: Replacer;
+    space?: Space;
+    continueOnCircular?: boolean;
+}
+type StringifyInfoResult = {
+    minLength: number;
+    circular: Object[]; // list of circular references
+};
+```
+
+Functions like [`JSON.stringify()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify), but returns an object with the expected overall size of the stringify operation and a list of circular references.
 
 Example:
 
 ```js
-const { stringifyInfo } = require('@discoveryjs/json-ext');
+import { stringifyInfo } from '@discoveryjs/json-ext';
 
-console.log(
-    stringifyInfo({ test: true }).minLength
-);
-// > 13
-// that equals '{"test":true}'.length
+console.log(stringifyInfo({ test: true }));
+// {
+//   bytes: 13, // Buffer.byteLength('{"test":true}')
+//   circular: []    
+// }
 ```
 
 #### Options
-
-##### async
-
-Type: `Boolean`  
-Default: `false`
-
-Collect async values (promises and streams) or not.
 
 ##### continueOnCircular
 
 Type: `Boolean`  
 Default: `false`
 
-Stop collecting info for a value or not whenever circular reference is found. Setting option to `true` allows to find all circular references.
+Determines whether to continue collecting info for a value when a circular reference is found. Setting this option to `true` allows finding all circular references.
 
-### version
+### parseFromWebStream()
 
-The version of library, e.g. `"0.3.1"`.
+A helper function to consume JSON from a Web Stream. You can use `parseChunked(stream)` instead, but `@@asyncIterator` on `ReadableStream` has limited support in browsers (see [ReadableStream](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream) compatibility table).
+
+```js
+import { parseFromWebStream } from '@discoveryjs/json-ext';
+
+const data = await parseFromWebStream(readableStream);
+// equivalent to (when ReadableStream[@@asyncIterator] is supported):
+// await parseChunked(readableStream);
+```
+
+### createStringifyWebStream()
+
+A helper function to convert `stringifyChunked()` into a `ReadableStream` (Web Stream). You can use `ReadableStream.from()` instead, but this method has limited support in browsers (see [ReadableStream.from()](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream/from_static) compatibility table).
+
+```js
+import { createStringifyWebStream } from '@discoveryjs/json-ext';
+
+createStringifyWebStream({ test: true });
+// equivalent to (when ReadableStream.from() is supported):
+// ReadableStream.from(stringifyChunked({ test: true }))
+```
 
 ## License
 
