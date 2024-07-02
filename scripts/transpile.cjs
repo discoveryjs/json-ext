@@ -10,6 +10,8 @@ const external = [
     'assert',
     'stream',
     'util',
+    'buffer',
+    'timers',
     '@discoveryjs/json-ext'
 ];
 
