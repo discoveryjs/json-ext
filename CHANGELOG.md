@@ -1,4 +1,4 @@
-## next
+## 0.6.0 (2024-07-02)
 
 - Added `stringifyChunked()` as a generator function
 - Added `createStringifyWebStream()` function

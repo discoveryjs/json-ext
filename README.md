@@ -156,12 +156,34 @@ Examples:
     ```
 - Using with fetch (JSON streaming):
     > Note: This feature has limited support in browsers, see [Streaming requests with the fetch API](https://developer.chrome.com/docs/capabilities/web-apis/fetch-streaming-requests)
-    > Note: `ReadableStream.from()` has limited [support in browsers](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream/from_static), use `createStringifyWebStream()` instead.
+
+    > Note: `ReadableStream.from()` has limited [support in browsers](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream/from_static), use [`createStringifyWebStream()`](#createstringifywebstream) instead.
     ```js
     fetch('http://example.com', {
         method: 'POST',
         duplex: 'half',
         body: ReadableStream.from(stringifyChunked(data))
+    });
+    ```
+- Wrapping into `ReadableStream`:
+    > Note: Use `ReadableStream.from()` or [`createStringifyWebStream()`](#createstringifywebstream) when no extra logic is needed
+    ```js
+    new ReadableStream({
+        start() {
+            this.generator = stringifyChunked(data);
+        },
+        pull(controller) {
+            const { value, done } = this.generator.next();
+
+            if (done) {
+                controller.close();
+            } else {
+                controller.enqueue(value);
+            }
+        },
+        cancel() {
+            this.generator = null;
+        }
     });
     ```
 
