@@ -89,7 +89,6 @@ Examples:
     ```
 - Node.js [`Readable`](https://nodejs.org/dist/latest-v14.x/docs/api/stream.html#stream_readable_streams) stream:
     ```js
-    import { parseChunked } from '@discoveryjs/json-ext';
     import fs from 'node:fs';
 
     parseChunked(fs.createReadStream('path/to/file.json'))
@@ -128,7 +127,7 @@ type StringifyOptions = {
 Usage:
 
 ```js
-import { stringifyStream } from '@discoveryjs/json-ext';
+import { stringifyChunked } from '@discoveryjs/json-ext';
 
 const chunks = [...stringifyChunked(data)];
 // or
@@ -141,11 +140,16 @@ Examples:
 
 - Streaming into a file (Node.js):
     ```js
+    import fs from 'node:fs';
+    import { Readable } from 'node:stream';
+
     Readable.from(stringifyChunked(data))
         .pipe(fs.createWriteStream('path/to/file.json'));
     ```
 - Wrapping into a `Promise` for piping into a writable Node.js stream:
     ```js
+    import { Readable } from 'node:stream';
+
     new Promise((resolve, reject) => {
         Readable.from(stringifyChunked(data))
             .on('error', reject)
@@ -153,6 +157,19 @@ Examples:
             .on('error', reject)
             .on('finish', resolve);
     });
+    ```
+- Write into a file synchronously:
+    > Note: Slower than `JSON.stringify()` but uses much less heap space and has no limitation on string length
+    ```js
+    import fs from 'node:fs';
+
+    const fd = fs.openSync('output.json', 'w');
+
+    for (const chunk of stringifyChunked(data)) {
+        fs.writeFileSync(fd, chunk);
+    }
+
+    fs.closeSync(fd);
     ```
 - Using with fetch (JSON streaming):
     > Note: This feature has limited support in browsers, see [Streaming requests with the fetch API](https://developer.chrome.com/docs/capabilities/web-apis/fetch-streaming-requests)
