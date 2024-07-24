@@ -24,12 +24,12 @@ export function* stringifyChunked(value, optionsOrReplacer, space) {
     let replacer = normalizeReplacer(optionsOrReplacer.replacer);
     space = normalizeSpace(optionsOrReplacer.space);
 
+    const keyStrings = new Map();
+    const visited = new Set();
     let buffer = '';
     let depth = 0;
     let stack = null;
-    let first = false;
-    let visited = new WeakSet();
-    let processing = false;
+    let first = true;
     let getKeys = Object.keys;
 
     if (Array.isArray(replacer)) {
@@ -42,17 +42,13 @@ export function* stringifyChunked(value, optionsOrReplacer, space) {
     pushStack(processRoot, value, null);
 
     while (stack !== null) {
-        processing = true;
-
-        while (stack !== null && !stack.awaiting) {
+        while (stack !== null) {
             stack.handler();
 
-            if (!processing) {
+            if (buffer.length >= highWaterMark) {
                 break;
             }
         }
-
-        processing = false;
 
         // flush buffer
         yield buffer;
@@ -67,66 +63,71 @@ export function* stringifyChunked(value, optionsOrReplacer, space) {
     }
 
     function processObjectEntry(key) {
-        if (first === false) {
-            first = true;
+        if (first === true) {
+            first = false;
         } else {
-            push(',');
+            buffer += ',';
+        }
+
+        let keyString = keyStrings.get(key);
+        if (keyString === undefined) {
+            keyStrings.set(key, keyString = encodeString(key) + ':');
         }
 
         if (space) {
-            push(`\n${space.repeat(depth)}${encodeString(key)}: `);
+            buffer += `\n${space.repeat(depth)}${keyString} `;
         } else {
-            push(encodeString(key) + ':');
+            buffer += keyString;
         }
     }
 
     function processObject() {
-        const current = stack;
+        const { index, value, keys } = stack;
 
         // when no keys left, remove obj from stack
-        if (current.index === current.keys.length) {
-            if (space && first) {
-                push(`\n${space.repeat(depth - 1)}}`);
+        if (index === keys.length) {
+            if (space && first === false) {
+                buffer += `\n${space.repeat(depth - 1)}}`;
             } else {
-                push('}');
+                buffer += '}';
             }
 
             popStack();
             return;
         }
 
-        const key = current.keys[current.index];
+        const key = keys[index];
 
-        processValue(current.value, key, current.value[key], processObjectEntry);
-        current.index++;
+        stack.index++;
+        processValue(value, key, value[key], processObjectEntry);
     }
 
     function processArrayItem(index) {
         if (index !== 0) {
-            push(',');
+            buffer += ',';
         }
 
         if (space) {
-            push(`\n${space.repeat(depth)}`);
+            buffer += `\n${space.repeat(depth)}`;
         }
     }
 
     function processArray() {
-        const current = stack;
+        const { index, value } = stack;
 
-        if (current.index === current.value.length) {
-            if (space && current.index !== 0) {
-                push(`\n${space.repeat(depth - 1)}]`);
+        if (index === value.length) {
+            if (space && index !== 0) {
+                buffer += `\n${space.repeat(depth - 1)}]`;
             } else {
-                push(']');
+                buffer += ']';
             }
 
             popStack();
             return;
         }
 
-        processValue(current.value, current.index, current.value[current.index], processArrayItem);
-        current.index++;
+        stack.index++;
+        processValue(value, index, value[index], processArrayItem);
     }
 
     function processValue(holder, key, value, callback) {
@@ -143,43 +144,42 @@ export function* stringifyChunked(value, optionsOrReplacer, space) {
             callback(key);
             circularCheck(value);
             depth++;
-            push('[');
+            buffer += '[';
             pushStack(processArray, value, null);
         } else {
             // object
             callback(key);
             circularCheck(value);
             depth++;
-            push('{');
+            buffer += '{';
             pushStack(processObject, value, getKeys(value));
         }
     }
 
     function circularCheck(value) {
-        if (visited.has(value)) {
+        // If the visited set does not change after adding a value, then it is already in the set
+        if (visited.size === visited.add(value).size) {
             throw new TypeError('Converting circular structure to JSON');
         }
-
-        visited.add(value);
     }
 
     function pushPrimitive(value) {
         switch (typeof value) {
             case 'string':
-                push(encodeString(value));
+                buffer += encodeString(value);
                 break;
 
             case 'number':
-                push(Number.isFinite(value) ? value : 'null');
+                buffer += Number.isFinite(value) ? String(value) : 'null';
                 break;
 
             case 'boolean':
-                push(value ? 'true' : 'false');
+                buffer += value ? 'true' : 'false';
                 break;
 
             case 'undefined':
             case 'object': // typeof null === 'object'
-                push('null');
+                buffer += 'null';
                 break;
 
             default:
@@ -188,8 +188,8 @@ export function* stringifyChunked(value, optionsOrReplacer, space) {
     }
 
     function pushStack(handler, value, keys) {
-        first = false;
-        return stack = {
+        first = true;
+        stack = {
             handler,
             value,
             index: 0,
@@ -207,11 +207,6 @@ export function* stringifyChunked(value, optionsOrReplacer, space) {
         }
 
         stack = stack.prev;
-        first = true;
-    }
-
-    function push(data) {
-        buffer += data;
-        processing = buffer.length < highWaterMark;
+        first = false;
     }
 };
