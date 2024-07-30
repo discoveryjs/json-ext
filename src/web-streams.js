@@ -10,14 +10,18 @@ export function parseFromWebStream(stream) {
     return parseChunked(isIterable(stream) ? stream : async function*() {
         const reader = stream.getReader();
 
-        while (true) {
-            const { value, done } = await reader.read();
+        try {
+            while (true) {
+                const { value, done } = await reader.read();
 
-            if (done) {
-                break;
+                if (done) {
+                    break;
+                }
+
+                yield value;
             }
-
-            yield value;
+        } finally {
+            reader.releaseLock();
         }
     });
 }

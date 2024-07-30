@@ -1,6 +1,10 @@
+## next
+
+- Fixed `parseFromWebStream()` to ensure that the lock on the reader is properly released
+
 ## 0.6.0 (2024-07-02)
 
-- Added `stringifyChunked()` as a generator function
+- Added `stringifyChunked()` as a generator function (as a replacer for `stringifyStream()`)
 - Added `createStringifyWebStream()` function
 - Added `parseFromWebStream()` function
 - Changed `parseChunked()` to accept an iterable or async iterable that iterates over string, Buffer, or TypedArray elements
