@@ -41,10 +41,10 @@ export function runBenchmark(name, argv = process.argv.slice(2)) {
 
 function sanitizeErrorOutput(error) {
     const home = path.join(__dirname, '../..');
-    const rx = new RegExp(home.replace(/\[\]\(\)\{\}\.\+\*\?/g, '\\$1'), 'g');
+    const rx = new RegExp('(?:file://)?' + home.replace(/\[\]\(\)\{\}\.\+\*\?/g, '\\$1'), 'g');
     const text = String(error.stack || error);
 
-    return home ? text.replace(rx, '~') : text;
+    return home ? text.replace(rx, '..') : text;
 }
 
 export async function benchmark(name, fn, beforeFn, output = true) {

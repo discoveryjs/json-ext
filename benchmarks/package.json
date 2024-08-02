@@ -7,6 +7,8 @@
   "dependencies": {
     "bfj": "^8.0.0",
     "chalk": "^4.1.0",
-    "json-stream-stringify": "^3.1.4"
+    "json-stream-stringify": "^3.1.4",
+    "json-ext-0.5.7": "npm:@discoveryjs/json-ext@0.5.7",
+    "json-ext-0.6.0": "npm:@discoveryjs/json-ext@0.6.0"
   }
 }
