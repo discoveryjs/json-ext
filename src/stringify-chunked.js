@@ -25,11 +25,15 @@ export function* stringifyChunked(value, optionsOrReplacer, space) {
     space = normalizeSpace(optionsOrReplacer.space);
 
     const keyStrings = new Map();
-    const visited = new Set();
+    const visited = [];
+    const rootValue = { '': value };
+    let prevState = null;
+    let state = () => printEntry('', value);
+    let stateValue = rootValue;
+    let stateEmpty = true;
+    let stateKeys = [''];
+    let stateIndex = 0;
     let buffer = '';
-    let depth = 0;
-    let stack = null;
-    let first = true;
     let getKeys = Object.keys;
 
     if (Array.isArray(replacer)) {
@@ -39,127 +43,102 @@ export function* stringifyChunked(value, optionsOrReplacer, space) {
         replacer = null;
     }
 
-    pushStack(processRoot, value, null);
+    while (true) {
+        state();
 
-    while (stack !== null) {
-        while (stack !== null) {
-            stack.handler();
+        if (buffer.length >= highWaterMark || prevState === null) {
+            // flush buffer
+            yield buffer;
+            buffer = '';
 
-            if (buffer.length >= highWaterMark) {
+            if (prevState === null) {
                 break;
             }
         }
-
-        // flush buffer
-        yield buffer;
-        buffer = '';
     }
 
-    function processRoot() {
-        const { value } = stack;
+    function printObject() {
+        if (stateIndex === 0) {
+            stateKeys = getKeys(stateValue);
+            buffer += '{';
+        }
 
-        popStack();
-        processValue({ '': value }, '', value, () => {});
+        // when no keys left
+        if (stateIndex === stateKeys.length) {
+            buffer += space && !stateEmpty
+                ? `\n${space.repeat(visited.length - 1)}}`
+                : '}';
+
+            popState();
+            return;
+        }
+
+        const key = stateKeys[stateIndex++];
+        printEntry(key, stateValue[key]);
     }
 
-    function processObjectEntry(key) {
-        if (first === true) {
-            first = false;
+    function printArray() {
+        if (stateIndex === 0) {
+            buffer += '[';
+        }
+
+        if (stateIndex === stateValue.length) {
+            buffer += space && !stateEmpty
+                ? `\n${space.repeat(visited.length - 1)}]`
+                : ']';
+
+            popState();
+            return;
+        }
+
+        printEntry(stateIndex, stateValue[stateIndex++]);
+    }
+
+    function printEntryPrelude(key) {
+        if (stateEmpty) {
+            stateEmpty = false;
         } else {
             buffer += ',';
         }
 
-        let keyString = keyStrings.get(key);
-        if (keyString === undefined) {
-            keyStrings.set(key, keyString = encodeString(key) + ':');
+        if (space && prevState !== null) {
+            buffer += `\n${space.repeat(visited.length)}`;
         }
 
-        if (space) {
-            buffer += `\n${space.repeat(depth)}${keyString} `;
-        } else {
+        if (state === printObject) {
+            let keyString = keyStrings.get(key);
+
+            if (keyString === undefined) {
+                keyStrings.set(key, keyString = encodeString(key) + (space ? ': ' : ':'));
+            }
+
             buffer += keyString;
         }
     }
 
-    function processObject() {
-        const { index, value, keys } = stack;
-
-        // when no keys left, remove obj from stack
-        if (index === keys.length) {
-            if (space && first === false) {
-                buffer += `\n${space.repeat(depth - 1)}}`;
-            } else {
-                buffer += '}';
-            }
-
-            popStack();
-            return;
-        }
-
-        const key = keys[index];
-
-        stack.index++;
-        processValue(value, key, value[key], processObjectEntry);
-    }
-
-    function processArrayItem(index) {
-        if (index !== 0) {
-            buffer += ',';
-        }
-
-        if (space) {
-            buffer += `\n${space.repeat(depth)}`;
-        }
-    }
-
-    function processArray() {
-        const { index, value } = stack;
-
-        if (index === value.length) {
-            if (space && index !== 0) {
-                buffer += `\n${space.repeat(depth - 1)}]`;
-            } else {
-                buffer += ']';
-            }
-
-            popStack();
-            return;
-        }
-
-        stack.index++;
-        processValue(value, index, value[index], processArrayItem);
-    }
-
-    function processValue(holder, key, value, callback) {
-        value = replaceValue(holder, key, value, replacer);
+    function printEntry(key, value) {
+        value = replaceValue(stateValue, key, value, replacer);
 
         if (value === null || typeof value !== 'object') {
             // primitive
-            if (callback !== processObjectEntry || value !== undefined) {
-                callback(key);
+            if (state !== printObject || value !== undefined) {
+                printEntryPrelude(key);
                 pushPrimitive(value);
             }
-        } else if (Array.isArray(value)) {
-            // array
-            callback(key);
-            circularCheck(value);
-            depth++;
-            buffer += '[';
-            pushStack(processArray, value, null);
         } else {
-            // object
-            callback(key);
-            circularCheck(value);
-            depth++;
-            buffer += '{';
-            pushStack(processObject, value, getKeys(value));
-        }
-    }
+            // If the visited set does not change after adding a value, then it is already in the set
+            if (visited.includes(value)) {
+                throw new TypeError('Converting circular structure to JSON');
+            }
 
-    function circularCheck(value) {
-        // If the visited set does not change after adding a value, then it is already in the set
-        if (visited.size === visited.add(value).size) {
-            throw new TypeError('Converting circular structure to JSON');
+            printEntryPrelude(key);
+            visited.push(value);
+
+            pushState();
+            state = Array.isArray(value) ? printArray : printObject;
+            stateValue = value;
+            stateEmpty = true;
+            stateIndex = 0;
         }
     }
 
@@ -187,26 +166,26 @@ export function* stringifyChunked(value, optionsOrReplacer, space) {
         }
     }
 
-    function pushStack(handler, value, keys) {
-        first = true;
-        stack = {
-            handler,
-            value,
-            index: 0,
-            keys,
-            prev: stack
+    function pushState() {
+        prevState = {
+            keys: stateKeys,
+            index: stateIndex,
+            prev: prevState
         };
     }
 
-    function popStack() {
-        const { handler, value } = stack;
+    function popState() {
+        visited.pop();
+        const value = visited.length > 0 ? visited[visited.length - 1] : rootValue;
 
-        if (handler === processObject || handler === processArray) {
-            visited.delete(value);
-            depth--;
-        }
+        // restore state
+        state = Array.isArray(value) ? printArray : printObject;
+        stateValue = value;
+        stateEmpty = false;
+        stateKeys = prevState.keys;
+        stateIndex = prevState.index;
 
-        stack = stack.prev;
-        first = false;
+        // pop state
+        prevState = prevState.prev;
     }
 };
