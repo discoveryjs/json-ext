@@ -21,12 +21,6 @@ const fixtures = [
     'fixture/small.json',   // ~2,1MB
     'fixture/medium.json',  // ~13,7MB
     'fixture/big.json',     // ~100Mb
-    // '../../jsonxl/benchmarks/fixture/discovery-repo-health.json',
-    // '../../jsonxl/benchmarks/fixture/discovery-git.json',
-    // '../../jsonxl/benchmarks/fixture/statoscope.json',
-    // '../../jsonxl/benchmarks/fixture/chromium-timeline.json',
-    // '../../jsonxl/benchmarks/fixture/webpack-main-only.cpuprofile',
-    // '../../jsonxl/benchmarks/fixture/stats.json',
     './fixture/500mb.json', // 3 | auto-generate from big.json
     './fixture/1gb.json'    // 4 | auto-generate from big.json
 ];
