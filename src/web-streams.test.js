@@ -75,8 +75,7 @@ describeIfSupported('createStringifyWebStream()', () => {
         }));
 
         assert.deepStrictEqual(actual, [
-            '{',
-            '"foo":123',
+            '{"foo":123',
             ',"bar":456',
             '}'
         ]);
@@ -90,8 +89,7 @@ describeIfSupported('createStringifyWebStream()', () => {
         }, 2));
 
         assert.deepStrictEqual(actual, [
-            '{',
-            '\n    "foo": 123',
+            '{\n    "foo": 123',
             '\n}'
         ]);
     });
@@ -102,7 +100,7 @@ describeIfSupported('createStringifyWebStream()', () => {
         });
         const reader = stream.getReader();
 
-        assert.deepStrictEqual(await reader.read(), { value: '{', done: false });
+        assert.deepStrictEqual(await reader.read(), { value: '{"foo":123', done: false });
         await reader.cancel();
         assert.deepStrictEqual(await reader.read(), { value: undefined, done: true });
     });
