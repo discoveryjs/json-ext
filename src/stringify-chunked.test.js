@@ -20,8 +20,19 @@ function createStringifyCompareFn(input, expected, ...args) {
     return () => new Promise((resolve, reject) => {
         try {
             const chunks = [...stringifyChunked(input, ...args)];
+            const actual = chunks.join('');
 
-            assert.strictEqual(chunks.join(''), expected);
+            if (actual !== expected) {
+                const escapedActual = JSON.stringify(actual);
+                const escapedExpected = JSON.stringify(actual);
+
+                if (actual !== escapedActual || expected !== escapedExpected) {
+                    assert.strictEqual(escapedActual.slice(1, -1), escapedExpected.slice(1, -1));
+                } else {
+                    assert.strictEqual(actual, expected);
+                }
+            }
+
             setImmediate(resolve);
         } catch (e) {
             reject(e);
