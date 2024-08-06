@@ -72,8 +72,8 @@ export const tests = {
     'json-stream-stringify': data =>
         new JsonStreamStringify(data),
 
-    // 'bfj': data => sizeLessThan(100 * 1024 * 1024) &&
-    //     bfj.streamify(data)
+    'bfj': data => sizeLessThan(100 * 1024 * 1024) &&
+        bfj.streamify(data)
 };
 
 Object.defineProperty(tests, '__getData', {
