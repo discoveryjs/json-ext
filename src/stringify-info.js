@@ -161,7 +161,6 @@ export function stringifyInfo(value, optionsOrReplacer, space) {
     let objects = 0;
 
     walk(root, '', value);
-    console.log('viz', visited.size);
 
     // when value is undefined or replaced for undefined
     if (bytes === 0) {
