@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
+import { finished } from 'node:stream/promises';
 import { isMain } from './benchmark-utils.js';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
@@ -36,7 +37,11 @@ export async function genFixture(times, stream) {
         }
     }
 
-    stream.write(']');
+    await finished(
+        stream.end(']')
+    );
+
+    return stream.bytesWritten;
 };
 
 if (isMain(import.meta)) {

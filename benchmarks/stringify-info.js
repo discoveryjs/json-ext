@@ -21,12 +21,18 @@ const fixtures = [
     'fixture/small.json',   // ~2,1MB
     'fixture/medium.json',  // ~13,7MB
     'fixture/big.json',     // ~100Mb
+    // '../../jsonxl/benchmarks/fixture/discovery-repo-health.json',
+    // '../../jsonxl/benchmarks/fixture/discovery-git.json',
+    // '../../jsonxl/benchmarks/fixture/statoscope.json',
+    // '../../jsonxl/benchmarks/fixture/chromium-timeline.json',
+    // '../../jsonxl/benchmarks/fixture/webpack-main-only.cpuprofile',
+    // '../../jsonxl/benchmarks/fixture/stats.json',
     './fixture/500mb.json', // 3 | auto-generate from big.json
     './fixture/1gb.json'    // 4 | auto-generate from big.json
 ];
 const fixtureIndex = process.argv[2] || 0;
 const filename = fixtureIndex in fixtures ? path.join(__dirname, fixtures[fixtureIndex]) : false;
-const filesize = fs.existsSync(filename) ? fs.statSync(filename).size : 0;
+let filesize = fs.existsSync(filename) ? fs.statSync(filename).size : 0;
 
 if (!filename) {
     console.error('Fixture is not selected!');
@@ -47,10 +53,10 @@ export const tests = {
     [selfPackageJson.name + ' stringifyInfo()']: data =>
         jsonExt.stringifyInfo(data).bytes,
 
-    [selfPackageJson.name + ' v0.6 stringifyInfo()']: data =>
+    [selfPackageJson.name + ' v0.6.0 stringifyInfo()']: data =>
         jsonExt060.stringifyInfo(data).bytes,
 
-    [selfPackageJson.name + ' v0.5 stringifyInfo()']: data =>
+    [selfPackageJson.name + ' v0.5.7 stringifyInfo()']: data =>
         jsonExt057.default.stringifyInfo(data).minLength
 };
 
@@ -81,7 +87,7 @@ async function run() {
         const times = unit === 'mb' ? num / 100 : num * 10;
         const { genFixture } = await import('./gen-fixture.js');
 
-        await genFixture(times, filename);
+        filesize = await genFixture(times, filename);
     }
 
     if (process.env.README) {

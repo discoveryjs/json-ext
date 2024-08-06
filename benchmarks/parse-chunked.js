@@ -18,7 +18,7 @@ const selfPackageJson = getSelfPackageJson();
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const fixtureIndex = process.argv[2] || 0;
 const filename = fixtureIndex in fixtures ? path.join(__dirname, fixtures[fixtureIndex]) : false;
-const filesize = fs.statSync(filename).size;
+let filesize = fs.existsSync(filename) ? fs.statSync(filename).size : 0;
 
 if (!filename) {
     console.error('Fixture is not selected!');
@@ -35,7 +35,7 @@ if (!filename) {
 const chunkSize = 512 * 1024; // chunk size for generator
 export const tests = {
     'JSON.parse()': () =>
-        JSON.parse(fs.readFileSync(filename, 'utf8')),
+        JSON.parse(fs.readFileSync(filename)),
 
     [selfPackageJson.name + ' parseChunked(fs.createReadStream())']: () =>
         parseChunked(fs.createReadStream(filename, { highWaterMark: chunkSize })),
@@ -77,9 +77,9 @@ async function run() {
         // auto-generate fixture
         let [, num, unit] = filename.match(/(\d+)([a-z]+).json/);
         const times = unit === 'mb' ? Math.round(num / 100) : num * 10;
-
         const { genFixture } = await import('./gen-fixture.js');
-        await genFixture(times, filename);
+
+        filesize = await genFixture(times, filename);
     }
 
     if (process.env.README) {
