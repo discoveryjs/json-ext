@@ -1,5 +1,7 @@
 ## next
 
+- Enhanced the performance of `stringifyChunked()` by 1.5-3x
+- Enhanced the performance of `stringifyInfo()` by 1.5-5x
 - Fixed `parseFromWebStream()` to ensure that the lock on the reader is properly released
 
 ## 0.6.0 (2024-07-02)

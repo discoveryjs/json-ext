@@ -19,7 +19,7 @@ const escapableCharCodeSubstitution = { // JSON Single Character Escape Sequence
     0x5c: '\\\\'
 };
 
-const charLength2048 = Array.from({ length: 2048 }).map((_, code) => {
+const charLength2048 = Uint8Array.from({ length: 2048 }, (_, code) => {
     if (hasOwn(escapableCharCodeSubstitution, code)) {
         return 2; // \X
     }
@@ -40,6 +40,11 @@ function isTrailingSurrogate(code) {
 }
 
 function stringLength(str) {
+    // Fast path to compute length when a string contains only characters encoded as single bytes
+    if (!/[^\x20\x21\x23-\x5B\x5D-\x7F]/.test(str)) {
+        return str.length + 2;
+    }
+
     let len = 0;
     let prevLeadingSurrogate = false;
 
@@ -66,13 +71,47 @@ function stringLength(str) {
     return len + 2; // +2 for quotes
 }
 
+// avoid producing a string from a number
+function intLength(num) {
+    let len = 0;
+
+    if (num < 0) {
+        len = 1;
+        num = -num;
+    }
+
+    if (num >= 1e9) {
+        len += 9;
+        num = (num - num % 1e9) / 1e9;
+    }
+
+    if (num >= 1e4) {
+        if (num >= 1e6) {
+            return len + (num >= 1e8
+                ? 9
+                : num >= 1e7 ? 8 : 7
+            );
+        }
+        return len + (num >= 1e5 ? 6 : 5);
+    }
+
+    return len + (num >= 1e2
+        ? num >= 1e3 ? 4 : 3
+        : num >= 10 ? 2 : 1
+    );
+};
+
 function primitiveLength(value) {
     switch (typeof value) {
         case 'string':
             return stringLength(value);
 
         case 'number':
-            return Number.isFinite(value) ? String(value).length : 4 /* null */;
+            return Number.isFinite(value)
+                ? Number.isInteger(value)
+                    ? intLength(value)
+                    : String(value).length
+                : 4 /* null */;
 
         case 'boolean':
             return value ? 4 /* true */ : 5 /* false */;
@@ -99,25 +138,35 @@ export function stringifyInfo(value, optionsOrReplacer, space) {
         };
     }
 
-    let allowlist = null;
-    let replacer = normalizeReplacer(optionsOrReplacer.replacer);
     const continueOnCircular = Boolean(optionsOrReplacer.continueOnCircular);
+    let replacer = normalizeReplacer(optionsOrReplacer.replacer);
+    let getKeys = Object.keys;
 
     if (Array.isArray(replacer)) {
-        allowlist = new Set(replacer);
+        const allowlist = replacer;
+
+        getKeys = () => allowlist;
         replacer = null;
     }
 
     space = spaceLength(space);
 
-    const visited = new WeakMap();
-    const stack = new Set();
+    const keysLength = new Map();
+    const visited = new Map();
+    const stack = [];
     const circular = new Set();
     const root = { '': value };
     let stop = false;
     let bytes = 0;
+    let objects = 0;
 
     walk(root, '', value);
+    console.log('viz', visited.size);
+
+    // when value is undefined or replaced for undefined
+    if (bytes === 0) {
+        bytes += 9; // FIXME: that's the length of undefined, should we normalize behaviour to convert it to null?
+    }
 
     return {
         bytes: isNaN(bytes) ? Infinity : bytes,
@@ -135,12 +184,10 @@ export function stringifyInfo(value, optionsOrReplacer, space) {
             // primitive
             if (value !== undefined || Array.isArray(holder)) {
                 bytes += primitiveLength(value);
-            } else if (holder === root) {
-                bytes += 9; // FIXME: that's the length of undefined, should we normalize behaviour to convert it to null?
             }
         } else {
-            // check for circular structure
-            if (stack.has(value)) {
+            // check for circular references
+            if (stack.includes(value)) {
                 circular.add(value);
                 bytes += 4; // treat as null
 
@@ -151,71 +198,67 @@ export function stringifyInfo(value, optionsOrReplacer, space) {
                 return;
             }
 
-            // duplicates
+            // Using 'visited' allows avoiding hang-ups in cases of highly interconnected object graphs;
+            // for example, a list of git commits with references to parents can lead to N^2 complexity for traversal,
+            // and N when 'visited' is used
             if (visited.has(value)) {
                 bytes += visited.get(value);
 
                 return;
             }
 
+            objects++;
+
+            const prevObjects = objects;
+            const valueBytes = bytes;
+            let valueLength = 0;
+
+            stack.push(value);
+
             if (Array.isArray(value)) {
                 // array
-                const valueLength = bytes;
+                valueLength = value.length;
 
-                bytes += 2; // []
-
-                stack.add(value);
-
-                for (let i = 0; i < value.length; i++) {
+                for (let i = 0; i < valueLength; i++) {
                     walk(value, i, value[i]);
                 }
-
-                if (value.length > 1) {
-                    bytes += value.length - 1; // commas
-                }
-
-                stack.delete(value);
-
-                if (space > 0 && value.length > 0) {
-                    bytes += (1 + (stack.size + 1) * space) * value.length; // for each element: \n{space}
-                    bytes += 1 + stack.size * space; // for ]
-                }
-
-                visited.set(value, bytes - valueLength);
             } else {
                 // object
-                const valueLength = bytes;
-                let entries = 0;
+                let prevLength = bytes;
 
-                bytes += 2; // {}
+                for (const key of getKeys(value)) {
+                    walk(value, key, value[key]);
 
-                stack.add(value);
+                    if (prevLength !== bytes) {
+                        let keyLen = keysLength.get(key);
 
-                for (const key in value) {
-                    if (hasOwn(value, key) && (allowlist === null || allowlist.has(key))) {
-                        const prevLength = bytes;
-                        walk(value, key, value[key]);
-
-                        if (prevLength !== bytes) {
-                            // value is printed
-                            bytes += stringLength(key) + 1; // "key":
-                            entries++;
+                        if (keyLen === undefined) {
+                            keysLength.set(key, keyLen = stringLength(key) + (space > 0 ? 2 : 1)); // "key":
                         }
+
+                        // value is printed
+                        bytes += keyLen;
+                        valueLength++;
+                        prevLength = bytes;
                     }
                 }
+            }
 
-                if (entries > 1) {
-                    bytes += entries - 1; // commas
-                }
+            bytes += valueLength === 0
+                ? 2 // {} or []
+                : 1 + valueLength; // {} or [] + commas
 
-                stack.delete(value);
+            if (space > 0 && valueLength > 0) {
+                bytes +=
+                    (1 + stack.length * space) * valueLength + // for each key-value: \n{space}
+                    1 + (stack.length - 1) * space; // for }
+            }
 
-                if (space > 0 && entries > 0) {
-                    bytes += (1 + (stack.size + 1) * space + 1) * entries; // for each key-value: \n{space}
-                    bytes += 1 + stack.size * space; // for }
-                }
+            stack.pop();
 
-                visited.set(value, bytes - valueLength);
+            // add to 'visited' only objects that contain nested objects
+            if (prevObjects !== objects) {
+                visited.set(value, bytes - valueBytes);
             }
         }
     }
