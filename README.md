@@ -15,12 +15,13 @@ A set of utilities that extend the use of JSON:
 
 Features:
 
-- Fast and memory-efficient
+- Fast and memory-efficient (see [benchmarks](./benchmarks/README.md))
 - Compatible with browsers, Node.js, Deno, Bun
 - Supports Node.js and Web streams
 - Dual package: ESM and CommonJS
+- TypeScript typings
 - No dependencies
-- Size: 9.4Kb (minified), 3.6Kb (min+gzip)
+- Size: 8.5Kb (minified), 3.4Kb (min+gzip)
 
 ## Why?
 
