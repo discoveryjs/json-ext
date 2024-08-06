@@ -1,4 +1,4 @@
-## next
+## 0.6.1 (2024-08-06)
 
 - Enhanced the performance of `stringifyChunked()` by 1.5-3x
 - Enhanced the performance of `stringifyInfo()` by 1.5-5x
