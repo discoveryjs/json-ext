@@ -127,27 +127,40 @@ type StringifyOptions = {
 
 Usage:
 
-```js
-import { stringifyChunked } from '@discoveryjs/json-ext';
-
-const chunks = [...stringifyChunked(data)];
-// or
-for (const chunk of stringifyChunked(data)) {
-    console.log(chunk);
-}
-```
-
-Examples:
-
-- Streaming into a file (Node.js):
+- Getting an array of chunks:
     ```js
-    import fs from 'node:fs';
-    import { Readable } from 'node:stream';
-
-    Readable.from(stringifyChunked(data))
-        .pipe(fs.createWriteStream('path/to/file.json'));
+    const chunks = [...stringifyChunked(data)];
     ```
-- Wrapping into a `Promise` for piping into a writable Node.js stream:
+- Iterating over chunks:
+    ```js
+    for (const chunk of stringifyChunked(data)) {
+        console.log(chunk);
+    }
+    ```
+- Specifying the minimum size of a chunk with `highWaterMark` option:
+    ```js
+    const data = [1, "hello world", 42];
+
+    console.log([...stringifyChunked(data)]); // default 16kB
+    // ['[1,"hello world",42]']
+
+    console.log([...stringifyChunked(data, { highWaterMark: 16 })]);
+    // ['[1,"hello world"', ',42]']
+
+    console.log([...stringifyChunked(data, { highWaterMark: 1 })]);
+    // ['[1', ',"hello world"', ',42', ']']
+    ```
+- Streaming into a stream with a `Promise` (modern Node.js):
+    ```js
+    import { pipeline } from 'node:stream/promises';
+    import fs from 'node:fs';
+
+    await pipeline(
+        stringifyChunked(data),
+        fs.createWriteStream('path/to/file.json')
+    );
+    ```
+- Wrapping into a `Promise` streaming into a stream (legacy Node.js):
     ```js
     import { Readable } from 'node:stream';
 
@@ -159,7 +172,7 @@ Examples:
             .on('finish', resolve);
     });
     ```
-- Write into a file synchronously:
+- Writing into a file synchronously:
     > Note: Slower than `JSON.stringify()` but uses much less heap space and has no limitation on string length
     ```js
     import fs from 'node:fs';
