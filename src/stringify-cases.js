@@ -15,15 +15,32 @@ export const fixture = {
         i: [5, 6]
     }
 };
+export const positiveNumbers = [
+    0,
+    10,
+    100,
+    1_000,
+    10_000,
+    100_000,
+    1_000_000,
+    10_000_000,
+    100_000_000,
+    1_000_000_000,
+    10_000_000_000,
+    100_000_000_000,
+    1_000_000_000_000,
+    1.2,
+    1 / 10000000, // 1e-7
+    1 / 91233000000 // 1.0960946148871571e-11
+];
+export const negativeNumbers = positiveNumbers.map(n => -n);
+export const numbers = [...negativeNumbers, ...positiveNumbers];
 export const tests = [
     // scalar
     null,
     true,
     false,
-    1,
-    123,
-    12.34,
-    -123,
+    ...numbers,
     NaN,       // null
     Infinity,  // null
     -Infinity, // null
@@ -81,7 +98,6 @@ export const tests = [
     [{ a: 1 }, 'test', { b: [{ c: 3, d: 4 }]}],
     [{ foo: 1 }, undefined, true, new Boolean(false), 123, NaN, Infinity, -Infinity, new Number(3), 'test', new String('asd')],
     [10, undefined, function() { }, Symbol('')],
-
 
     // special cases
     /regex/gi, // {}
