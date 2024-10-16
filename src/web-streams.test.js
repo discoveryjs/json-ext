@@ -86,7 +86,7 @@ describeIfSupported('createStringifyWebStream()', () => {
             highWaterMark: 1,
             replacer: ['foo'],
             space: 4
-        }, 2));
+        }, 2)); // should ignore third argument when options passed
 
         assert.deepStrictEqual(actual, [
             '{\n    "foo": 123',

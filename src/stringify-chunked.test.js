@@ -1,6 +1,5 @@
 import assert from 'assert';
 import { inspect } from 'util';
-import { setImmediate } from 'timers'; // needed for Deno
 import { stringifyChunked } from './stringify-chunked.js';
 import { date, allUtf8LengthDiffChars, tests, spaceTests, spaces, replacerTests } from './stringify-cases.js';
 
@@ -16,28 +15,22 @@ function testTitleWithValue(title) {
     return title.replace(/[\u0000-\u001f\u0100-\uffff]/g, m => '\\u' + m.charCodeAt().toString(16).padStart(4, '0'));
 }
 
-function createStringifyCompareFn(input, expected, ...args) {
-    return () => new Promise((resolve, reject) => {
-        try {
-            const chunks = [...stringifyChunked(input, ...args)];
-            const actual = chunks.join('');
+function createStringifyTestFn(input, expected, ...args) {
+    return () => {
+        const chunks = [...stringifyChunked(input, ...args)];
+        const actual = chunks.join('');
 
-            if (actual !== expected) {
-                const escapedActual = JSON.stringify(actual);
-                const escapedExpected = JSON.stringify(actual);
+        if (actual !== expected) {
+            const escapedActual = JSON.stringify(actual);
+            const escapedExpected = JSON.stringify(actual);
 
-                if (actual !== escapedActual || expected !== escapedExpected) {
-                    assert.strictEqual(escapedActual.slice(1, -1), escapedExpected.slice(1, -1));
-                } else {
-                    assert.strictEqual(actual, expected);
-                }
+            if (actual !== escapedActual || expected !== escapedExpected) {
+                assert.strictEqual(escapedActual.slice(1, -1), escapedExpected.slice(1, -1));
+            } else {
+                assert.strictEqual(actual, expected);
             }
-
-            setImmediate(resolve);
-        } catch (e) {
-            reject(e);
         }
-    });
+    };
 }
 
 describe('stringifyChunked()', () => {
@@ -45,12 +38,12 @@ describe('stringifyChunked()', () => {
         for (const value of tests) {
             const expected = wellformedStringify(value);
             it(`${testTitleWithValue(value)} should be ${testTitleWithValue(expected)}`,
-                createStringifyCompareFn(value, expected));
+                createStringifyTestFn(value, expected));
         }
 
         // special cases
-        it('Symbol("test") should be null', createStringifyCompareFn(Symbol('test'), 'null'));
-        it('undefined should be null', createStringifyCompareFn(undefined, 'null'));
+        it('Symbol("test") should be null', createStringifyTestFn(Symbol('test'), 'null'));
+        it('undefined should be null', createStringifyTestFn(undefined, 'null'));
     });
 
     describe('toJSON()', () => {
@@ -63,7 +56,7 @@ describe('stringifyChunked()', () => {
         for (const value of values) {
             const expected = wellformedStringify(value);
             it(`${testTitleWithValue(value)} should be ${testTitleWithValue(expected)}`,
-                createStringifyCompareFn(value, expected));
+                createStringifyTestFn(value, expected));
         }
     });
 
@@ -87,14 +80,14 @@ describe('stringifyChunked()', () => {
         for (const [value, replacer] of replacerTests) {
             const expected = wellformedStringify(value, replacer);
             it(`${testTitleWithValue(value)} should be ${testTitleWithValue(expected)}`,
-                createStringifyCompareFn(value, expected, replacer));
+                createStringifyTestFn(value, expected, replacer));
         }
 
         describe('should take replacer from options', () => {
             for (const [value, replacer] of replacerTests) {
                 const expected = wellformedStringify(value, replacer);
                 it(`${testTitleWithValue(value)} should be ${testTitleWithValue(expected)}`,
-                    createStringifyCompareFn(value, expected, { replacer }));
+                    createStringifyTestFn(value, expected, { replacer }));
             }
         });
 
@@ -106,22 +99,21 @@ describe('stringifyChunked()', () => {
                 currentLog.push(this, key, value);
                 return value;
             };
-            let res;
             let currentLog;
 
             currentLog = expected;
-            res = wellformedStringify(data, replacer);
+            const expectedJson = wellformedStringify(data, replacer);
 
             currentLog = actual;
-            return createStringifyCompareFn(data, res, replacer)()
-                .then(() => {
-                    assert.strictEqual(actual.length, expected.length);
-                    assert.deepStrictEqual(actual[0], expected[0]); // { '': data }
+            const actualJson = [...stringifyChunked(data, replacer)].join('');
 
-                    for (let i = 1; i < actual.length; i++) {
-                        assert.strictEqual(actual[i], expected[i]);
-                    }
-                });
+            assert.strictEqual(actualJson, expectedJson);
+            assert.strictEqual(actual.length, expected.length);
+            assert.deepStrictEqual(actual[0], expected[0]); // { '': data }
+
+            for (let i = 1; i < actual.length; i++) {
+                assert.strictEqual(actual[i], expected[i]);
+            }
         });
 
         it('various values for a replace as an allowlist', () => {
@@ -133,7 +125,7 @@ describe('stringifyChunked()', () => {
             const value = { '3': 'ok', b: [2, 3, { c: 5, a: 4 }, 7, { d: 1 }], 2: 'fail', 1: 'ok', a: 1, c: 6, '': 'fail' };
             const replacer = ['a', 'a', new String('b'), { toString: () => 'c' }, 1, '2', new Number(3), null, () => {}, Symbol(), false];
 
-            return createStringifyCompareFn(
+            return createStringifyTestFn(
                 value,
                 JSON.stringify(value, replacer),
                 replacer
@@ -145,11 +137,11 @@ describe('stringifyChunked()', () => {
         for (const space of spaces) {
             describe('space ' + wellformedStringify(space), () => {
                 for (const value of spaceTests) {
-                    it(inspect(value), createStringifyCompareFn(value, wellformedStringify(value, null, space), null, space));
+                    it(inspect(value), createStringifyTestFn(value, wellformedStringify(value, null, space), null, space));
                 }
 
                 it('[Number, Array]',
-                    createStringifyCompareFn(
+                    createStringifyTestFn(
                         [
                             1,
                             [2, 3],
@@ -169,7 +161,7 @@ describe('stringifyChunked()', () => {
             for (const value of spaceTests) {
                 const space = 5;
                 const expected = wellformedStringify(value, null, space);
-                it(inspect(value), createStringifyCompareFn(value, expected, { space }, 3));
+                it(inspect(value), createStringifyTestFn(value, expected, { space }, 3));
             }
         });
     });
@@ -180,7 +172,7 @@ describe('stringifyChunked()', () => {
             circularRef.a = circularRef;
 
             assert.rejects(
-                createStringifyCompareFn(circularRef, '')(),
+                createStringifyTestFn(circularRef, ''),
                 (err) => {
                     assert.strictEqual(err.message, 'Converting circular structure to JSON');
                     return true;
@@ -193,7 +185,7 @@ describe('stringifyChunked()', () => {
             circularRef.push({ a: circularRef });
 
             assert.rejects(
-                createStringifyCompareFn(circularRef, '')(),
+                createStringifyTestFn(circularRef, ''),
                 (err) => {
                     assert.strictEqual(err.message, 'Converting circular structure to JSON');
                     return true;
@@ -206,7 +198,7 @@ describe('stringifyChunked()', () => {
             circularRef.a = [circularRef];
 
             assert.rejects(
-                createStringifyCompareFn(circularRef, '')(),
+                createStringifyTestFn(circularRef, ''),
                 (err) => {
                     assert.strictEqual(err.message, 'Converting circular structure to JSON');
                     return true;
@@ -219,7 +211,7 @@ describe('stringifyChunked()', () => {
             circularRef.push(circularRef);
 
             assert.rejects(
-                createStringifyCompareFn(circularRef, '')(),
+                createStringifyTestFn(circularRef, ''),
                 (err) => {
                     assert.strictEqual(err.message, 'Converting circular structure to JSON');
                     return true;
@@ -237,20 +229,20 @@ describe('stringifyChunked()', () => {
                 a1: arr, a2: arr, a3: arr2, a4: arr2
             };
 
-            return createStringifyCompareFn(noCycle, wellformedStringify(noCycle));
+            return createStringifyTestFn(noCycle, wellformedStringify(noCycle));
         });
     });
 
     describe('errors', () => {
-        it('"Do not know how to serialize" error', () => assert.rejects(
-            createStringifyCompareFn({ test: 1n }, '')(),
+        it('"Do not know how to serialize" error', () => assert.throws(
+            createStringifyTestFn({ test: 1n }, ''),
             /TypeError: Do not know how to serialize a BigInt/
         ));
 
-        it('should catch errors on value resolving', () => assert.rejects(
-            createStringifyCompareFn({ toJSON() {
+        it('should catch errors on value resolving', () => assert.throws(
+            createStringifyTestFn({ toJSON() {
                 throw new Error('test');
-            } }, '')(),
+            } }, ''),
             /Error: test/
         ));
     });
