@@ -149,7 +149,7 @@ export function stringifyInfo(value, optionsOrReplacer, space) {
         replacer = null;
     }
 
-    space = spaceLength(space);
+    space = spaceLength(optionsOrReplacer.space);
 
     const keysLength = new Map();
     const visited = new Map();

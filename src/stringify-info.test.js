@@ -53,6 +53,18 @@ describe('stringifyInfo()', () => {
         }
     });
 
+    it('options', () => {
+        const actual = stringifyInfo({ foo: 123, bar: 456 }, {
+            replacer: ['foo'],
+            space: 4
+        }, 2); // should ignore third argument when options passed
+
+        assert.deepStrictEqual(actual, {
+            bytes: 18,
+            circular: []
+        });
+    });
+
     describe('circular', () => {
         it('should stop on first circular reference by default', () => {
             const circularRef = {};

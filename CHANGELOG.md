@@ -1,3 +1,7 @@
+## next
+
+- Fixed `stringifyInfo()` to correctly accept the `space` parameter from options, i.e. `stringifyInfo(data, { space: 2 })`
+
 ## 0.6.1 (2024-08-06)
 
 - Enhanced the performance of `stringifyChunked()` by 1.5-3x

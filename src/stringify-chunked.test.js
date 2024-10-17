@@ -17,8 +17,7 @@ function testTitleWithValue(title) {
 
 function createStringifyTestFn(input, expected, ...args) {
     return () => {
-        const chunks = [...stringifyChunked(input, ...args)];
-        const actual = chunks.join('');
+        const actual = [...stringifyChunked(input, ...args)].join('');
 
         if (actual !== expected) {
             const escapedActual = JSON.stringify(actual);
@@ -164,6 +163,19 @@ describe('stringifyChunked()', () => {
                 it(inspect(value), createStringifyTestFn(value, expected, { space }, 3));
             }
         });
+    });
+
+    it('options', () => {
+        const actual = [...stringifyChunked({ foo: 123, bar: 456 }, {
+            highWaterMark: 1,
+            replacer: ['foo'],
+            space: 4
+        }, 2)]; // should ignore third argument when options passed
+
+        assert.deepStrictEqual(actual, [
+            '{\n    "foo": 123',
+            '\n}'
+        ]);
     });
 
     describe('circular structure', () => {

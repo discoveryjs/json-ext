@@ -110,7 +110,7 @@ export const tests = [
 ];
 export const spaceTests = tests
     .filter(t => typeof t === 'object')
-    .concat('foo', 123, null, false);
+    .concat('foo', 123, false);
 export const replacerTests = [
     [1, () => 2],
     [{ a: undefined }, (k, v) => {
