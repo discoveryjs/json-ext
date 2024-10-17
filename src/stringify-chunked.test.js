@@ -183,7 +183,7 @@ describe('stringifyChunked()', () => {
             const circularRef = {};
             circularRef.a = circularRef;
 
-            assert.rejects(
+            assert.throws(
                 createStringifyTestFn(circularRef, ''),
                 (err) => {
                     assert.strictEqual(err.message, 'Converting circular structure to JSON');
@@ -196,7 +196,7 @@ describe('stringifyChunked()', () => {
             const circularRef = [];
             circularRef.push({ a: circularRef });
 
-            assert.rejects(
+            assert.throws(
                 createStringifyTestFn(circularRef, ''),
                 (err) => {
                     assert.strictEqual(err.message, 'Converting circular structure to JSON');
@@ -209,7 +209,7 @@ describe('stringifyChunked()', () => {
             const circularRef = {};
             circularRef.a = [circularRef];
 
-            assert.rejects(
+            assert.throws(
                 createStringifyTestFn(circularRef, ''),
                 (err) => {
                     assert.strictEqual(err.message, 'Converting circular structure to JSON');
@@ -222,7 +222,7 @@ describe('stringifyChunked()', () => {
             const circularRef = [];
             circularRef.push(circularRef);
 
-            assert.rejects(
+            assert.throws(
                 createStringifyTestFn(circularRef, ''),
                 (err) => {
                     assert.strictEqual(err.message, 'Converting circular structure to JSON');
