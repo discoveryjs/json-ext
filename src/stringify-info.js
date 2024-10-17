@@ -158,6 +158,7 @@ export function stringifyInfo(value, optionsOrReplacer, space) {
     const root = { '': value };
     let stop = false;
     let bytes = 0;
+    let spaceBytes = 0;
     let objects = 0;
 
     walk(root, '', value);
@@ -168,7 +169,8 @@ export function stringifyInfo(value, optionsOrReplacer, space) {
     }
 
     return {
-        bytes: isNaN(bytes) ? Infinity : bytes,
+        bytes: isNaN(bytes) ? Infinity : bytes + spaceBytes,
+        spaceBytes,
         circular: [...circular]
     };
 
@@ -232,7 +234,7 @@ export function stringifyInfo(value, optionsOrReplacer, space) {
                         let keyLen = keysLength.get(key);
 
                         if (keyLen === undefined) {
-                            keysLength.set(key, keyLen = stringLength(key) + (space > 0 ? 2 : 1)); // "key":
+                            keysLength.set(key, keyLen = stringLength(key) + 1); // "key":
                         }
 
                         // value is printed
@@ -248,9 +250,15 @@ export function stringifyInfo(value, optionsOrReplacer, space) {
                 : 1 + valueLength; // {} or [] + commas
 
             if (space > 0 && valueLength > 0) {
-                bytes +=
-                    (1 + stack.length * space) * valueLength + // for each key-value: \n{space}
-                    1 + (stack.length - 1) * space; // for }
+                spaceBytes +=
+                    // a space between ":" and a value for each object entry
+                    (Array.isArray(value) ? 0 : valueLength) +
+                    // the formula results from folding the following components:
+                    // - for each key-value or element: ident + newline
+                    //   (1 + stack.length * space) * valueLength
+                    // - ident (one space less) before "}" or "]" + newline
+                    //   (stack.length - 1) * space + 1
+                    (1 + stack.length * space) * (valueLength + 1) - space;
             }
 
             stack.pop();

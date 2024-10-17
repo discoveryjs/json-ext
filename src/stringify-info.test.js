@@ -19,10 +19,16 @@ function createInfoTest(value, ...args) {
 
     it(title.replace(/[\u0000-\u001f\u0100-\uffff]/g, m => '\\u' + m.charCodeAt().toString(16).padStart(4, '0')), () => {
         const native = String(wellformedStringify(value, ...args));
+        const nonFormatted = args[1] ? String(wellformedStringify(value, args[0])) : native;
         const info = stringifyInfo(value, ...args);
+        const bytes = strBytesLength(native);
+        const spaceBytes = nonFormatted !== native
+            ? bytes - strBytesLength(nonFormatted)
+            : 0;
 
         assert.deepStrictEqual(info, {
-            bytes: strBytesLength(native),
+            bytes,
+            spaceBytes,
             circular: []
         });
     });
@@ -61,6 +67,7 @@ describe('stringifyInfo()', () => {
 
         assert.deepStrictEqual(actual, {
             bytes: 18,
+            spaceBytes: 7,
             circular: []
         });
     });

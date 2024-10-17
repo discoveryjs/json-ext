@@ -17,7 +17,8 @@ declare module '@discoveryjs/json-ext' {
     }
     type StringifyInfoResult = {
         bytes: number;
-        circular: Object[];
+        spaceBytes: number;
+        circular: object[];
     };
 
     export function parseChunked(input: Iterable<Chunk> | AsyncIterable<Chunk>): Promise<any>;
