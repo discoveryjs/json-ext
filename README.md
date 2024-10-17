@@ -7,21 +7,21 @@
 
 A set of utilities designed to extend JSON's capabilities, especially for handling large JSON data (over 100MB) efficiently:
 
-- **[parseChunked()](#parsechunked)** – Parses JSON incrementally; similar to [`JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse), but processing JSON data in chunks.
-- **[stringifyChunked()](#stringifychunked)** – Converts JavaScript objects to JSON incrementally; similar to [`JSON.stringify()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify), but returns a generator that yields JSON strings in parts.
-- **[stringifyInfo()](#stringifyinfo)** – Estimates the size of the `JSON.stringify()` result and identifies circular references without generating the JSON.
-- **[parseFromWebStream()](#parsefromwebstream)** – A helper function to parse JSON chunks directly from a Web Stream.
-- **[createStringifyWebStream()](#createstringifywebstream)** – A helper function to generate JSON data as a Web Stream.
+- [parseChunked()](#parsechunked) – Parses JSON incrementally; similar to [`JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse), but processing JSON data in chunks.
+- [stringifyChunked()](#stringifychunked) – Converts JavaScript objects to JSON incrementally; similar to [`JSON.stringify()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify), but returns a generator that yields JSON strings in parts.
+- [stringifyInfo()](#stringifyinfo) – Estimates the size of the `JSON.stringify()` result and identifies circular references without generating the JSON.
+- [parseFromWebStream()](#parsefromwebstream) – A helper function to parse JSON chunks directly from a Web Stream.
+- [createStringifyWebStream()](#createstringifywebstream) – A helper function to generate JSON data as a Web Stream.
 
 ### Key Features
 
-- **Fast and memory-efficient**: Optimized to handle large JSON data with minimal resource usage (see [benchmarks](./benchmarks/README.md)).
-- **Broad compatibility**: Works seamlessly with browsers, Node.js, Deno, and Bun.
-- **Stream support**: Supports both Node.js and Web streams.
-- **Dual package**: Available in both ESM and CommonJS.
-- **TypeScript typings**: Included.
-- **No dependencies**
-- **Compact size**: 8.5Kb (minified), 3.4Kb (min+gzip).
+- Optimized to handle large JSON data with minimal resource usage (see [benchmarks](./benchmarks/README.md))
+- Works seamlessly with browsers, Node.js, Deno, and Bun
+- Supports both Node.js and Web streams
+- Available in both ESM and CommonJS
+- TypeScript typings included
+- No external dependencies
+- Compact size: 8.5Kb (minified), 3.4Kb (min+gzip)
 
 ### Why json-ext?
 
