@@ -27,8 +27,7 @@
     "exports": {
         ".": {
             "require": "./cjs/index.cjs",
-            "import": "./src/index.js",
-            "types": "./index.d.ts"
+            "import": "./src/index.js"
         },
         "./dist/*": "./dist/*",
         "./package.json": "./package.json"
@@ -52,10 +51,10 @@
     "devDependencies": {
         "c8": "^7.10.0",
         "chalk": "^4.1.0",
-        "esbuild": "^0.21.5",
+        "esbuild": "^0.24.0",
         "eslint": "^8.57.0",
         "mocha": "^9.2.2",
-        "rollup": "^2.67.3"
+        "rollup": "^2.79.2"
     },
     "files": [
         "cjs",
