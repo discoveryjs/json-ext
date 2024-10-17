@@ -230,8 +230,9 @@ type StringifyInfoOptions = {
     continueOnCircular?: boolean;
 }
 type StringifyInfoResult = {
-    minLength: number;
-    circular: Object[]; // list of circular references
+    bytes: number;      // size of JSON in bytes
+    spaceBytes: number; // size of white spaces in bytes (when space option used)
+    circular: object[]; // list of circular references
 };
 ```
 

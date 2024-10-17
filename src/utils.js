@@ -72,3 +72,29 @@ export function normalizeSpace(space) {
 
     return false;
 }
+
+export function normalizeStringifyOptions(optionsOrReplacer, space) {
+    if (optionsOrReplacer === null || Array.isArray(optionsOrReplacer) || typeof optionsOrReplacer !== 'object') {
+        optionsOrReplacer = {
+            replacer: optionsOrReplacer,
+            space
+        };
+    }
+
+    let replacer = normalizeReplacer(optionsOrReplacer.replacer);
+    let getKeys = Object.keys;
+
+    if (Array.isArray(replacer)) {
+        const allowlist = replacer;
+
+        getKeys = () => allowlist;
+        replacer = null;
+    }
+
+    return {
+        ...optionsOrReplacer,
+        replacer,
+        getKeys,
+        space: normalizeSpace(optionsOrReplacer.space)
+    };
+}

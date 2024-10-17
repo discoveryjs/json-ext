@@ -1,8 +1,4 @@
-import {
-    normalizeReplacer,
-    normalizeSpace,
-    replaceValue
-} from './utils.js';
+import { normalizeStringifyOptions, replaceValue } from './utils.js';
 
 const hasOwn = typeof Object.hasOwn === 'function'
     ? Object.hasOwn
@@ -125,36 +121,15 @@ function primitiveLength(value) {
     }
 }
 
-function spaceLength(space) {
-    space = normalizeSpace(space);
-    return typeof space === 'string' ? space.length : 0;
-}
-
-export function stringifyInfo(value, optionsOrReplacer, space) {
-    if (optionsOrReplacer === null || Array.isArray(optionsOrReplacer) || typeof optionsOrReplacer !== 'object') {
-        optionsOrReplacer = {
-            replacer: optionsOrReplacer,
-            space
-        };
-    }
-
-    const continueOnCircular = Boolean(optionsOrReplacer.continueOnCircular);
-    let replacer = normalizeReplacer(optionsOrReplacer.replacer);
-    let getKeys = Object.keys;
-
-    if (Array.isArray(replacer)) {
-        const allowlist = replacer;
-
-        getKeys = () => allowlist;
-        replacer = null;
-    }
-
-    space = spaceLength(optionsOrReplacer.space);
+export function stringifyInfo(value, ...args) {
+    const { replacer, getKeys, ...options } = normalizeStringifyOptions(...args);
+    const continueOnCircular = Boolean(options.continueOnCircular);
+    const space = options.space?.length || 0;
 
     const keysLength = new Map();
     const visited = new Map();
-    const stack = [];
     const circular = new Set();
+    const stack = [];
     const root = { '': value };
     let stop = false;
     let bytes = 0;
@@ -170,7 +145,7 @@ export function stringifyInfo(value, optionsOrReplacer, space) {
 
     return {
         bytes: isNaN(bytes) ? Infinity : bytes + spaceBytes,
-        spaceBytes,
+        spaceBytes: space > 0 && isNaN(bytes) ? Infinity : spaceBytes,
         circular: [...circular]
     };
 

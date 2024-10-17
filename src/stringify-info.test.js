@@ -116,7 +116,7 @@ describe('stringifyInfo()', () => {
         }
     });
 
-    it('infinite size', () => {
+    describe('infinite size', () => {
         const value = [];
         const str = 'str'.repeat(100);
 
@@ -131,6 +131,20 @@ describe('stringifyInfo()', () => {
             });
         }
 
-        assert.strictEqual(stringifyInfo(value).bytes, Infinity);
+        it('without formatting', () => {
+            assert.deepStrictEqual(stringifyInfo(value), {
+                bytes: Infinity,
+                spaceBytes: 0,
+                circular: []
+            });
+        });
+
+        it('with formatting (space option)', () => {
+            assert.deepStrictEqual(stringifyInfo(value, { space: 4 }), {
+                bytes: Infinity,
+                spaceBytes: Infinity,
+                circular: []
+            });
+        });
     });
 });

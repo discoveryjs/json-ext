@@ -1,8 +1,4 @@
-import {
-    normalizeReplacer,
-    normalizeSpace,
-    replaceValue
-} from './utils.js';
+import { normalizeStringifyOptions, replaceValue } from './utils.js';
 
 function encodeString(value) {
     if (/[^\x20\x21\x23-\x5B\x5D-\uD799]/.test(value)) { // [^\x20-\uD799]|[\x22\x5c]
@@ -12,20 +8,12 @@ function encodeString(value) {
     return '"' + value + '"';
 }
 
-export function* stringifyChunked(value, optionsOrReplacer, space) {
-    if (optionsOrReplacer === null || Array.isArray(optionsOrReplacer) || typeof optionsOrReplacer !== 'object') {
-        optionsOrReplacer = {
-            replacer: optionsOrReplacer,
-            space
-        };
-    }
-
-    const highWaterMark = Number(optionsOrReplacer.highWaterMark) || 0x4000; // 16kb by default
-    let replacer = normalizeReplacer(optionsOrReplacer.replacer);
-    space = normalizeSpace(optionsOrReplacer.space);
+export function* stringifyChunked(value, ...args) {
+    const { replacer, getKeys, space, ...options } = normalizeStringifyOptions(...args);
+    const highWaterMark = Number(options.highWaterMark) || 0x4000; // 16kb by default
 
     const keyStrings = new Map();
-    const visited = [];
+    const stack = [];
     const rootValue = { '': value };
     let prevState = null;
     let state = () => printEntry('', value);
@@ -34,14 +22,6 @@ export function* stringifyChunked(value, optionsOrReplacer, space) {
     let stateKeys = [''];
     let stateIndex = 0;
     let buffer = '';
-    let getKeys = Object.keys;
-
-    if (Array.isArray(replacer)) {
-        const allowlist = replacer;
-
-        getKeys = () => allowlist;
-        replacer = null;
-    }
 
     while (true) {
         state();
@@ -66,7 +46,7 @@ export function* stringifyChunked(value, optionsOrReplacer, space) {
         // when no keys left
         if (stateIndex === stateKeys.length) {
             buffer += space && !stateEmpty
-                ? `\n${space.repeat(visited.length - 1)}}`
+                ? `\n${space.repeat(stack.length - 1)}}`
                 : '}';
 
             popState();
@@ -84,7 +64,7 @@ export function* stringifyChunked(value, optionsOrReplacer, space) {
 
         if (stateIndex === stateValue.length) {
             buffer += space && !stateEmpty
-                ? `\n${space.repeat(visited.length - 1)}]`
+                ? `\n${space.repeat(stack.length - 1)}]`
                 : ']';
 
             popState();
@@ -102,7 +82,7 @@ export function* stringifyChunked(value, optionsOrReplacer, space) {
         }
 
         if (space && prevState !== null) {
-            buffer += `\n${space.repeat(visited.length)}`;
+            buffer += `\n${space.repeat(stack.length)}`;
         }
 
         if (state === printObject) {
@@ -127,12 +107,12 @@ export function* stringifyChunked(value, optionsOrReplacer, space) {
             }
         } else {
             // If the visited set does not change after adding a value, then it is already in the set
-            if (visited.includes(value)) {
+            if (stack.includes(value)) {
                 throw new TypeError('Converting circular structure to JSON');
             }
 
             printEntryPrelude(key);
-            visited.push(value);
+            stack.push(value);
 
             pushState();
             state = Array.isArray(value) ? printArray : printObject;
@@ -175,8 +155,8 @@ export function* stringifyChunked(value, optionsOrReplacer, space) {
     }
 
     function popState() {
-        visited.pop();
-        const value = visited.length > 0 ? visited[visited.length - 1] : rootValue;
+        stack.pop();
+        const value = stack.length > 0 ? stack[stack.length - 1] : rootValue;
 
         // restore state
         state = Array.isArray(value) ? printArray : printObject;
