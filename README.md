@@ -244,9 +244,10 @@ Example:
 ```js
 import { stringifyInfo } from '@discoveryjs/json-ext';
 
-console.log(stringifyInfo({ test: true }));
+console.log(stringifyInfo({ test: true }, null, 4));
 // {
-//   bytes: 13, // Buffer.byteLength('{"test":true}')
+//   bytes: 20,     // Buffer.byteLength('{\n    "test": true\n}')
+//   spaceBytes: 7,
 //   circular: []    
 // }
 ```
