@@ -5,29 +5,30 @@
 [![Coverage Status](https://coveralls.io/repos/github/discoveryjs/json-ext/badge.svg?branch=master)](https://coveralls.io/github/discoveryjs/json-ext)
 [![NPM Downloads](https://img.shields.io/npm/dm/@discoveryjs/json-ext.svg)](https://www.npmjs.com/package/@discoveryjs/json-ext)
 
-A set of utilities that extend the use of JSON:
+A set of utilities designed to extend JSON's capabilities, especially for handling large JSON data (over 100MB) efficiently:
 
-- [parseChunked()](#parsechunked) – functions like [`JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse) but iterates over chunks, reconstructing the result object.
-- [stringifyChunked()](#stringifychunked) – functions like [`JSON.stringify()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify), but returns a generator yielding strings instead of a single string.
-- [stringifyInfo()](#stringifyinfo) – returns an object with the expected overall size of the stringify operation and any circular references.
-- [parseFromWebStream()](#parsefromwebstream) – a helper function to consume chunks from a Web Stream.
-- [createStringifyWebStream()](#createstringifywebstream) – a helper to create a Web Stream.
+- **[parseChunked()](#parsechunked)** – Parses JSON incrementally; similar to [`JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse), but processing JSON data in chunks.
+- **[stringifyChunked()](#stringifychunked)** – Converts JavaScript objects to JSON incrementally; similar to [`JSON.stringify()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify), but returns a generator that yields JSON strings in parts.
+- **[stringifyInfo()](#stringifyinfo)** – Estimates the size of the `JSON.stringify()` result and identifies circular references without generating the JSON.
+- **[parseFromWebStream()](#parsefromwebstream)** – A helper function to parse JSON chunks directly from a Web Stream.
+- **[createStringifyWebStream()](#createstringifywebstream)** – A helper function to generate JSON data as a Web Stream.
 
-Features:
+### Key Features
 
-- Fast and memory-efficient (see [benchmarks](./benchmarks/README.md))
-- Compatible with browsers, Node.js, Deno, Bun
-- Supports Node.js and Web streams
-- Dual package: ESM and CommonJS
-- TypeScript typings
-- No dependencies
-- Size: 8.5Kb (minified), 3.4Kb (min+gzip)
+- **Fast and memory-efficient**: Optimized to handle large JSON data with minimal resource usage (see [benchmarks](./benchmarks/README.md)).
+- **Broad compatibility**: Works seamlessly with browsers, Node.js, Deno, and Bun.
+- **Stream support**: Supports both Node.js and Web streams.
+- **Dual package**: Available in both ESM and CommonJS.
+- **TypeScript typings**: Included.
+- **No dependencies**
+- **Compact size**: 8.5Kb (minified), 3.4Kb (min+gzip).
 
-## Why?
+### Why json-ext?
 
-- Prevents main thread freezing during large JSON parsing by distributing the process over time.
-- Handles large JSON processing (e.g., V8 has a limitation for strings ~500MB, making JSON larger than 500MB unmanageable).
-- Reduces memory pressure. `JSON.parse()` and `JSON.stringify()` require the entire JSON content before processing. `parseChunked()` and `stringifyChunked()` allow processing and sending data incrementally, avoiding large memory consumption at a single time point and reducing GC pressure.
+- **Handles large JSON files**: Overcomes the limitations of V8 for strings larger than ~500MB, enabling the processing of huge JSON data.
+- **Prevents main thread blocking**: Distributes parsing and stringifying over time, ensuring the main thread remains responsive during heavy JSON operations.
+- **Reduces memory usage**: Traditional `JSON.parse()` and `JSON.stringify()` require loading entire data into memory, leading to high memory consumption and increased garbage collection pressure. `parseChunked()` and `stringifyChunked()` process data incrementally, optimizing memory usage.
+- **Size estimation**: `stringifyInfo()` allows estimating the size of resulting JSON before generating it, enabling better decision-making for JSON generation strategies.
 
 ## Install
 
