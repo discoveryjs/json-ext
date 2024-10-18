@@ -21,7 +21,7 @@ A set of utilities designed to extend JSON's capabilities, especially for handli
 - Available in both ESM and CommonJS
 - TypeScript typings included
 - No external dependencies
-- Compact size: 8.5Kb (minified), 3.4Kb (min+gzip)
+- Compact size: 9.4Kb (minified), 3.8Kb (min+gzip)
 
 ### Why json-ext?
 
