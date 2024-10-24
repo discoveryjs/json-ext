@@ -1,3 +1,7 @@
+## 0.6.3 (2024-10-24)
+
+- Fixed an issue with `types` in the `exports` of `package.json` that introduced in version `0.6.2`
+
 ## 0.6.2 (2024-10-18)
 
 - Added `spaceBytes` field to `stringifyInfo()` result, which indicates the number of bytes used for white spaces. This allows for estimating size of `JSON.stringify()` result with and without formatting (when `space` option is used) in a single pass instead of two
