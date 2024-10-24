@@ -27,7 +27,8 @@
     "exports": {
         ".": {
             "require": "./cjs/index.cjs",
-            "import": "./src/index.js"
+            "import": "./src/index.js",
+            "types": "./index.d.ts"
         },
         "./dist/*": "./dist/*",
         "./package.json": "./package.json"
