@@ -58,6 +58,9 @@ function createChunkParser() {
     let value = undefined;
     let valueStack = null;
 
+    let prevArray = null;
+    let prevArraySlices = [];
+
     let stack = new Array(100);
     let lastFlushDepth = 0;
     let flushDepth = 0;
@@ -76,6 +79,29 @@ function createChunkParser() {
         }
     };
 
+    function mergeArraySlices() {
+        if (prevArray === null) {
+            return;
+        }
+
+        if (prevArraySlices.length !== 0) {
+            const newArray = prevArraySlices.length === 1
+                ? prevArray.concat(prevArraySlices[0])
+                : prevArray.concat(...prevArraySlices);
+
+            if (valueStack.prev !== null) {
+                valueStack.prev.value[valueStack.key] = newArray;
+            } else {
+                value = newArray;
+            }
+
+            valueStack.value = newArray;
+            prevArraySlices = [];
+        }
+
+        prevArray = null;
+    }
+
     function parseAndAppend(fragment, wrap) {
         // Append new entries or elements
         if (stack[lastFlushDepth - 1] === STACK_OBJECT) {
@@ -91,7 +117,12 @@ function createChunkParser() {
                 fragment = '[' + fragment + ']';
             }
 
-            append(valueStack.value, JSON.parse(fragment));
+            if (prevArray === valueStack.value) {
+                prevArraySlices.push(JSON.parse(fragment));
+            } else {
+                append(valueStack.value, JSON.parse(fragment));
+                prevArray = valueStack.value;
+            }
         }
     }
 
@@ -145,6 +176,7 @@ function createChunkParser() {
                 value = JSON.parse(fragment);
                 valueStack = {
                     value,
+                    key: null,
                     prev: null
                 };
             }
@@ -159,29 +191,33 @@ function createChunkParser() {
                 value = JSON.parse(fragment);
                 valueStack = {
                     value,
+                    key: null,
                     prev: null
                 };
             } else {
                 parseAndAppend(prepareAddition(fragment), true);
+                mergeArraySlices();
             }
 
             // Move down to the depths to the last object/array, which is current now
             for (let i = lastFlushDepth || 1; i < flushDepth; i++) {
                 let value = valueStack.value;
+                let key = null;
 
                 if (stack[i - 1] === STACK_OBJECT) {
                     // Find last entry
-                    let key;
                     // eslint-disable-next-line curly
                     for (key in value);
                     value = value[key];
                 } else {
                     // Last element
-                    value = value[value.length - 1];
+                    key = value.length - 1;
+                    value = value[key];
                 }
 
                 valueStack = {
                     value,
+                    key,
                     prev: valueStack
                 };
             }
@@ -195,6 +231,7 @@ function createChunkParser() {
             }
 
             parseAndAppend(fragment, false);
+            mergeArraySlices();
 
             for (let i = lastFlushDepth - 1; i >= flushDepth; i--) {
                 valueStack = valueStack.prev;
