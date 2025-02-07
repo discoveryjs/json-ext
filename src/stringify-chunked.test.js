@@ -21,7 +21,7 @@ function createStringifyTestFn(input, expected, ...args) {
 
         if (actual !== expected) {
             const escapedActual = JSON.stringify(actual);
-            const escapedExpected = JSON.stringify(actual);
+            const escapedExpected = JSON.stringify(expected);
 
             if (actual !== escapedActual || expected !== escapedExpected) {
                 assert.strictEqual(escapedActual.slice(1, -1), escapedExpected.slice(1, -1));
