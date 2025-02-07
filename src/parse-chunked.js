@@ -273,8 +273,8 @@ function createChunkParser() {
                         if ((seqLength !== 4 && byte >> 3 === 0b11110) ||
                             (seqLength !== 3 && byte >> 4 === 0b1110) ||
                             (seqLength !== 2 && byte >> 5 === 0b110)) {
-                            pendingByteSeq = chunk.slice(chunk.length - seqLength);
-                            chunk = chunk.slice(0, -seqLength);
+                            pendingByteSeq = chunk.slice(chunk.length - seqLength); // use slice to avoid tying chunk
+                            chunk = chunk.subarray(0, -seqLength); // use subarray to avoid buffer copy
                         }
 
                         break;
