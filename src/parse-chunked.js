@@ -172,13 +172,19 @@ function createChunkParser() {
             if (flushDepth > 0) {
                 parseAndAppend(prepareAddition(fragment), true);
             } else {
-                // That's an entire value on a top level
-                value = JSON.parse(fragment);
-                valueStack = {
-                    value,
-                    key: null,
-                    prev: null
-                };
+                if (valueStack === null) {
+                    // That's an entire value on a top level
+                    value = JSON.parse(fragment);
+                    valueStack = {
+                        value,
+                        key: null,
+                        prev: null
+                    };
+                } else if (/\S/.test(fragment)) {
+                    // Extra non-whitespace after complete root value should fail to parse
+                    jsonParseOffset -= 3;
+                    JSON.parse('[[]' + fragment);
+                }
             }
         } else if (flushDepth > lastFlushDepth) {
             // Add missed closing brackets/parentheses
@@ -345,6 +351,13 @@ function createChunkParser() {
                     // Close an object or array
                     flushPoint = i + 1;
                     flushDepth--;
+
+                    // Unmatched closing bracket/brace at top level
+                    if (flushDepth < 0) {
+                        flushDepth = lastFlushDepth;
+                        flush(chunk, lastFlushPoint, flushPoint);
+                        return;
+                    }
 
                     if (flushDepth < lastFlushDepth) {
                         flush(chunk, lastFlushPoint, flushPoint);

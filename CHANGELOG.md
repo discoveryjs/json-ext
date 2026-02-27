@@ -1,3 +1,13 @@
+## next
+
+- Refactored `parseChunked()` from class-based to function-based implementation, as a result a bit smaller and faster
+- `parseChunked()`:
+  - Fixed OOM on very long arrays (corner case, millions of elements)
+  - Fixed crash on malformed top-level closing tokens
+  - Fixed handling of empty input and input with only whitespaces
+  - Fixed re-parsing a second top-level value; now extra non-whitespace after a complete root fails gracefully as parse error
+  - Fixed handling of trailing whitespace after a complete root value
+
 ## 0.6.3 (2024-10-24)
 
 - Fixed an issue with `types` in the `exports` of `package.json` that introduced in version `0.6.2`

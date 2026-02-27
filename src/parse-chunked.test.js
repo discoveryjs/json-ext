@@ -128,6 +128,30 @@ describe('parseChunked()', () => {
     });
 
     describe('errors', () => {
+        it('unmatched closing bracket at start', () =>
+            assert.rejects(
+                () => parseChunked([']']),
+                /Unexpected token ] in JSON at position 0|Unexpected token ']'(, "]" is not valid JSON)?/
+            )
+        );
+        it('unmatched closing brace at start', () =>
+            assert.rejects(
+                () => parseChunked(['}']),
+                /Unexpected token } in JSON at position 0|Unexpected token '}'(, "}" is not valid JSON)?/
+            )
+        );
+        it('extra token after complete value', () =>
+            assert.rejects(
+                () => parseChunked(['[] true']),
+                /(Unexpected token t in JSON at position 3|Unexpected token t in JSON at position 6|Unexpected non-whitespace character after JSON at position 2|Expected ',' or ']' after array element in JSON at position 3)/
+            )
+        );
+        it('extra opening after root', () =>
+            assert.rejects(
+                () => parseChunked(['{}[']),
+                /(Unexpected token \[ in JSON at position 2|Unexpected non-whitespace character after JSON at position 2)/
+            )
+        );
         it('abs pos across chunks', () =>
             assert.rejects(
                 async () => await parse(['{"test":"he', 'llo",}']),
@@ -170,6 +194,49 @@ describe('parseChunked()', () => {
                 /(Unexpected token {|Expected ',' or ']' after array element) in JSON at position 3|Expected ']'/
             )
         );
+    });
+
+    describe('trailing whitespace after full value', () => {
+        it('spaces and newlines after array', async () => {
+            const actual = await parse(['[1,2]\n\n  \t  ']);
+            assert.deepStrictEqual(actual, [1, 2]);
+        });
+        it('split chunks with trailing whitespace', async () => {
+            const actual = await parse(['[1,2]', '   ', '\n\t']);
+            assert.deepStrictEqual(actual, [1, 2]);
+        });
+    });
+
+    describe('chunk boundary for escapes and multi-byte utf-8', () => {
+        it('escaped quote split', async () => {
+            const actual = await parse(['"hello \\"', 'world"']);
+            assert.deepStrictEqual(actual, 'hello "world');
+        });
+        it('backslash escape split across chunks', async () => {
+            // create a string with a literal backslash then a quote and more text: "foo \"bar"
+            const chunks = ['"foo \\"', 'bar"'];
+            const actual = await parse(chunks);
+            assert.deepStrictEqual(actual, 'foo "bar');
+        });
+        it('multi-byte emoji split across chunks', async () => {
+            const json = JSON.stringify('a😅b');
+            // split inside surrogate pair intentionally
+            const first = json.slice(0, 4); // "a
+            const middle = json.slice(4, 6); // first part of surrogate maybe
+            const rest = json.slice(6);
+            const actual = await parse([first, middle, rest]);
+            assert.deepStrictEqual(actual, 'a😅b');
+        });
+        it('multi-byte via Uint8Array boundary', async () => {
+            const str = '"start 🤓 end"';
+            const enc = new TextEncoder().encode(str);
+            // slice across multi-byte boundary of 🤓 (U+1F913)
+            const idx = enc.indexOf(0xF0); // start of 4-byte sequence
+            const part1 = enc.slice(0, idx + 2); // cut in middle of sequence
+            const part2 = enc.slice(idx + 2);
+            const actual = await parseChunked([part1, part2]);
+            assert.deepStrictEqual(actual, 'start 🤓 end');
+        });
     });
 
     describe('use with buffers', () => {
