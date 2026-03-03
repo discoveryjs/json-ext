@@ -5,9 +5,9 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "bfj": "^8.0.0",
+    "bfj": "^9.1.3",
     "chalk": "^4.1.0",
-    "json-stream-stringify": "^3.1.4",
+    "json-stream-stringify": "^3.1.6",
     "json-ext-0.5.7": "npm:@discoveryjs/json-ext@0.5.7",
     "json-ext-0.6.0": "npm:@discoveryjs/json-ext@0.6.0"
   }

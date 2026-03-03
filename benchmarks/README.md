@@ -31,11 +31,13 @@ Where `[fixture]` is number of fixture:
 <!--parse-chunked-table:time-->
 | Solution | S (~2MB) | M (~13.7MB) | L (~100MB) | 500MB | 1GB |
 | -------- | -------: | ----------: | ---------: | ----: | --: |
-| JSON.parse() | 18ms | 53ms | 592ms | 3325ms | CRASH |
-| @discoveryjs/json-ext parseChunked(fs.createReadStream()) | 41ms | 89ms | 753ms | 3709ms | 7342ms |
-| @discoveryjs/json-ext parseChunked(fs.readFileSync()) | 37ms | 83ms | 761ms | 3776ms | 8128ms |
-| @discoveryjs/json-ext parseFromWebStream() | 44ms | 92ms | 756ms | 3738ms | 7439ms |
-| bfj | 756ms | 3042ms | 55518ms | CRASH | ERR_RUN_TOO_LONG |
+| JSON.parse() | 10ms | 27ms | 257ms | 1265ms | ERR_STRING_TOO_LONG |
+| @discoveryjs/json-ext parseChunked(fs.createReadStream()) | 24ms | 54ms | 413ms | 1929ms | 3871ms |
+| @discoveryjs/json-ext parseChunked(fs.readFileSync()) | 21ms | 55ms | 397ms | 1978ms | 4138ms |
+| @discoveryjs/json-ext parseFromWebStream() | 28ms | 56ms | 392ms | 1959ms | 4048ms |
+| bfj | 263ms | 1152ms | 12908ms | 64403ms | ERR_RUN_TOO_LONG |
+| @discoveryjs/json-ext parseChunked(fs.createReadStream()) 0.5.7 | 24ms | 46ms | 424ms | 2069ms | 4132ms |
+| @discoveryjs/json-ext parseChunked(fs.createReadStream()) 0.6.0 | 23ms | 57ms | 425ms | 2094ms | 4348ms |
 <!--/parse-chunked-table:time-->
 
 ### CPU usage
@@ -43,11 +45,13 @@ Where `[fixture]` is number of fixture:
 <!--parse-chunked-table:cpu-->
 | Solution | S (~2MB) | M (~13.7MB) | L (~100MB) | 500MB | 1GB |
 | -------- | -------: | ----------: | ---------: | ----: | --: |
-| JSON.parse() | 17ms | 59ms | 863ms | 3813ms | CRASH |
-| @discoveryjs/json-ext parseChunked(fs.createReadStream()) | 52ms | 112ms | 1033ms | 4892ms | 9052ms |
-| @discoveryjs/json-ext parseChunked(fs.readFileSync()) | 47ms | 110ms | 996ms | 4560ms | 10294ms |
-| @discoveryjs/json-ext parseFromWebStream() | 59ms | 114ms | 1067ms | 4949ms | 9015ms |
-| bfj | 924ms | 3241ms | 57905ms | CRASH | ERR_RUN_TOO_LONG |
+| JSON.parse() | 8ms | 29ms | 306ms | 1529ms | ERR_STRING_TOO_LONG |
+| @discoveryjs/json-ext parseChunked(fs.createReadStream()) | 33ms | 76ms | 498ms | 2206ms | 4803ms |
+| @discoveryjs/json-ext parseChunked(fs.readFileSync()) | 29ms | 72ms | 421ms | 2105ms | 4440ms |
+| @discoveryjs/json-ext parseFromWebStream() | 40ms | 72ms | 461ms | 2222ms | 4590ms |
+| bfj | 320ms | 1216ms | 13464ms | 70270ms | ERR_RUN_TOO_LONG |
+| @discoveryjs/json-ext parseChunked(fs.createReadStream()) 0.5.7 | 31ms | 65ms | 492ms | 2346ms | 4404ms |
+| @discoveryjs/json-ext parseChunked(fs.createReadStream()) 0.6.0 | 31ms | 81ms | 496ms | 2364ms | 4963ms |
 <!--/parse-chunked-table:cpu-->
 
 ### Max memory usage
@@ -55,11 +59,13 @@ Where `[fixture]` is number of fixture:
 <!--parse-chunked-table:memory-->
 | Solution | S (~2MB) | M (~13.7MB) | L (~100MB) | 500MB | 1GB |
 | -------- | -------: | ----------: | ---------: | ----: | --: |
-| JSON.parse() | 6.50MB | 19.17MB | 113.74MB | 1.57GB | CRASH |
-| @discoveryjs/json-ext parseChunked(fs.createReadStream()) | 11.41MB | 47.26MB | 146.38MB | 618.23MB | 1.23GB |
-| @discoveryjs/json-ext parseChunked(fs.readFileSync()) | 10.83MB | 48.93MB | 222.70MB | 1.12GB | 2.15GB |
-| @discoveryjs/json-ext parseFromWebStream() | 12.04MB | 47.58MB | 146.34MB | 617.86MB | 1.24GB |
-| bfj | 63.93MB | 123.42MB | 2.32GB | CRASH | ERR_RUN_TOO_LONG |
+| JSON.parse() | 9.09MB | 60.30MB | 457.16MB | 2.29GB | ERR_STRING_TOO_LONG |
+| @discoveryjs/json-ext parseChunked(fs.createReadStream()) | 9.70MB | 52.75MB | 195.82MB | 695.91MB | 1.33GB |
+| @discoveryjs/json-ext parseChunked(fs.readFileSync()) | 9.09MB | 49.17MB | 278.10MB | 1.16GB | 2.20GB |
+| @discoveryjs/json-ext parseFromWebStream() | 10.75MB | 46.73MB | 192.93MB | 689.46MB | 1.29GB |
+| bfj | 38.13MB | 111.32MB | 352.53MB | 1.42GB | ERR_RUN_TOO_LONG |
+| @discoveryjs/json-ext parseChunked(fs.createReadStream()) 0.5.7 | 9.13MB | 35.10MB | 199.70MB | 704.50MB | 1.29GB |
+| @discoveryjs/json-ext parseChunked(fs.createReadStream()) 0.6.0 | 9.70MB | 34.13MB | 196.80MB | 688.68MB | 1.29GB |
 <!--/parse-chunked-table:memory-->
 
 ### Output for fixtures
@@ -70,38 +76,50 @@ Where `[fixture]` is number of fixture:
 
 ```
 Benchmark: parseChunked() (parse chunked JSON)
-Node version: 20.14.0
+Node version: 24.14.0
 Fixture: fixture/small.json 2.08MB / chunk size 524kB
 
 # JSON.parse()
-time: 18 ms
-cpu: 17 ms
-mem impact:  rss   +7.59MB | heapTotal   +5.77MB | heapUsed   +2.00MB | external       +56
-       max:  rss  +11.39MB | heapTotal  +10.19MB | heapUsed   +6.50MB | external       +56
+time: 10 ms
+cpu: 8 ms
+mem impact:  rss   +9.32MB | heapTotal   +7.08MB | heapUsed   +2.65MB | external      +1kB
+       max:  rss   +8.81MB | heapTotal   +4.19MB | heapUsed   +2.86MB | external   +6.23MB
 
 # @discoveryjs/json-ext parseChunked(fs.createReadStream())
-time: 41 ms
-cpu: 52 ms
-mem impact:  rss   +5.46MB | heapTotal   +6.82MB | heapUsed   +2.36MB | external       +56
-       max:  rss  +10.58MB | heapTotal  +11.01MB | heapUsed   +8.80MB | external   +2.60MB
+time: 24 ms
+cpu: 33 ms
+mem impact:  rss  +14.14MB | heapTotal   +6.55MB | heapUsed   +2.69MB | external      +1kB
+       max:  rss  +17.68MB | heapTotal   +9.63MB | heapUsed   +7.10MB | external   +2.60MB
+
+# @discoveryjs/json-ext parseChunked(fs.createReadStream()) 0.5.7
+time: 24 ms
+cpu: 31 ms
+mem impact:  rss  +16.02MB | heapTotal   +6.82MB | heapUsed   +2.68MB | external    +526kB
+       max:  rss  +19.63MB | heapTotal  +10.42MB | heapUsed   +7.05MB | external   +2.08MB
+
+# @discoveryjs/json-ext parseChunked(fs.createReadStream()) 0.6.0
+time: 23 ms
+cpu: 31 ms
+mem impact:  rss  +16.30MB | heapTotal   +7.08MB | heapUsed   +2.69MB | external      +1kB
+       max:  rss  +19.82MB | heapTotal  +10.42MB | heapUsed   +7.10MB | external   +2.60MB
 
 # @discoveryjs/json-ext parseChunked(fs.readFileSync())
-time: 37 ms
-cpu: 47 ms
-mem impact:  rss   +5.85MB | heapTotal   +6.29MB | heapUsed   +2.29MB | external       +56
-       max:  rss  +10.86MB | heapTotal  +10.75MB | heapUsed   +8.75MB | external   +2.08MB
+time: 21 ms
+cpu: 29 ms
+mem impact:  rss  +14.42MB | heapTotal   +7.08MB | heapUsed   +2.61MB | external      +1kB
+       max:  rss  +18.28MB | heapTotal   +9.37MB | heapUsed   +7.01MB | external   +2.08MB
 
 # @discoveryjs/json-ext parseFromWebStream()
-time: 44 ms
-cpu: 59 ms
-mem impact:  rss   +7.27MB | heapTotal   +7.34MB | heapUsed   +2.70MB | external    +160kB
-       max:  rss  +12.44MB | heapTotal  +11.53MB | heapUsed   +9.28MB | external   +2.76MB
+time: 28 ms
+cpu: 40 ms
+mem impact:  rss  +16.30MB | heapTotal   +7.34MB | heapUsed   +3.11MB | external    +172kB
+       max:  rss  +20.12MB | heapTotal  +10.24MB | heapUsed   +7.98MB | external   +2.77MB
 
 # bfj
-time: 756 ms
-cpu: 924 ms
-mem impact:  rss  +76.89MB | heapTotal  +35.13MB | heapUsed   +5.04MB | external       +63
-       max:  rss  +87.65MB | heapTotal  +81.15MB | heapUsed  +62.38MB | external   +1.55MB
+time: 263 ms
+cpu: 320 ms
+mem impact:  rss  +73.68MB | heapTotal  +33.82MB | heapUsed   +4.17MB | external      +1kB
+       max:  rss  +73.73MB | heapTotal  +49.95MB | heapUsed  +36.81MB | external   +1.31MB
 ```
 <!--/parse-chunked-output:0-->
 </details>
@@ -112,38 +130,50 @@ mem impact:  rss  +76.89MB | heapTotal  +35.13MB | heapUsed   +5.04MB | external
 
 ```
 Benchmark: parseChunked() (parse chunked JSON)
-Node version: 20.14.0
+Node version: 24.14.0
 Fixture: fixture/medium.json 13.69MB / chunk size 524kB
 
 # JSON.parse()
-time: 53 ms
-cpu: 59 ms
-mem impact:  rss  +61.62MB | heapTotal  +49.00MB | heapUsed  +18.96MB | external       +56
-       max:  rss  +88.82MB | heapTotal  +48.74MB | heapUsed  +19.17MB | external       +56
+time: 27 ms
+cpu: 29 ms
+mem impact:  rss  +64.39MB | heapTotal  +48.45MB | heapUsed  +19.22MB | external      +1kB
+       max:  rss  +63.68MB | heapTotal  +42.42MB | heapUsed  +19.21MB | external  +41.08MB
 
 # @discoveryjs/json-ext parseChunked(fs.createReadStream())
-time: 89 ms
-cpu: 112 ms
-mem impact:  rss  +40.68MB | heapTotal  +49.53MB | heapUsed  +19.49MB | external       +56
-       max:  rss  +56.57MB | heapTotal  +58.82MB | heapUsed  +39.33MB | external   +7.93MB
+time: 54 ms
+cpu: 76 ms
+mem impact:  rss  +43.16MB | heapTotal  +82.00MB | heapUsed  +19.29MB | external      +1kB
+       max:  rss  +62.62MB | heapTotal  +65.11MB | heapUsed  +43.77MB | external   +8.98MB
+
+# @discoveryjs/json-ext parseChunked(fs.createReadStream()) 0.5.7
+time: 46 ms
+cpu: 65 ms
+mem impact:  rss  +44.12MB | heapTotal  +82.02MB | heapUsed  +19.51MB | external    +526kB
+       max:  rss  +48.04MB | heapTotal  +54.82MB | heapUsed  +27.23MB | external   +7.87MB
+
+# @discoveryjs/json-ext parseChunked(fs.createReadStream()) 0.6.0
+time: 57 ms
+cpu: 81 ms
+mem impact:  rss  +52.89MB | heapTotal  +82.02MB | heapUsed  +19.54MB | external      +1kB
+       max:  rss  +57.57MB | heapTotal  +85.75MB | heapUsed  +28.89MB | external   +5.24MB
 
 # @discoveryjs/json-ext parseChunked(fs.readFileSync())
-time: 83 ms
-cpu: 110 ms
-mem impact:  rss  +39.27MB | heapTotal  +48.48MB | heapUsed  +19.19MB | external       +56
-       max:  rss  +53.59MB | heapTotal  +58.20MB | heapUsed  +35.24MB | external  +13.69MB
+time: 55 ms
+cpu: 72 ms
+mem impact:  rss  +44.61MB | heapTotal  +48.71MB | heapUsed  +19.15MB | external      +1kB
+       max:  rss  +58.44MB | heapTotal  +58.00MB | heapUsed  +35.48MB | external  +13.70MB
 
 # @discoveryjs/json-ext parseFromWebStream()
-time: 92 ms
-cpu: 114 ms
-mem impact:  rss  +42.29MB | heapTotal  +50.05MB | heapUsed  +19.61MB | external    +160kB
-       max:  rss  +58.57MB | heapTotal  +58.56MB | heapUsed  +39.49MB | external   +8.09MB
+time: 56 ms
+cpu: 72 ms
+mem impact:  rss  +54.62MB | heapTotal  +83.57MB | heapUsed  +19.99MB | external    +172kB
+       max:  rss  +67.86MB | heapTotal  +57.33MB | heapUsed  +39.16MB | external   +7.57MB
 
 # bfj
-time: 3042 ms
-cpu: 3241 ms
-mem impact:  rss +142.38MB | heapTotal  +97.80MB | heapUsed  +20.87MB | external       +63
-       max:  rss +146.15MB | heapTotal +135.76MB | heapUsed +118.84MB | external   +4.59MB
+time: 1152 ms
+cpu: 1216 ms
+mem impact:  rss +205.21MB | heapTotal +154.93MB | heapUsed  +20.24MB | external      +1kB
+       max:  rss +204.62MB | heapTotal +180.04MB | heapUsed +107.52MB | external   +3.80MB
 ```
 <!--/parse-chunked-output:1-->
 </details>
@@ -155,38 +185,50 @@ mem impact:  rss +142.38MB | heapTotal  +97.80MB | heapUsed  +20.87MB | external
 
 ```
 Benchmark: parseChunked() (parse chunked JSON)
-Node version: 20.14.0
+Node version: 24.14.0
 Fixture: fixture/big.json 99.95MB / chunk size 524kB
 
 # JSON.parse()
-time: 592 ms
-cpu: 863 ms
-mem impact:  rss +267.88MB | heapTotal +144.79MB | heapUsed +113.57MB | external       +56
-       max:  rss +466.63MB | heapTotal +145.05MB | heapUsed +113.74MB | external       +56
+time: 257 ms
+cpu: 306 ms
+mem impact:  rss +587.66MB | heapTotal +287.13MB | heapUsed +157.33MB | external      +1kB
+       max:  rss +585.42MB | heapTotal +275.60MB | heapUsed +157.32MB | external +299.84MB
 
 # @discoveryjs/json-ext parseChunked(fs.createReadStream())
-time: 753 ms
-cpu: 1033 ms
-mem impact:  rss +165.46MB | heapTotal +146.11MB | heapUsed +114.15MB | external       +56
-       max:  rss +181.78MB | heapTotal +155.53MB | heapUsed +136.42MB | external   +9.96MB
+time: 413 ms
+cpu: 498 ms
+mem impact:  rss +258.49MB | heapTotal +246.50MB | heapUsed +116.57MB | external      +1kB
+       max:  rss +302.84MB | heapTotal +254.67MB | heapUsed +169.08MB | external  +26.74MB
+
+# @discoveryjs/json-ext parseChunked(fs.createReadStream()) 0.5.7
+time: 424 ms
+cpu: 492 ms
+mem impact:  rss +224.46MB | heapTotal +246.76MB | heapUsed +116.52MB | external    +526kB
+       max:  rss +255.34MB | heapTotal +254.72MB | heapUsed +175.06MB | external  +24.64MB
+
+# @discoveryjs/json-ext parseChunked(fs.createReadStream()) 0.6.0
+time: 425 ms
+cpu: 496 ms
+mem impact:  rss +263.39MB | heapTotal +247.02MB | heapUsed +116.56MB | external      +1kB
+       max:  rss +308.59MB | heapTotal +255.34MB | heapUsed +171.63MB | external  +25.17MB
 
 # @discoveryjs/json-ext parseChunked(fs.readFileSync())
-time: 761 ms
-cpu: 996 ms
-mem impact:  rss +238.55MB | heapTotal +146.37MB | heapUsed +113.98MB | external       +56
-       max:  rss +244.20MB | heapTotal +146.06MB | heapUsed +122.75MB | external  +99.95MB
+time: 397 ms
+cpu: 421 ms
+mem impact:  rss +285.10MB | heapTotal +246.76MB | heapUsed +116.41MB | external      +1kB
+       max:  rss +342.00MB | heapTotal +261.72MB | heapUsed +178.15MB | external  +99.95MB
 
 # @discoveryjs/json-ext parseFromWebStream()
-time: 756 ms
-cpu: 1067 ms
-mem impact:  rss +158.25MB | heapTotal +147.16MB | heapUsed +114.43MB | external    +160kB
-       max:  rss +175.23MB | heapTotal +163.68MB | heapUsed +136.24MB | external  +10.11MB
+time: 392 ms
+cpu: 461 ms
+mem impact:  rss +264.29MB | heapTotal +247.55MB | heapUsed +117.00MB | external    +172kB
+       max:  rss +310.15MB | heapTotal +254.57MB | heapUsed +167.60MB | external  +25.32MB
 
 # bfj
-time: 55518 ms
-cpu: 57905 ms
-mem impact:  rss   +2.37GB | heapTotal   +2.28GB | heapUsed   +1.76GB | external       +63
-       max:  rss   +2.22GB | heapTotal   +2.36GB | heapUsed   +2.30GB | external  +17.76MB
+time: 12908 ms
+cpu: 13464 ms
+mem impact:  rss +468.43MB | heapTotal +331.19MB | heapUsed +180.97MB | external      -969
+       max:  rss +467.62MB | heapTotal +414.96MB | heapUsed +350.76MB | external   +1.77MB
 ```
 <!--/parse-chunked-output:2-->
 </details>
@@ -197,82 +239,50 @@ mem impact:  rss   +2.37GB | heapTotal   +2.28GB | heapUsed   +1.76GB | external
 
 ```
 Benchmark: parseChunked() (parse chunked JSON)
-Node version: 20.14.0
+Node version: 24.14.0
 Fixture: fixture/500mb.json 500MB / chunk size 524kB
 
 # JSON.parse()
-time: 3325 ms
-cpu: 3813 ms
-mem impact:  rss +612.47MB | heapTotal +608.58MB | heapUsed +568.88MB | external       +56
-       max:  rss   +1.42GB | heapTotal   +1.60GB | heapUsed   +1.57GB | external       +56
+time: 1265 ms
+cpu: 1529 ms
+mem impact:  rss   +1.42GB | heapTotal +917.13MB | heapUsed +786.64MB | external      +1kB
+       max:  rss   +2.41GB | heapTotal +882.52MB | heapUsed +786.63MB | external   +1.50GB
 
 # @discoveryjs/json-ext parseChunked(fs.createReadStream())
-time: 3709 ms
-cpu: 4892 ms
-mem impact:  rss +639.35MB | heapTotal +610.34MB | heapUsed +570.17MB | external       +56
-       max:  rss +671.11MB | heapTotal +635.09MB | heapUsed +607.74MB | external  +10.49MB
+time: 1929 ms
+cpu: 2206 ms
+mem impact:  rss +829.83MB | heapTotal +711.97MB | heapUsed +581.28MB | external      +1kB
+       max:  rss +889.85MB | heapTotal +745.28MB | heapUsed +663.93MB | external  +31.98MB
+
+# @discoveryjs/json-ext parseChunked(fs.createReadStream()) 0.5.7
+time: 2069 ms
+cpu: 2346 ms
+mem impact:  rss +745.49MB | heapTotal +712.26MB | heapUsed +581.53MB | external    +526kB
+       max:  rss +810.24MB | heapTotal +752.68MB | heapUsed +672.52MB | external  +31.98MB
+
+# @discoveryjs/json-ext parseChunked(fs.createReadStream()) 0.6.0
+time: 2094 ms
+cpu: 2364 ms
+mem impact:  rss +877.12MB | heapTotal +712.00MB | heapUsed +581.57MB | external      +1kB
+       max:  rss +924.57MB | heapTotal +739.62MB | heapUsed +657.74MB | external  +30.93MB
 
 # @discoveryjs/json-ext parseChunked(fs.readFileSync())
-time: 3776 ms
-cpu: 4560 ms
-mem impact:  rss +604.73MB | heapTotal +609.81MB | heapUsed +569.98MB | external       +56
-       max:  rss   +1.15GB | heapTotal +646.38MB | heapUsed +617.93MB | external +500.00MB
+time: 1978 ms
+cpu: 2105 ms
+mem impact:  rss   +1.17GB | heapTotal +711.18MB | heapUsed +581.05MB | external      +1kB
+       max:  rss   +1.24GB | heapTotal +738.21MB | heapUsed +657.16MB | external +500.00MB
 
 # @discoveryjs/json-ext parseFromWebStream()
-time: 3738 ms
-cpu: 4949 ms
-mem impact:  rss +637.76MB | heapTotal +610.34MB | heapUsed +570.55MB | external    +160kB
-       max:  rss +669.96MB | heapTotal +634.04MB | heapUsed +606.18MB | external  +11.68MB
+time: 1959 ms
+cpu: 2222 ms
+mem impact:  rss +823.74MB | heapTotal +713.02MB | heapUsed +581.72MB | external    +172kB
+       max:  rss +880.12MB | heapTotal +739.05MB | heapUsed +658.37MB | external  +31.09MB
 
 # bfj
-
-<--- Last few GCs --->
-
-[65418:0x130008000]   161105 ms: Mark-Compact 4042.4 (4128.6) -> 4026.9 (4129.1) MB, 4035.96 / 0.00 ms  (average mu = 0.130, current mu = 0.015) allocation failure; scavenge might not succeed
-[65418:0x130008000]   164489 ms: Mark-Compact 4042.8 (4129.1) -> 4027.2 (4129.4) MB, 3372.04 / 0.00 ms  (average mu = 0.074, current mu = 0.004) allocation failure; scavenge might not succeed
-
-
-<--- JS stacktrace --->
-
-FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory
------ Native stack trace -----
-
- 1: 0x1008fcb44 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [/usr/local/bin/node]
- 2: 0x100a843ec v8::internal::V8::FatalProcessOutOfMemory(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [/usr/local/bin/node]
- 3: 0x100c58ac0 v8::internal::Heap::GarbageCollectionReasonToString(v8::internal::GarbageCollectionReason) [/usr/local/bin/node]
- 4: 0x100c5c974 v8::internal::Heap::CollectGarbageShared(v8::internal::LocalHeap*, v8::internal::GarbageCollectionReason) [/usr/local/bin/node]
- 5: 0x100c593d8 v8::internal::Heap::PerformGarbageCollection(v8::internal::GarbageCollector, v8::internal::GarbageCollectionReason, char const*) [/usr/local/bin/node]
- 6: 0x100c57160 v8::internal::Heap::CollectGarbage(v8::internal::AllocationSpace, v8::internal::GarbageCollectionReason, v8::GCCallbackFlags) [/usr/local/bin/node]
- 7: 0x100c4ddb4 v8::internal::HeapAllocator::AllocateRawWithLightRetrySlowPath(int, v8::internal::AllocationType, v8::internal::AllocationOrigin, v8::internal::AllocationAlignment) [/usr/local/bin/node]
- 8: 0x100c4e614 v8::internal::HeapAllocator::AllocateRawWithRetryOrFailSlowPath(int, v8::internal::AllocationType, v8::internal::AllocationOrigin, v8::internal::AllocationAlignment) [/usr/local/bin/node]
- 9: 0x100c33684 v8::internal::Factory::NewFillerObject(int, v8::internal::AllocationAlignment, v8::internal::AllocationType, v8::internal::AllocationOrigin) [/usr/local/bin/node]
-10: 0x10101b394 v8::internal::Runtime_AllocateInYoungGeneration(int, unsigned long*, v8::internal::Isolate*) [/usr/local/bin/node]
-11: 0x101378c44 Builtins_CEntry_Return1_ArgvOnStack_NoBuiltinExit [/usr/local/bin/node]
-12: 0x10671cfe0 
-13: 0x106738eb4 
-14: 0x10675d248 
-15: 0x106721e1c 
-16: 0x106721088 
-17: 0x106722e6c 
-18: 0x10671de50 
-19: 0x10672f3dc 
-20: 0x10674d9d8 
-21: 0x1067561c8 
-22: 0x1012ee50c Builtins_JSEntryTrampoline [/usr/local/bin/node]
-23: 0x1012ee1f4 Builtins_JSEntry [/usr/local/bin/node]
-24: 0x100bc5f68 v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&) [/usr/local/bin/node]
-25: 0x100bc53b4 v8::internal::Execution::Call(v8::internal::Isolate*, v8::internal::Handle<v8::internal::Object>, v8::internal::Handle<v8::internal::Object>, int, v8::internal::Handle<v8::internal::Object>*) [/usr/local/bin/node]
-26: 0x100a9fca4 v8::Function::Call(v8::Local<v8::Context>, v8::Local<v8::Value>, int, v8::Local<v8::Value>*) [/usr/local/bin/node]
-27: 0x100828fa0 node::InternalMakeCallback(node::Environment*, v8::Local<v8::Object>, v8::Local<v8::Object>, v8::Local<v8::Function>, int, v8::Local<v8::Value>*, node::async_context) [/usr/local/bin/node]
-28: 0x1008292b8 node::MakeCallback(v8::Isolate*, v8::Local<v8::Object>, v8::Local<v8::Function>, int, v8::Local<v8::Value>*, node::async_context) [/usr/local/bin/node]
-29: 0x10089e464 node::Environment::CheckImmediate(uv_check_s*) [/usr/local/bin/node]
-30: 0x1012d64e4 uv__run_check [/usr/local/bin/node]
-31: 0x1012d0204 uv_run [/usr/local/bin/node]
-32: 0x1008296f0 node::SpinEventLoopInternal(node::Environment*) [/usr/local/bin/node]
-33: 0x10093c7c0 node::NodeMainInstance::Run(node::ExitCode*, node::Environment*) [/usr/local/bin/node]
-34: 0x10093c4d4 node::NodeMainInstance::Run() [/usr/local/bin/node]
-35: 0x1008c47ac node::Start(int, char**) [/usr/local/bin/node]
-36: 0x18dede0e0 start [/usr/lib/dyld]
+time: 64403 ms
+cpu: 70270 ms
+mem impact:  rss   +1.54GB | heapTotal   +1.18GB | heapUsed +907.05MB | external      -969
+       max:  rss   +1.54GB | heapTotal   +1.48GB | heapUsed   +1.42GB | external   +2.23MB
 ```
 <!--/parse-chunked-output:3-->
 </details>
@@ -283,73 +293,53 @@ FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaS
 
 ```
 Benchmark: parseChunked() (parse chunked JSON)
-Node version: 20.14.0
+Node version: 24.14.0
 Fixture: fixture/1gb.json 1000MB / chunk size 524kB
 
 # JSON.parse()
-FATAL ERROR: v8::ToLocalChecked Empty MaybeLocal
------ Native stack trace -----
-
- 1: 0x100824a20 node::OnFatalError(char const*, char const*) [/usr/local/bin/node]
- 2: 0x1009ae24c v8::api_internal::ToLocalEmpty() [/usr/local/bin/node]
- 3: 0x100831cf4 node::fs::ReadFileUtf8(v8::FunctionCallbackInfo<v8::Value> const&) [/usr/local/bin/node]
- 4: 0x100a19f68 v8::internal::MaybeHandle<v8::internal::Object> v8::internal::(anonymous namespace)::HandleApiCallHelper<false>(v8::internal::Isolate*, v8::internal::Handle<v8::internal::HeapObject>, v8::internal::Handle<v8::internal::FunctionTemplateInfo>, v8::internal::Handle<v8::internal::Object>, unsigned long*, int) [/usr/local/bin/node]
- 5: 0x100a19660 v8::internal::Builtin_HandleApiCall(int, unsigned long*, v8::internal::Isolate*) [/usr/local/bin/node]
- 6: 0x1012a0b24 Builtins_CEntry_Return1_ArgvOnStack_BuiltinExit [/usr/local/bin/node]
- 7: 0x106636a98 
- 8: 0x1012183e4 Builtins_InterpreterEntryTrampoline [/usr/local/bin/node]
- 9: 0x1012183e4 Builtins_InterpreterEntryTrampoline [/usr/local/bin/node]
-10: 0x10124f210 Builtins_AsyncFunctionAwaitResolveClosure [/usr/local/bin/node]
-11: 0x1012fcfb8 Builtins_PromiseFulfillReactionJob [/usr/local/bin/node]
-12: 0x10123eb94 Builtins_RunMicrotasks [/usr/local/bin/node]
-13: 0x1012163f4 Builtins_JSRunMicrotasksEntry [/usr/local/bin/node]
-14: 0x100aedf40 v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&) [/usr/local/bin/node]
-15: 0x100aee42c v8::internal::(anonymous namespace)::InvokeWithTryCatch(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&) [/usr/local/bin/node]
-16: 0x100aee608 v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*) [/usr/local/bin/node]
-17: 0x100b157d4 v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*) [/usr/local/bin/node]
-18: 0x100b15f70 v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*) [/usr/local/bin/node]
-19: 0x100750c4c node::InternalCallbackScope::Close() [/usr/local/bin/node]
-20: 0x1007507bc node::InternalCallbackScope::~InternalCallbackScope() [/usr/local/bin/node]
-21: 0x1007c7838 node::Environment::RunTimers(uv_timer_s*) [/usr/local/bin/node]
-22: 0x1011f49d4 uv__run_timers [/usr/local/bin/node]
-23: 0x1011f8234 uv_run [/usr/local/bin/node]
-24: 0x1007516f0 node::SpinEventLoopInternal(node::Environment*) [/usr/local/bin/node]
-25: 0x1008647c0 node::NodeMainInstance::Run(node::ExitCode*, node::Environment*) [/usr/local/bin/node]
-26: 0x1008644d4 node::NodeMainInstance::Run() [/usr/local/bin/node]
-27: 0x1007ec7ac node::Start(int, char**) [/usr/local/bin/node]
-28: 0x18dede0e0 start [/usr/lib/dyld]
-
------ JavaScript stack trace -----
-
-1: readFileSync (node:fs:448:20)
-2: JSON.parse() (file:///Users/romandvornov/Developer/json-ext/benchmarks/parse-chunked.js:38:23)
-3: benchmark (file:///Users/romandvornov/Developer/json-ext/benchmarks/benchmark-utils.js:65:28)
-
+Error: Cannot create a string longer than 0x1fffffe8 characters
+    at Buffer.toString (node:buffer:864:12)
+    at JSON.parse (<anonymous>)
+    at JSON.parse() (../json-ext/benchmarks/parse-chunked.js:40:14)
+    at benchmark (../json-ext/benchmarks/benchmark-utils.js:65:28)
+    at async ../json-ext/benchmarks/run-test.js:7:17
 
 # @discoveryjs/json-ext parseChunked(fs.createReadStream())
-time: 7342 ms
-cpu: 9052 ms
-mem impact:  rss   +1.21GB | heapTotal   +1.19GB | heapUsed   +1.14GB | external       +56
-       max:  rss +918.83MB | heapTotal   +1.26GB | heapUsed   +1.22GB | external  +11.53MB
+time: 3871 ms
+cpu: 4803 ms
+mem impact:  rss   +1.43GB | heapTotal   +1.29GB | heapUsed   +1.16GB | external      +1kB
+       max:  rss   +1.53GB | heapTotal   +1.36GB | heapUsed   +1.27GB | external  +56.10MB
+
+# @discoveryjs/json-ext parseChunked(fs.createReadStream()) 0.5.7
+time: 4132 ms
+cpu: 4404 ms
+mem impact:  rss   +1.39GB | heapTotal   +1.29GB | heapUsed   +1.16GB | external    +526kB
+       max:  rss   +1.48GB | heapTotal   +1.34GB | heapUsed   +1.26GB | external  +31.46MB
+
+# @discoveryjs/json-ext parseChunked(fs.createReadStream()) 0.6.0
+time: 4348 ms
+cpu: 4963 ms
+mem impact:  rss   +1.49GB | heapTotal   +1.29GB | heapUsed   +1.16GB | external      +1kB
+       max:  rss   +1.58GB | heapTotal   +1.34GB | heapUsed   +1.26GB | external  +31.98MB
 
 # @discoveryjs/json-ext parseChunked(fs.readFileSync())
-time: 8128 ms
-cpu: 10294 ms
-mem impact:  rss   +1.18GB | heapTotal   +1.19GB | heapUsed   +1.14GB | external       +56
-       max:  rss   +1.59GB | heapTotal   +1.20GB | heapUsed   +1.15GB | external   +1.00GB
+time: 4138 ms
+cpu: 4440 ms
+mem impact:  rss   +1.29GB | heapTotal   +1.29GB | heapUsed   +1.16GB | external      +1kB
+       max:  rss   +2.32GB | heapTotal   +1.30GB | heapUsed   +1.20GB | external   +1.00GB
 
 # @discoveryjs/json-ext parseFromWebStream()
-time: 7439 ms
-cpu: 9015 ms
-mem impact:  rss   +1.23GB | heapTotal   +1.19GB | heapUsed   +1.14GB | external    +160kB
-       max:  rss   +1.32GB | heapTotal   +1.27GB | heapUsed   +1.23GB | external  +11.68MB
+time: 4048 ms
+cpu: 4590 ms
+mem impact:  rss   +1.43GB | heapTotal   +1.29GB | heapUsed   +1.16GB | external    +172kB
+       max:  rss   +1.52GB | heapTotal   +1.34GB | heapUsed   +1.26GB | external  +33.19MB
 
 # bfj
 Error: Run takes too long time
-    at sizeLessThan (file://~/json-ext/benchmarks/parse-chunked.js:67:19)
-    at bfj (file://~/json-ext/benchmarks/parse-chunked.js:54:18)
-    at benchmark (file://~/json-ext/benchmarks/benchmark-utils.js:65:28)
-    at async file://~/json-ext/benchmarks/run-test.js:7:17
+    at sizeLessThan (../json-ext/benchmarks/parse-chunked.js:75:19)
+    at bfj (../json-ext/benchmarks/parse-chunked.js:62:18)
+    at benchmark (../json-ext/benchmarks/benchmark-utils.js:65:28)
+    at async ../json-ext/benchmarks/run-test.js:7:17
 ```
 <!--/parse-chunked-output:4-->
 </details>
@@ -377,13 +367,13 @@ Where `[fixture]` is number of fixture:
 <!--stringify-chunked-table:time-->
 | Solution | S (~2MB) | M (~13.7MB) | L (~100MB) | 500MB | 1GB |
 | -------- | -------: | ----------: | ---------: | ----: | --: |
-| JSON.stringify() | 10ms | 42ms | 447ms | 2957ms | ERR_STRING_TOO_LONG |
-| @discoveryjs/json-ext stringifyChunked() | 20ms | 40ms | 645ms | 3476ms | 7536ms |
-| @discoveryjs/json-ext createStringifyWebStream() | 31ms | 46ms | 648ms | 3577ms | 7689ms |
-| @discoveryjs/json-ext v0.6.0 stringifyChunked() | 27ms | 40ms | 933ms | 5530ms | 11433ms |
-| @discoveryjs/json-ext v0.5.7 stringifyStream() | 37ms | 70ms | 1050ms | 5842ms | 12793ms |
-| json-stream-stringify | 33ms | 50ms | 1092ms | 5596ms | 11983ms |
-| bfj | 554ms | 2172ms | 75006ms | ERR_RUN_TOO_LONG | ERR_RUN_TOO_LONG |
+| JSON.stringify() | 8ms | 34ms | 289ms | 1393ms | ERR_STRING_TOO_LONG |
+| @discoveryjs/json-ext stringifyChunked() | 14ms | 30ms | 414ms | 2116ms | 4145ms |
+| @discoveryjs/json-ext createStringifyWebStream() | 14ms | 35ms | 419ms | 2142ms | 4322ms |
+| @discoveryjs/json-ext v0.6.0 stringifyChunked() | 15ms | 32ms | 582ms | 3004ms | 6056ms |
+| @discoveryjs/json-ext v0.5.7 stringifyStream() | 25ms | 57ms | 672ms | 3406ms | 6736ms |
+| json-stream-stringify | 22ms | 38ms | 706ms | 3524ms | 7322ms |
+| bfj | 134ms | 1338ms | 9012ms | ERR_RUN_TOO_LONG | ERR_RUN_TOO_LONG |
 <!--/stringify-chunked-table:time-->
 
 ### CPU usage
@@ -391,13 +381,13 @@ Where `[fixture]` is number of fixture:
 <!--stringify-chunked-table:cpu-->
 | Solution | S (~2MB) | M (~13.7MB) | L (~100MB) | 500MB | 1GB |
 | -------- | -------: | ----------: | ---------: | ----: | --: |
-| JSON.stringify() | 7ms | 32ms | 427ms | 1995ms | ERR_STRING_TOO_LONG |
-| @discoveryjs/json-ext stringifyChunked() | 37ms | 65ms | 698ms | 3595ms | 7690ms |
-| @discoveryjs/json-ext createStringifyWebStream() | 46ms | 73ms | 723ms | 3678ms | 7829ms |
-| @discoveryjs/json-ext v0.6.0 stringifyChunked() | 45ms | 63ms | 972ms | 5405ms | 11280ms |
-| @discoveryjs/json-ext v0.5.7 stringifyStream() | 52ms | 89ms | 1084ms | 5820ms | 12551ms |
-| json-stream-stringify | 58ms | 84ms | 1122ms | 5683ms | 12034ms |
-| bfj | 399ms | 850ms | 32648ms | ERR_RUN_TOO_LONG | ERR_RUN_TOO_LONG |
+| JSON.stringify() | 7ms | 32ms | 283ms | 1268ms | ERR_STRING_TOO_LONG |
+| @discoveryjs/json-ext stringifyChunked() | 26ms | 41ms | 442ms | 2162ms | 4214ms |
+| @discoveryjs/json-ext createStringifyWebStream() | 23ms | 47ms | 450ms | 2210ms | 4382ms |
+| @discoveryjs/json-ext v0.6.0 stringifyChunked() | 24ms | 43ms | 609ms | 3053ms | 6120ms |
+| @discoveryjs/json-ext v0.5.7 stringifyStream() | 36ms | 67ms | 700ms | 3466ms | 6829ms |
+| json-stream-stringify | 37ms | 58ms | 748ms | 3633ms | 7483ms |
+| bfj | 168ms | 465ms | 8971ms | ERR_RUN_TOO_LONG | ERR_RUN_TOO_LONG |
 <!--/stringify-chunked-table:cpu-->
 
 ### Max memory usage
@@ -405,13 +395,13 @@ Where `[fixture]` is number of fixture:
 <!--stringify-chunked-table:memory-->
 | Solution | S (~2MB) | M (~13.7MB) | L (~100MB) | 500MB | 1GB |
 | -------- | -------: | ----------: | ---------: | ----: | --: |
-| JSON.stringify() | 4.26MB | 27.46MB | 210.13MB | 1GB | ERR_STRING_TOO_LONG |
-| @discoveryjs/json-ext stringifyChunked() | 671kB | 9.74MB | 56.73MB | 249.85MB | 500.65MB |
-| @discoveryjs/json-ext createStringifyWebStream() | 1.78MB | 12.09MB | 52.64MB | 262.89MB | 504.76MB |
-| @discoveryjs/json-ext v0.6.0 stringifyChunked() | 6.88MB | 12.04MB | 73.69MB | 300.91MB | 596.83MB |
-| @discoveryjs/json-ext v0.5.7 stringifyStream() | 7.75MB | 18.37MB | 64.11MB | 301.09MB | 592.95MB |
-| json-stream-stringify | 7.93MB | 14.18MB | 8.17MB | 8.60MB | 14.89MB |
-| bfj | 17.55MB | 17.91MB | 38.92MB | ERR_RUN_TOO_LONG | ERR_RUN_TOO_LONG |
+| JSON.stringify() | 4.27MB | 27.49MB | 199.99MB | 1GB | ERR_STRING_TOO_LONG |
+| @discoveryjs/json-ext stringifyChunked() | 2.53MB | 23.24MB | 110.40MB | 283.82MB | 500.52MB |
+| @discoveryjs/json-ext createStringifyWebStream() | 3.65MB | 25.43MB | 111.23MB | 219.51MB | 437.67MB |
+| @discoveryjs/json-ext v0.6.0 stringifyChunked() | 4.43MB | 25.63MB | 44.48MB | 220.98MB | 440.78MB |
+| @discoveryjs/json-ext v0.5.7 stringifyStream() | 3.86MB | 39.12MB | 107.98MB | 289.30MB | 494.37MB |
+| json-stream-stringify | 5.54MB | 30.09MB | 32.58MB | 20.77MB | 41.81MB |
+| bfj | 8.25MB | 32MB | 119.36MB | ERR_RUN_TOO_LONG | ERR_RUN_TOO_LONG |
 <!--/stringify-chunked-table:memory-->
 
 ### Output for fixtures
@@ -422,57 +412,57 @@ Where `[fixture]` is number of fixture:
 
 ```
 Benchmark: stringifyChunked() (JSON.stringify() as a stream of chunks)
-Node version: 22.5.1
+Node version: 24.14.0
 Fixture: fixture/small.json 2.08MB
 
 # JSON.stringify()
-Result: 2077407
-time: 10 ms
+Result: 2077471
+time: 8 ms
 cpu: 7 ms
-mem impact:  rss   +7.67MB | heapTotal         0 | heapUsed     +48kB | external       +56
-       max:  rss  +11.58MB | heapTotal   +4.16MB | heapUsed   +4.26MB | external       +56
+mem impact:  rss   +8.37MB | heapTotal         0 | heapUsed     +57kB | external      +1kB
+       max:  rss  +12.32MB | heapTotal   +4.16MB | heapUsed   +4.27MB | external      +1kB
 
 # @discoveryjs/json-ext stringifyChunked()
-Result: 2077407
-time: 20 ms
-cpu: 37 ms
-mem impact:  rss   +3.24MB | heapTotal         0 | heapUsed    +220kB | external       +56
-       max:  rss   +3.18MB | heapTotal    +262kB | heapUsed    +671kB | external       +56
+Result: 2077471
+time: 14 ms
+cpu: 26 ms
+mem impact:  rss   +3.26MB | heapTotal    +262kB | heapUsed    +232kB | external      +1kB
+       max:  rss   +3.00MB | heapTotal   +1.05MB | heapUsed   +2.52MB | external      +1kB
 
 # @discoveryjs/json-ext createStringifyWebStream()
-Result: 2077407
-time: 31 ms
-cpu: 46 ms
-mem impact:  rss   +5.78MB | heapTotal   +8.91MB | heapUsed    +641kB | external    +160kB
-       max:  rss   +5.69MB | heapTotal   +9.18MB | heapUsed   +1.62MB | external    +160kB
+Result: 2077471
+time: 14 ms
+cpu: 23 ms
+mem impact:  rss   +5.06MB | heapTotal   +1.05MB | heapUsed    +673kB | external    +172kB
+       max:  rss   +4.75MB | heapTotal   +1.31MB | heapUsed   +3.48MB | external    +172kB
 
 # @discoveryjs/json-ext v0.6.0 stringifyChunked()
-Result: 2077407
-time: 27 ms
-cpu: 45 ms
-mem impact:  rss   +5.31MB | heapTotal   +8.65MB | heapUsed    +223kB | external       +56
-       max:  rss   +5.19MB | heapTotal   +8.65MB | heapUsed   +6.88MB | external       +56
+Result: 2077471
+time: 15 ms
+cpu: 24 ms
+mem impact:  rss   +3.11MB | heapTotal    +262kB | heapUsed    +236kB | external      +1kB
+       max:  rss   +3.05MB | heapTotal    +524kB | heapUsed   +4.43MB | external      +1kB
 
 # @discoveryjs/json-ext v0.5.7 stringifyStream()
 Result: 2077471
-time: 37 ms
-cpu: 52 ms
-mem impact:  rss  +10.91MB | heapTotal   +8.65MB | heapUsed    +275kB | external       +56
-       max:  rss  +11.03MB | heapTotal   +8.95MB | heapUsed   +7.12MB | external    +635kB
+time: 25 ms
+cpu: 36 ms
+mem impact:  rss   +8.49MB | heapTotal   +8.65MB | heapUsed    +269kB | external      +1kB
+       max:  rss   +8.45MB | heapTotal   +9.06MB | heapUsed   +3.55MB | external    +309kB
 
 # json-stream-stringify
-Result: 2077407
-time: 33 ms
-cpu: 58 ms
-mem impact:  rss   +6.96MB | heapTotal   +8.65MB | heapUsed    +352kB | external       +56
-       max:  rss   +6.78MB | heapTotal   +8.91MB | heapUsed   +7.93MB | external       +56
+Result: 2077471
+time: 22 ms
+cpu: 37 ms
+mem impact:  rss   +7.36MB | heapTotal   +8.91MB | heapUsed    +327kB | external      +1kB
+       max:  rss   +7.49MB | heapTotal   +8.95MB | heapUsed   +5.54MB | external      +1kB
 
 # bfj
-Result: 2077407
-time: 554 ms
-cpu: 399 ms
-mem impact:  rss  +36.32MB | heapTotal  +26.74MB | heapUsed   +1.15MB | external      +3kB
-       max:  rss  +36.32MB | heapTotal  +29.36MB | heapUsed  +17.54MB | external      +3kB
+Result: 2077471
+time: 134 ms
+cpu: 168 ms
+mem impact:  rss  +12.86MB | heapTotal   +8.65MB | heapUsed    +347kB | external      +1kB
+       max:  rss  +12.83MB | heapTotal   +8.91MB | heapUsed   +8.25MB | external      +1kB
 ```
 <!--/stringify-chunked-output:0-->
 </details>
@@ -483,57 +473,57 @@ mem impact:  rss  +36.32MB | heapTotal  +26.74MB | heapUsed   +1.15MB | external
 
 ```
 Benchmark: stringifyChunked() (JSON.stringify() as a stream of chunks)
-Node version: 22.5.1
+Node version: 24.14.0
 Fixture: fixture/medium.json 13.69MB
 
 # JSON.stringify()
-Result: 13693862
-time: 42 ms
+Result: 13693865
+time: 34 ms
 cpu: 32 ms
-mem impact:  rss  +57.31MB | heapTotal         0 | heapUsed     +50kB | external       +56
-       max:  rss  +84.41MB | heapTotal  +27.39MB | heapUsed  +27.46MB | external       +56
+mem impact:  rss  +57.49MB | heapTotal    +262kB | heapUsed     +55kB | external      +1kB
+       max:  rss  +84.82MB | heapTotal  +27.39MB | heapUsed  +27.49MB | external      +1kB
 
 # @discoveryjs/json-ext stringifyChunked()
-Result: 13693862
-time: 40 ms
-cpu: 65 ms
-mem impact:  rss  +10.67MB | heapTotal         0 | heapUsed     +97kB | external       +56
-       max:  rss  +10.65MB | heapTotal         0 | heapUsed   +9.74MB | external       +56
+Result: 13693865
+time: 30 ms
+cpu: 41 ms
+mem impact:  rss  +31.11MB | heapTotal    +262kB | heapUsed    +107kB | external      +1kB
+       max:  rss  +30.97MB | heapTotal    +786kB | heapUsed  +23.24MB | external      +1kB
 
 # @discoveryjs/json-ext createStringifyWebStream()
-Result: 13693862
-time: 46 ms
-cpu: 73 ms
-mem impact:  rss  +12.34MB | heapTotal    +524kB | heapUsed    +553kB | external    +160kB
-       max:  rss  +12.16MB | heapTotal    +786kB | heapUsed  +11.93MB | external    +160kB
+Result: 13693865
+time: 35 ms
+cpu: 47 ms
+mem impact:  rss  +42.93MB | heapTotal    +262kB | heapUsed    +551kB | external    +172kB
+       max:  rss  +42.83MB | heapTotal    +524kB | heapUsed  +25.26MB | external    +172kB
 
 # @discoveryjs/json-ext v0.6.0 stringifyChunked()
-Result: 13693862
-time: 40 ms
-cpu: 63 ms
-mem impact:  rss   +9.47MB | heapTotal         0 | heapUsed     +99kB | external       +56
-       max:  rss   +9.37MB | heapTotal    +262kB | heapUsed  +12.04MB | external       +56
+Result: 13693865
+time: 32 ms
+cpu: 43 ms
+mem impact:  rss  +34.54MB | heapTotal    +786kB | heapUsed    +109kB | external      +1kB
+       max:  rss  +34.29MB | heapTotal    +786kB | heapUsed  +25.62MB | external      +1kB
 
 # @discoveryjs/json-ext v0.5.7 stringifyStream()
 Result: 13693865
-time: 70 ms
-cpu: 89 ms
-mem impact:  rss  +13.32MB | heapTotal    +262kB | heapUsed    +183kB | external       +56
-       max:  rss  +13.14MB | heapTotal    +262kB | heapUsed  +15.16MB | external   +3.20MB
+time: 57 ms
+cpu: 67 ms
+mem impact:  rss  +50.40MB | heapTotal    +524kB | heapUsed    +174kB | external      +1kB
+       max:  rss  +50.25MB | heapTotal   +1.05MB | heapUsed  +31.92MB | external   +7.20MB
 
 # json-stream-stringify
-Result: 13693862
-time: 50 ms
-cpu: 84 ms
-mem impact:  rss   +9.72MB | heapTotal    +524kB | heapUsed    +192kB | external       +56
-       max:  rss   +9.63MB | heapTotal    +786kB | heapUsed  +14.18MB | external       +56
+Result: 13693865
+time: 38 ms
+cpu: 58 ms
+mem impact:  rss  +39.70MB | heapTotal    +262kB | heapUsed    +162kB | external      +1kB
+       max:  rss  +39.86MB | heapTotal    +934kB | heapUsed  +30.09MB | external      +1kB
 
 # bfj
-Result: 13693862
-time: 2172 ms
-cpu: 850 ms
-mem impact:  rss  +18.22MB | heapTotal   +1.84MB | heapUsed   +1.07MB | external      +3kB
-       max:  rss  +18.12MB | heapTotal   +2.36MB | heapUsed  +17.90MB | external      +3kB
+Result: 13693865
+time: 1338 ms
+cpu: 465 ms
+mem impact:  rss  +44.97MB | heapTotal    +262kB | heapUsed    +294kB | external      +1kB
+       max:  rss  +44.81MB | heapTotal   +1.84MB | heapUsed  +32.00MB | external      +1kB
 ```
 <!--/stringify-chunked-output:1-->
 </details>
@@ -545,50 +535,57 @@ mem impact:  rss  +18.22MB | heapTotal   +1.84MB | heapUsed   +1.07MB | external
 
 ```
 Benchmark: stringifyChunked() (JSON.stringify() as a stream of chunks)
-Node version: 22.5.1
+Node version: 24.14.0
 Fixture: fixture/big.json 99.95MB
 
 # JSON.stringify()
 Result: 99947225
-time: 447 ms
-cpu: 427 ms
-mem impact:  rss +236.54MB | heapTotal         0 | heapUsed     +48kB | external       +56
-       max:  rss +435.98MB | heapTotal +199.90MB | heapUsed +210.13MB | external       +56
+time: 289 ms
+cpu: 283 ms
+mem impact:  rss +426.46MB | heapTotal    +262kB | heapUsed     +28kB | external      +1kB
+       max:  rss +625.92MB | heapTotal +199.90MB | heapUsed +199.99MB | external      +1kB
 
 # @discoveryjs/json-ext stringifyChunked()
 Result: 99947225
-time: 645 ms
-cpu: 698 ms
-mem impact:  rss  +57.05MB | heapTotal    +262kB | heapUsed    +106kB | external       +56
-       max:  rss  +56.74MB | heapTotal  +47.45MB | heapUsed  +56.73MB | external       +56
+time: 414 ms
+cpu: 442 ms
+mem impact:  rss  +74.32MB | heapTotal    +262kB | heapUsed     +81kB | external      +1kB
+       max:  rss  +73.33MB | heapTotal  +38.80MB | heapUsed +110.40MB | external      +1kB
 
 # @discoveryjs/json-ext createStringifyWebStream()
 Result: 99947225
-time: 648 ms
-cpu: 723 ms
-mem impact:  rss  +57.52MB | heapTotal    +524kB | heapUsed    +581kB | external    +160kB
-       max:  rss  +57.18MB | heapTotal  +48.76MB | heapUsed  +52.48MB | external    +160kB
+time: 419 ms
+cpu: 450 ms
+mem impact:  rss  +79.99MB | heapTotal    +786kB | heapUsed    +525kB | external    +172kB
+       max:  rss  +78.50MB | heapTotal  +44.56MB | heapUsed +111.06MB | external    +172kB
 
 # @discoveryjs/json-ext v0.6.0 stringifyChunked()
 Result: 99947225
-time: 933 ms
-cpu: 972 ms
-mem impact:  rss  +66.98MB | heapTotal    +262kB | heapUsed    +108kB | external       +56
-       max:  rss  +66.73MB | heapTotal  +58.46MB | heapUsed  +73.69MB | external       +56
+time: 582 ms
+cpu: 609 ms
+mem impact:  rss  +75.51MB | heapTotal    +262kB | heapUsed     +82kB | external      +1kB
+       max:  rss  +74.15MB | heapTotal  +40.11MB | heapUsed  +44.48MB | external      +1kB
 
 # @discoveryjs/json-ext v0.5.7 stringifyStream()
 Result: 99947225
-time: 1050 ms
-cpu: 1084 ms
-mem impact:  rss  +65.36MB | heapTotal         0 | heapUsed    +159kB | external       +56
-       max:  rss  +64.82MB | heapTotal  +57.93MB | heapUsed  +63.79MB | external    +326kB
+time: 672 ms
+cpu: 700 ms
+mem impact:  rss  +82.72MB | heapTotal    +524kB | heapUsed    +146kB | external      +1kB
+       max:  rss  +81.77MB | heapTotal  +45.24MB | heapUsed +104.57MB | external   +3.41MB
 
 # json-stream-stringify
 Result: 99947225
-time: 1092 ms
-cpu: 1122 ms
-mem impact:  rss   +8.80MB | heapTotal    +262kB | heapUsed    +152kB | external       +56
-       max:  rss   +8.49MB | heapTotal    +262kB | heapUsed   +8.17MB | external       +56
+time: 706 ms
+cpu: 748 ms
+mem impact:  rss  +34.70MB | heapTotal    +524kB | heapUsed    +128kB | external      +1kB
+       max:  rss  +33.80MB | heapTotal   +1.20MB | heapUsed  +32.58MB | external      +1kB
+
+# bfj
+Result: 99947225
+time: 9012 ms
+cpu: 8971 ms
+mem impact:  rss  +87.00MB | heapTotal    +524kB | heapUsed    +201kB | external      +1kB
+       max:  rss  +86.44MB | heapTotal  +61.08MB | heapUsed +119.36MB | external      +1kB
 ```
 <!--/stringify-chunked-output:2-->
 </details>
@@ -599,50 +596,58 @@ mem impact:  rss   +8.80MB | heapTotal    +262kB | heapUsed    +152kB | external
 
 ```
 Benchmark: stringifyChunked() (JSON.stringify() as a stream of chunks)
-Node version: 22.5.1
+Node version: 24.14.0
 Fixture: fixture/500mb.json 500MB
 
 # JSON.stringify()
 Result: 500000000
-time: 2957 ms
-cpu: 1995 ms
-mem impact:  rss  -34.59MB | heapTotal         0 | heapUsed     +47kB | external       +56
-       max:  rss +957.30MB | heapTotal   +1.00GB | heapUsed   +1.00GB | external       +56
+time: 1393 ms
+cpu: 1268 ms
+mem impact:  rss   +1.04GB | heapTotal -131.86MB | heapUsed     +28kB | external      +1kB
+       max:  rss   +2.03GB | heapTotal   +1.00GB | heapUsed   +1.00GB | external      +1kB
 
 # @discoveryjs/json-ext stringifyChunked()
 Result: 500000000
-time: 3476 ms
-cpu: 3595 ms
-mem impact:  rss +251.46MB | heapTotal         0 | heapUsed    +104kB | external       +56
-       max:  rss +250.58MB | heapTotal +245.10MB | heapUsed +249.85MB | external       +56
+time: 2116 ms
+cpu: 2162 ms
+mem impact:  rss +236.34MB | heapTotal    +524kB | heapUsed     +80kB | external      +1kB
+       max:  rss +234.96MB | heapTotal +202.11MB | heapUsed +283.82MB | external      +1kB
 
 # @discoveryjs/json-ext createStringifyWebStream()
 Result: 500000000
-time: 3577 ms
-cpu: 3678 ms
-mem impact:  rss +255.30MB | heapTotal    +262kB | heapUsed    +577kB | external    +160kB
-       max:  rss +254.64MB | heapTotal +246.68MB | heapUsed +262.73MB | external    +160kB
+time: 2142 ms
+cpu: 2210 ms
+mem impact:  rss +232.06MB | heapTotal    +524kB | heapUsed    +525kB | external    +172kB
+       max:  rss +230.98MB | heapTotal +207.09MB | heapUsed +219.34MB | external    +172kB
 
 # @discoveryjs/json-ext v0.6.0 stringifyChunked()
 Result: 500000000
-time: 5530 ms
-cpu: 5405 ms
-mem impact:  rss +186.20MB | heapTotal         0 | heapUsed    +106kB | external       +56
-       max:  rss +225.20MB | heapTotal +295.96MB | heapUsed +300.90MB | external       +56
+time: 3004 ms
+cpu: 3053 ms
+mem impact:  rss +249.84MB | heapTotal         0 | heapUsed     +81kB | external      +1kB
+       max:  rss +249.14MB | heapTotal +215.22MB | heapUsed +220.98MB | external      +1kB
 
 # @discoveryjs/json-ext v0.5.7 stringifyStream()
 Result: 500000000
-time: 5842 ms
-cpu: 5820 ms
-mem impact:  rss +186.86MB | heapTotal    +262kB | heapUsed    +190kB | external       +56
-       max:  rss  +44.40MB | heapTotal +293.86MB | heapUsed +300.65MB | external    +444kB
+time: 3406 ms
+cpu: 3466 ms
+mem impact:  rss +240.21MB | heapTotal    +262kB | heapUsed    +217kB | external      +1kB
+       max:  rss +239.45MB | heapTotal +206.72MB | heapUsed +285.58MB | external   +3.72MB
 
 # json-stream-stringify
 Result: 500000000
-time: 5596 ms
-cpu: 5683 ms
-mem impact:  rss   +9.29MB | heapTotal    +262kB | heapUsed    +168kB | external       +56
-       max:  rss   +9.11MB | heapTotal    +262kB | heapUsed   +8.60MB | external       +56
+time: 3524 ms
+cpu: 3633 ms
+mem impact:  rss  +40.73MB | heapTotal    -262kB | heapUsed    +191kB | external      +1kB
+       max:  rss  +38.54MB | heapTotal   +1.20MB | heapUsed  +20.77MB | external      +1kB
+
+# bfj
+Error: Run takes too long time
+    at sizeLessThan (../json-ext/benchmarks/stringify-chunked.js:51:19)
+    at bfj (../json-ext/benchmarks/stringify-chunked.js:75:20)
+    at tests.<computed> (../json-ext/benchmarks/stringify-chunked.js:86:35)
+    at benchmark (../json-ext/benchmarks/benchmark-utils.js:65:28)
+    at async ../json-ext/benchmarks/run-test.js:7:17
 ```
 <!--/stringify-chunked-output:3-->
 </details>
@@ -653,7 +658,7 @@ mem impact:  rss   +9.29MB | heapTotal    +262kB | heapUsed    +168kB | external
 
 ```
 Benchmark: stringifyChunked() (JSON.stringify() as a stream of chunks)
-Node version: 22.5.1
+Node version: 24.14.0
 Fixture: fixture/1gb.json 1000MB
 
 # JSON.stringify()
@@ -666,38 +671,46 @@ RangeError: Invalid string length
 
 # @discoveryjs/json-ext stringifyChunked()
 Result: 1000000000
-time: 7536 ms
-cpu: 7690 ms
-mem impact:  rss +502.27MB | heapTotal         0 | heapUsed    +104kB | external       +56
-       max:  rss +501.27MB | heapTotal +495.45MB | heapUsed +500.65MB | external       +56
+time: 4145 ms
+cpu: 4214 ms
+mem impact:  rss +448.40MB | heapTotal    +524kB | heapUsed     +80kB | external      +1kB
+       max:  rss +445.01MB | heapTotal +420.48MB | heapUsed +500.52MB | external      +1kB
 
 # @discoveryjs/json-ext createStringifyWebStream()
 Result: 1000000000
-time: 7689 ms
-cpu: 7829 ms
-mem impact:  rss +119.05MB | heapTotal    +524kB | heapUsed    +585kB | external    +160kB
-       max:  rss  +81.26MB | heapTotal +497.03MB | heapUsed +504.60MB | external    +160kB
+time: 4322 ms
+cpu: 4382 ms
+mem impact:  rss +433.54MB | heapTotal    +524kB | heapUsed    +526kB | external    +172kB
+       max:  rss +428.92MB | heapTotal +406.59MB | heapUsed +437.50MB | external    +172kB
 
 # @discoveryjs/json-ext v0.6.0 stringifyChunked()
 Result: 1000000000
-time: 11433 ms
-cpu: 11280 ms
-mem impact:  rss +301.89MB | heapTotal         0 | heapUsed    +106kB | external       +56
-       max:  rss   +9.72MB | heapTotal +588.25MB | heapUsed +596.83MB | external       +56
+time: 6056 ms
+cpu: 6120 ms
+mem impact:  rss +456.59MB | heapTotal    +262kB | heapUsed     +82kB | external      +1kB
+       max:  rss +453.10MB | heapTotal +419.43MB | heapUsed +440.78MB | external      +1kB
 
 # @discoveryjs/json-ext v0.5.7 stringifyStream()
 Result: 1000000000
-time: 12793 ms
-cpu: 12551 ms
-mem impact:  rss +374.57MB | heapTotal    -262kB | heapUsed    +193kB | external       +56
-       max:  rss  +62.93MB | heapTotal +595.59MB | heapUsed +592.64MB | external    +313kB
+time: 6736 ms
+cpu: 6829 ms
+mem impact:  rss +458.05MB | heapTotal         0 | heapUsed    +285kB | external      +1kB
+       max:  rss +457.11MB | heapTotal +423.77MB | heapUsed +491.43MB | external   +2.94MB
 
 # json-stream-stringify
 Result: 1000000000
-time: 11983 ms
-cpu: 12034 ms
-mem impact:  rss  -12.12MB | heapTotal    +262kB | heapUsed    +175kB | external       +56
-       max:  rss         0 | heapTotal    +934kB | heapUsed  +14.89MB | external       +56
+time: 7322 ms
+cpu: 7483 ms
+mem impact:  rss  +38.94MB | heapTotal    +524kB | heapUsed    +237kB | external      +1kB
+       max:  rss  +37.99MB | heapTotal    +672kB | heapUsed  +41.81MB | external      +1kB
+
+# bfj
+Error: Run takes too long time
+    at sizeLessThan (../json-ext/benchmarks/stringify-chunked.js:51:19)
+    at bfj (../json-ext/benchmarks/stringify-chunked.js:75:20)
+    at tests.<computed> (../json-ext/benchmarks/stringify-chunked.js:86:35)
+    at benchmark (../json-ext/benchmarks/benchmark-utils.js:65:28)
+    at async ../json-ext/benchmarks/run-test.js:7:17
 ```
 <!--/stringify-chunked-output:4-->
 </details>
