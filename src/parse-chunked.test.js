@@ -305,8 +305,18 @@ describe('parseChunked()', () => {
         });
 
         describe('mode: "jsonl"', () => {
+            it('returns empty array for empty input', async () => {
+                const actual = await parse([], { mode: 'jsonl' });
+                assert.deepStrictEqual(actual, []);
+            });
+
             it('parses jsonl and always returns an array', async () => {
                 const actual = await parse(['1\n{"a":2}\n[3]'], { mode: 'jsonl' });
+                assert.deepStrictEqual(actual, [1, { a: 2 }, [3]]);
+            });
+
+            it('supports CR and CRLF as line separators', async () => {
+                const actual = await parse(['1\r{"a":2}\r\n[3]'], { mode: 'jsonl' });
                 assert.deepStrictEqual(actual, [1, { a: 2 }, [3]]);
             });
 
@@ -325,7 +335,7 @@ describe('parseChunked()', () => {
                 assert.deepStrictEqual(actual, [{ a: { b: 1 } }, { a: { b: 2 } }]);
             });
 
-            it('', async () => {
+            it('parses formatted JSONL values split into small chunks', async () => {
                 const json = Array.from({ length: 3}, () => '[{} \r\n\t, {}, \r\n\t [] \r\n\t, {} \r\n\t]').join('\n');
                 const actual = await parse(split(json, 5), { mode: 'jsonl' });
                 assert.deepStrictEqual(actual, [
@@ -335,7 +345,7 @@ describe('parseChunked()', () => {
                 ]);
             });
 
-            it('parses multiple JSONL values with breaks in chunks', async () =>
+            it('fails when JSONL values are not newline-separated', async () =>
                 assert.rejects(
                     () => parse(['{"a":{', '"b":', '1}}{"a":{', '"b":', '2}}'], { mode: 'jsonl' }),
                     /Unexpected non-whitespace|Unable to parse JSON string|Unexpected token { in JSON at position 13/
@@ -363,6 +373,11 @@ describe('parseChunked()', () => {
                 assert.deepStrictEqual(actual, [{ a: 1 }, 2, [3]]);
             });
 
+            it('switches to jsonl on additional value after CR/CRLF newline', async () => {
+                const actual = await parse(['{"a":1}\r2\r\n[3]'], { mode: 'auto' });
+                assert.deepStrictEqual(actual, [{ a: 1 }, 2, [3]]);
+            });
+
             it('switches to jsonl when newline and next value are in different chunks', async () => {
                 const actual = await parse(['1', '\n', '2\n3'], { mode: 'auto' });
                 assert.deepStrictEqual(actual, [1, 2, 3]);
@@ -387,7 +402,7 @@ describe('parseChunked()', () => {
                 )
             );
 
-            it('parses multiple JSONL values with breaks in chunks', async () =>
+            it('fails when values are not newline-separated', async () =>
                 assert.rejects(
                     () => parse(['{"a":{', '"b":', '1}}{"a":{', '"b":', '2}}'], { mode: 'auto' }),
                     /Unexpected non-whitespace|Unable to parse JSON string|Unexpected token { in JSON at position 13/
@@ -401,6 +416,53 @@ describe('parseChunked()', () => {
                 /Invalid options: `mode` should be "json", "jsonl", "ndjson", or "auto"/
             )
         );
+    });
+
+    describe('reviver support', () => {
+        it('supports parseChunked(input, reviver)', async () => {
+            const actual = await parseChunked(['{"a":1,"b":2}'], (key, value) =>
+                typeof value === 'number' ? value * 2 : value
+            );
+
+            assert.deepStrictEqual(actual, { a: 2, b: 4 });
+        });
+
+        it('supports parseChunked(input, { mode, reviver })', async () => {
+            const actual = await parse(['{"a":1,"b":2}'], {
+                mode: 'json',
+                reviver: (key, value) => (key === 'b' ? undefined : value)
+            });
+
+            assert.deepStrictEqual(actual, { a: 1 });
+        });
+
+        it('applies reviver per value in jsonl mode', async () => {
+            const actual = await parse(['{"a":1}\n{"a":2}'], {
+                mode: 'jsonl',
+                reviver: (key, value) => (key === 'a' ? value + 10 : value)
+            });
+
+            assert.deepStrictEqual(actual, [{ a: 11 }, { a: 12 }]);
+        });
+
+        it('applies reviver after auto mode switches to jsonl', async () => {
+            const actual = await parse(['{"a":1}\n{"a":2}'], {
+                mode: 'auto',
+                reviver: (key, value) => (key === 'a' ? value * 3 : value)
+            });
+
+            assert.deepStrictEqual(actual, [{ a: 3 }, { a: 6 }]);
+        });
+
+        it('should ignore invalid reviver in options', async () => {
+            const actual = await parse(['{"a":1}'], { reviver: 'not a function' });
+            assert.deepStrictEqual(actual, { a: 1 });
+        });
+
+        it('should ignore invalid second argument type', async () => {
+            const actual = await parse(['1'], 123);
+            assert.deepStrictEqual(actual, 1);
+        });
     });
 
     describe('use with buffers', () => {

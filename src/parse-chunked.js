@@ -8,20 +8,6 @@ const MODE_JSONL = 1;
 const MODE_JSONL_AUTO = 2;
 const decoder = new TextDecoder();
 
-function resolveParseMode(mode) {
-    switch (mode) {
-        case 'json':
-            return MODE_JSON;
-        case 'jsonl':
-        case 'ndjson':
-            return MODE_JSONL;
-        case 'auto':
-            return MODE_JSONL_AUTO;
-        default:
-            throw new TypeError('Invalid options: `mode` should be "json", "jsonl", "ndjson", or "auto"');
-    }
-}
-
 function adjustPosition(error, parser) {
     if (error.name === 'SyntaxError' && parser.jsonParseOffset) {
         error.message = error.message.replace(/at position (\d+)/, (_, pos) =>
@@ -43,14 +29,60 @@ function append(array, elements) {
     }
 }
 
-export async function parseChunked(chunkEmitter, options) {
-    const mode = resolveParseMode(options?.mode ?? 'json');
+function resolveParseMode(mode) {
+    switch (mode) {
+        case 'json':
+            return MODE_JSON;
+        case 'jsonl':
+        case 'ndjson':
+            return MODE_JSONL;
+        case 'auto':
+            return MODE_JSONL_AUTO;
+        default:
+            throw new TypeError('Invalid options: `mode` should be "json", "jsonl", "ndjson", or "auto"');
+    }
+}
+
+function parseChunkedOptions(value) {
+    const options = typeof value === 'function'
+        ? { reviver: value }
+        : value || {};
+
+    return {
+        reviver: options.reviver ?? null,
+        mode: resolveParseMode(options.mode ?? 'json')
+    };
+}
+
+function applyReviver(value, reviver) {
+    return walk({ '': value }, '', value);
+
+    function walk(holder, key, value) {
+        if (value && typeof value === 'object') {
+            for (const childKey of Object.keys(value)) {
+                const childValue = value[childKey];
+                const newValue = walk(value, childKey, childValue);
+
+                if (newValue === undefined) {
+                    delete value[childKey];
+                } else if (newValue !== childValue) {
+                    value[childKey] = newValue;
+                }
+            }
+        }
+
+        return reviver.call(holder, key, value);
+    }
+}
+
+export async function parseChunked(chunkEmitter, optionsOrReviver) {
+    const { reviver, mode } = parseChunkedOptions(optionsOrReviver);
     const iterable = typeof chunkEmitter === 'function'
         ? chunkEmitter()
         : chunkEmitter;
 
     if (isIterable(iterable)) {
-        let parser = createChunkParser(mode);
+        const parser = createChunkParser(mode);
 
         try {
             for await (const chunk of iterable) {
@@ -61,7 +93,13 @@ export async function parseChunked(chunkEmitter, options) {
                 parser.push(chunk);
             }
 
-            return parser.finish();
+            const { value, mode } = parser.finish();
+
+            return typeof reviver !== 'function'
+                ? value
+                : mode === MODE_JSONL
+                    ? value.map(value => applyReviver(value, reviver))
+                    : applyReviver(value, reviver);
         } catch (e) {
             throw adjustPosition(e, parser);
         }
@@ -116,7 +154,7 @@ function createChunkParser(parseMode) {
         // Parse fragment as a new root value
         const rootValue = JSON.parse(fragment);
 
-        // Reset parser state to be ready for the next root value if in JSONL mode
+        // Block parsing of an additional root value until a newline is encountered
         allowNewRootValue = false;
 
         // Update retValue
@@ -465,10 +503,15 @@ function createChunkParser(parseMode) {
 
     function finish() {
         if (pendingChunk !== null || retValue === EMPTY_VALUE) {
+            // Force the `flushDepth < lastFlushDepth` branch in flush() to prepend missed
+            // opening brackets/parentheses and produce a natural JSON.parse() EOF error
             flushDepth = 0;
             flush('', 0, 0);
         }
 
-        return retValue;
+        return {
+            value: retValue,
+            mode: parseMode
+        };
     }
 }

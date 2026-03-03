@@ -42,14 +42,16 @@ npm install @discoveryjs/json-ext
 
 Functions like [`JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse), iterating over chunks to reconstruct the result object, and returns a [Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise).
 
-> Note: `reviver` parameter is not supported yet.
-
 ```ts
+function parseChunked(input: Iterable<Chunk> | AsyncIterable<Chunk>, reviver?: Reviver): Promise<any>;
 function parseChunked(input: Iterable<Chunk> | AsyncIterable<Chunk>, options?: ParseChunkedOptions): Promise<any>;
+function parseChunked(input: () => (Iterable<Chunk> | AsyncIterable<Chunk>), reviver?: Reviver): Promise<any>;
 function parseChunked(input: () => (Iterable<Chunk> | AsyncIterable<Chunk>), options?: ParseChunkedOptions): Promise<any>;
 
 type Chunk = string | Buffer | Uint8Array;
+type Reviver = (this: any, key: string, value: any) => any;
 type ParseChunkedOptions = {
+    reviver?: Reviver;
     mode?: 'json' | 'jsonl' | 'ndjson' | 'auto';
 };
 ```
@@ -65,6 +67,8 @@ const data = await parseChunked(chunkEmitter);
 ```
 
 Parameter `chunkEmitter` can be an iterable or async iterable that iterates over chunks, or a function returning such a value. A chunk can be a `string`, `Uint8Array`, or Node.js `Buffer`.
+
+You can pass `reviver` either as the second argument (`parseChunked(input, reviver)`) or inside options (`parseChunked(input, { mode, reviver })`). `reviver` works the same way as in `JSON.parse()`.
 
 `options.mode` controls JSON Lines support:
 
