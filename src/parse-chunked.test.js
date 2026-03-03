@@ -223,7 +223,7 @@ describe('parseChunked()', () => {
         it('should fail when comma in object', () =>
             assert.rejects(
                 async () => await parse(['{,}']),
-                /Expected property name or '}' in JSON at position 1 |Unexpected token , in JSON at position 1|Expected '}'/
+                /Expected property name or '}' in JSON at position 1|Unexpected token , in JSON at position 1|Expected '}'/
             )
         );
 
