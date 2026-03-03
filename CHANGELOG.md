@@ -1,12 +1,10 @@
 ## next
 
-- Refactored `parseChunked()` from class-based to function-based implementation, as a result a bit smaller and faster
 - `parseChunked()`:
+  - Refactored from class-based to function-based implementation, as a result a bit smaller and faster
+  - Added support for JSONL (NDJSON) mode, which allows parsing multiple JSON values from a stream of chunks, where each value is separated by a newline character, i.e. `parseChunked(input, { mode })`, where `mode` can be `json` (default), `jsonl` or `ndjson`, or `auto`
   - Fixed OOM on very long arrays (corner case, millions of elements)
-  - Fixed crash on malformed top-level closing tokens
-  - Fixed handling of empty input and input with only whitespaces
-  - Fixed re-parsing a second top-level value; now extra non-whitespace after a complete root fails gracefully as parse error
-  - Fixed handling of trailing whitespace after a complete root value
+  - Fixed various issues with parsing of malformed JSON
 
 ## 0.6.3 (2024-10-24)
 

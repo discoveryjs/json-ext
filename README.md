@@ -45,10 +45,13 @@ Functions like [`JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/Jav
 > Note: `reviver` parameter is not supported yet.
 
 ```ts
-function parseChunked(input: Iterable<Chunk> | AsyncIterable<Chunk>): Promise<any>;
-function parseChunked(input: () => (Iterable<Chunk> | AsyncIterable<Chunk>)): Promise<any>;
+function parseChunked(input: Iterable<Chunk> | AsyncIterable<Chunk>, options?: ParseChunkedOptions): Promise<any>;
+function parseChunked(input: () => (Iterable<Chunk> | AsyncIterable<Chunk>), options?: ParseChunkedOptions): Promise<any>;
 
 type Chunk = string | Buffer | Uint8Array;
+type ParseChunkedOptions = {
+    mode?: 'json' | 'jsonl' | 'ndjson' | 'auto';
+};
 ```
 
 [Benchmark](https://github.com/discoveryjs/json-ext/tree/master/benchmarks#parse-chunked)
@@ -62,6 +65,12 @@ const data = await parseChunked(chunkEmitter);
 ```
 
 Parameter `chunkEmitter` can be an iterable or async iterable that iterates over chunks, or a function returning such a value. A chunk can be a `string`, `Uint8Array`, or Node.js `Buffer`.
+
+`options.mode` controls JSON Lines support:
+
+- `'json'` (default): parse as regular JSON;
+- `'jsonl'` or `'ndjson'`: parse as JSONL (Newline Delimited JSON) and always return an array of parsed lines;
+- `'auto'`: parse as regular JSON, but switch to JSONL mode when an additional value appears after a newline.
 
 Examples:
 

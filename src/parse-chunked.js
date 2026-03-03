@@ -1,8 +1,26 @@
 import { isIterable } from './utils.js';
 
+const EMPTY_VALUE = Symbol('empty');
 const STACK_OBJECT = 1;
 const STACK_ARRAY = 2;
+const MODE_JSON = 0;
+const MODE_JSONL = 1;
+const MODE_JSONL_AUTO = 2;
 const decoder = new TextDecoder();
+
+function resolveParseMode(mode) {
+    switch (mode) {
+        case 'json':
+            return MODE_JSON;
+        case 'jsonl':
+        case 'ndjson':
+            return MODE_JSONL;
+        case 'auto':
+            return MODE_JSONL_AUTO;
+        default:
+            throw new TypeError('Invalid options: `mode` should be "json", "jsonl", "ndjson", or "auto"');
+    }
+}
 
 function adjustPosition(error, parser) {
     if (error.name === 'SyntaxError' && parser.jsonParseOffset) {
@@ -25,13 +43,14 @@ function append(array, elements) {
     }
 }
 
-export async function parseChunked(chunkEmitter) {
+export async function parseChunked(chunkEmitter, options) {
+    const mode = resolveParseMode(options?.mode ?? 'json');
     const iterable = typeof chunkEmitter === 'function'
         ? chunkEmitter()
         : chunkEmitter;
 
     if (isIterable(iterable)) {
-        let parser = createChunkParser();
+        let parser = createChunkParser(mode);
 
         try {
             for await (const chunk of iterable) {
@@ -54,8 +73,8 @@ export async function parseChunked(chunkEmitter) {
     );
 };
 
-function createChunkParser() {
-    let value = undefined;
+function createChunkParser(parseMode) {
+    let retValue = parseMode === MODE_JSONL ? [] : EMPTY_VALUE;
     let valueStack = null;
 
     let prevArray = null;
@@ -66,6 +85,8 @@ function createChunkParser() {
     let flushDepth = 0;
     let stateString = false;
     let stateStringEscape = false;
+    let seenNonWhiteSpace = false;
+    let allowNewRootValue = true;
     let pendingByteSeq = null;
     let pendingChunk = null;
     let chunkOffset = 0;
@@ -79,6 +100,35 @@ function createChunkParser() {
         }
     };
 
+    function parseNewRootValue(fragment) {
+        // Extra non-whitespace after complete root value should fail to parse
+        if (!allowNewRootValue) {
+            jsonParseOffset -= 2;
+            JSON.parse('[]' + fragment);
+        }
+
+        // In "auto" mode, switch to JSONL when a second root value is starting after a newline
+        if (retValue !== EMPTY_VALUE && parseMode === MODE_JSONL_AUTO) {
+            parseMode = MODE_JSONL;
+            retValue = [retValue];
+        }
+
+        // Parse fragment as a new root value
+        const rootValue = JSON.parse(fragment);
+
+        // Reset parser state to be ready for the next root value if in JSONL mode
+        allowNewRootValue = false;
+
+        // Update retValue
+        if (parseMode === MODE_JSONL) {
+            retValue.push(rootValue);
+        } else {
+            retValue = rootValue;
+        }
+
+        return rootValue;
+    }
+
     function mergeArraySlices() {
         if (prevArray === null) {
             return;
@@ -91,8 +141,10 @@ function createChunkParser() {
 
             if (valueStack.prev !== null) {
                 valueStack.prev.value[valueStack.key] = newArray;
+            } else if (parseMode === MODE_JSONL) {
+                retValue[retValue.length - 1] = newArray;
             } else {
-                value = newArray;
+                retValue = newArray;
             }
 
             valueStack.value = newArray;
@@ -168,23 +220,11 @@ function createChunkParser() {
         }
 
         if (flushDepth === lastFlushDepth) {
-            // Depth didn't change, so it's a root value or entry/element set
-            if (flushDepth > 0) {
-                parseAndAppend(prepareAddition(fragment), true);
+            // Depth didn't change, so it's a continuation of the current value or entire value if it's a root one
+            if (lastFlushDepth === 0) {
+                parseNewRootValue(fragment);
             } else {
-                if (valueStack === null) {
-                    // That's an entire value on a top level
-                    value = JSON.parse(fragment);
-                    valueStack = {
-                        value,
-                        key: null,
-                        prev: null
-                    };
-                } else if (/\S/.test(fragment)) {
-                    // Extra non-whitespace after complete root value should fail to parse
-                    jsonParseOffset -= 3;
-                    JSON.parse('[[]' + fragment);
-                }
+                parseAndAppend(prepareAddition(fragment), true);
             }
         } else if (flushDepth > lastFlushDepth) {
             // Add missed closing brackets/parentheses
@@ -193,10 +233,8 @@ function createChunkParser() {
             }
 
             if (lastFlushDepth === 0) {
-                // That's a root value
-                value = JSON.parse(fragment);
                 valueStack = {
-                    value,
+                    value: parseNewRootValue(fragment),
                     key: null,
                     prev: null
                 };
@@ -207,7 +245,7 @@ function createChunkParser() {
 
             // Move down to the depths to the last object/array, which is current now
             for (let i = lastFlushDepth || 1; i < flushDepth; i++) {
-                let value = valueStack.value;
+                let { value } = valueStack;
                 let key = null;
 
                 if (stack[i - 1] === STACK_OBJECT) {
@@ -245,6 +283,7 @@ function createChunkParser() {
         }
 
         lastFlushDepth = flushDepth;
+        seenNonWhiteSpace = false;
     }
 
     function ensureChunkString(chunk) {
@@ -328,6 +367,7 @@ function createChunkParser() {
                 case 0x22: /* " */
                     stateString = true;
                     stateStringEscape = false;
+                    seenNonWhiteSpace = true;
                     break;
 
                 case 0x2C: /* , */
@@ -338,27 +378,29 @@ function createChunkParser() {
                     // Open an object
                     flushPoint = i + 1;
                     stack[flushDepth++] = STACK_OBJECT;
+                    seenNonWhiteSpace = true;
                     break;
 
                 case 0x5B: /* [ */
                     // Open an array
                     flushPoint = i + 1;
                     stack[flushDepth++] = STACK_ARRAY;
+                    seenNonWhiteSpace = true;
                     break;
 
                 case 0x5D: /* ] */
                 case 0x7D: /* } */
                     // Close an object or array
                     flushPoint = i + 1;
-                    flushDepth--;
 
-                    // Unmatched closing bracket/brace at top level
-                    if (flushDepth < 0) {
-                        flushDepth = lastFlushDepth;
-                        flush(chunk, lastFlushPoint, flushPoint);
-                        return;
+                    if (flushDepth === 0) {
+                        // Unmatched closing bracket/brace at top level, should fail to parse
+                        break scan;
                     }
 
+                    flushDepth--;
+
+                    // Flush on depth decrease related to last flush, otherwise wait for more chunks to flush together
                     if (flushDepth < lastFlushDepth) {
                         flush(chunk, lastFlushPoint, flushPoint);
                         lastFlushPoint = flushPoint;
@@ -370,6 +412,21 @@ function createChunkParser() {
                 case 0x0A: /* \n */
                 case 0x0D: /* \r */
                 case 0x20: /* space */
+                    if (flushDepth === 0) {
+                        if (seenNonWhiteSpace) {
+                            flushPoint = i;
+                            flush(chunk, lastFlushPoint, flushPoint);
+                            lastFlushPoint = flushPoint;
+                        }
+
+                        if (allowNewRootValue === false &&
+                            parseMode !== MODE_JSON &&
+                            (chunk.charCodeAt(i) === 0x0A || chunk.charCodeAt(i) === 0x0D)
+                        ) {
+                            allowNewRootValue = true;
+                        }
+                    }
+
                     // Move points forward when they point to current position and it's a whitespace
                     if (lastFlushPoint === i) {
                         lastFlushPoint++;
@@ -380,6 +437,9 @@ function createChunkParser() {
                     }
 
                     break;
+
+                default:
+                    seenNonWhiteSpace = true;
             }
         }
 
@@ -404,11 +464,11 @@ function createChunkParser() {
     }
 
     function finish() {
-        if (pendingChunk !== null) {
+        if (pendingChunk !== null || retValue === EMPTY_VALUE) {
+            flushDepth = 0;
             flush('', 0, 0);
-            pendingChunk = null;
         }
 
-        return value;
+        return retValue;
     }
 }

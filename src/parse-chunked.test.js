@@ -4,8 +4,8 @@ import { Readable } from 'stream';
 import { inspect } from 'util';
 import { parseChunked } from './parse-chunked.js';
 
-function parse(chunks) {
-    return parseChunked(() => chunks);
+function parse(chunks, options) {
+    return parseChunked(() => chunks, options);
 }
 
 function split(str, chunkLen = 1) {
@@ -134,61 +134,114 @@ describe('parseChunked()', () => {
                 /Unexpected token ] in JSON at position 0|Unexpected token ']'(, "]" is not valid JSON)?/
             )
         );
+
         it('unmatched closing brace at start', () =>
             assert.rejects(
                 () => parseChunked(['}']),
                 /Unexpected token } in JSON at position 0|Unexpected token '}'(, "}" is not valid JSON)?/
             )
         );
+
         it('extra token after complete value', () =>
             assert.rejects(
                 () => parseChunked(['[] true']),
-                /(Unexpected token t in JSON at position 3|Unexpected token t in JSON at position 6|Unexpected non-whitespace character after JSON at position 2|Expected ',' or ']' after array element in JSON at position 3)/
+                /Unexpected token t in JSON at position 3|Unexpected token t in JSON at position 6|Unexpected non-whitespace character after JSON at position 3|Unable to parse JSON string/
             )
         );
+
+        describe('unexpected end of input', () => {
+            const cases = {
+                '': /Unexpected end of JSON input|Unexpected EOF/,
+                ' ': /Unexpected end of JSON input|Unexpected EOF/,
+                '{"a":1': /Expected ',' or '}' after property value in JSON|Unexpected end of JSON input|Expected '}'/,
+                '{"a":1,': /Expected property name or '}'|Unexpected end of JSON input|Expected '}'/,
+                '{"a":': /Unexpected end of JSON input|Unexpected end of JSON input|Unexpected EOF/,
+                '{"a"': /Expected ':' after property name in JSON|Expected ':' before value in object property definition|Unexpected end of JSON input/,
+                '{"a",': /Expected ':' after property name in JSON|Expected ':' before value in object property definition|Unexpected token }/, // FIXME: "Unexpected token }" is confusing error in old V8, because of `{"a"}`
+                '[1': /Expected ',' or ']' after array element|Unexpected end of JSON input|Expected ']'/,
+                '[1,': /Unexpected end of JSON input|Unexpected EOF/,
+                '"a': /Unterminated string|Unexpected end of JSON input/,
+                'nul': /Unexpected end of JSON input|Unexpected identifier/,
+                'tru': /Unexpected end of JSON input|Unexpected identifier/,
+                'fals': /Unexpected end of JSON input|Unexpected identifier/,
+                '1.': /Unterminated fractional number|Invalid digits after decimal point|Unexpected end of JSON input/,
+                '1e': /Exponent part is missing a number|Unable to parse JSON string|Unexpected end of JSON input/
+            };
+
+            for (const [json, regex] of Object.entries(cases)) {
+                it('unexpected end of JSON input `' + json + '`', () =>
+                    assert.rejects(
+                        () => parseChunked([json]),
+                        regex
+                    )
+                );
+            }
+        });
+
         it('extra opening after root', () =>
             assert.rejects(
                 () => parseChunked(['{}[']),
-                /(Unexpected token \[ in JSON at position 2|Unexpected non-whitespace character after JSON at position 2)/
+                /Unexpected token \[ in JSON at position 2|Unexpected non-whitespace character after JSON at position 2|Unable to parse JSON string/
             )
         );
+
         it('abs pos across chunks', () =>
             assert.rejects(
                 async () => await parse(['{"test":"he', 'llo",}']),
                 /(Unexpected token \}|Expected double-quoted property name) in JSON at position 16|Property name must be a string literal/
             )
         );
+
         it('abs pos across chunks #2', () =>
             assert.rejects(
                 async () => await parse(['[{"test":"hello"},', ',}']),
                 /Unexpected token , in JSON at position 18|Unexpected token ','(, "\[,}" is not valid JSON)?$|/
             )
         );
+
         it('abs pos across chunks #3 (whitespaces)', () =>
             assert.rejects(
                 async () => await parse(['[{"test" ', ' ', ' :"hello"} ', ' ', ',', ' ', ',}']),
                 /Unexpected token , in JSON at position 24|Unexpected token ','(, "\[,}" is not valid JSON)?$/
             )
         );
+
         it('should fail when starts with a comma', () =>
             assert.rejects(
                 async () => await parse([',{}']),
                 /Unexpected token , in JSON at position 0|Unexpected token ','(, ",{}" is not valid JSON)?$/
             )
         );
+
         it('should fail when starts with a comma #2', () =>
             assert.rejects(
                 async () => await parse([',', '{}']),
                 /Unexpected token , in JSON at position 0|Unexpected token ','(, ",{}" is not valid JSON)?$/
             )
         );
-        it('should fail when no comma', () =>
+
+        it('should fail when comma in object', () =>
+            assert.rejects(
+                async () => await parse(['{,}']),
+                /Expected property name or '}' in JSON at position 1 |Unexpected token , in JSON at position 1|Expected '}'/
+            )
+        );
+
+        it('should fail when no comma in an object', () =>
+            assert.rejects(
+                async () => await parse(['{"a":1 "b":2}']),
+                /(Unexpected string|Expected ',' or '}' after property value) in JSON at position 7|Expected '}'/
+            )
+        );
+
+        it('should fail when no comma in an array', () =>
             assert.rejects(
                 async () => await parse(['[1 ', ' 2]']),
                 /(Unexpected number|Expected ',' or ']' after array element) in JSON at position 4|Expected ']'/
             )
         );
-        it('should fail when no comma #2', () =>
+
+        it('should fail when no comma in an array #2', () =>
             assert.rejects(
                 async () => await parse(['[{}', '{}]']),
                 /(Unexpected token {|Expected ',' or ']' after array element) in JSON at position 3|Expected ']'/
@@ -201,6 +254,7 @@ describe('parseChunked()', () => {
             const actual = await parse(['[1,2]\n\n  \t  ']);
             assert.deepStrictEqual(actual, [1, 2]);
         });
+
         it('split chunks with trailing whitespace', async () => {
             const actual = await parse(['[1,2]', '   ', '\n\t']);
             assert.deepStrictEqual(actual, [1, 2]);
@@ -212,12 +266,14 @@ describe('parseChunked()', () => {
             const actual = await parse(['"hello \\"', 'world"']);
             assert.deepStrictEqual(actual, 'hello "world');
         });
+
         it('backslash escape split across chunks', async () => {
             // create a string with a literal backslash then a quote and more text: "foo \"bar"
             const chunks = ['"foo \\"', 'bar"'];
             const actual = await parse(chunks);
             assert.deepStrictEqual(actual, 'foo "bar');
         });
+
         it('multi-byte emoji split across chunks', async () => {
             const json = JSON.stringify('a😅b');
             // split inside surrogate pair intentionally
@@ -227,6 +283,7 @@ describe('parseChunked()', () => {
             const actual = await parse([first, middle, rest]);
             assert.deepStrictEqual(actual, 'a😅b');
         });
+
         it('multi-byte via Uint8Array boundary', async () => {
             const str = '"start 🤓 end"';
             const enc = new TextEncoder().encode(str);
@@ -237,6 +294,113 @@ describe('parseChunked()', () => {
             const actual = await parseChunked([part1, part2]);
             assert.deepStrictEqual(actual, 'start 🤓 end');
         });
+    });
+
+    describe('mode option', () => {
+        describe('mode: "json"', () => {
+            it('explicit JSON mode', async () => {
+                const actual = await parse(['{"a":2}'], { mode: 'json' });
+                assert.deepStrictEqual(actual, { a: 2 });
+            });
+        });
+
+        describe('mode: "jsonl"', () => {
+            it('parses jsonl and always returns an array', async () => {
+                const actual = await parse(['1\n{"a":2}\n[3]'], { mode: 'jsonl' });
+                assert.deepStrictEqual(actual, [1, { a: 2 }, [3]]);
+            });
+
+            it('returns array for a single value', async () => {
+                const actual = await parse(['{"a":1}'], { mode: 'jsonl' });
+                assert.deepStrictEqual(actual, [{ a: 1 }]);
+            });
+
+            it('supports chunk splits and empty lines', async () => {
+                const actual = await parse(['{"a":1}\n', '\n', '2\n', '   \n', '3'], { mode: 'jsonl' });
+                assert.deepStrictEqual(actual, [{ a: 1 }, 2, 3]);
+            });
+
+            it('parses multiple JSONL values with breaks in chunks', async () => {
+                const actual = await parse(['{"a":{', '"b":', '1}}\n{"a":{', '"b":', '2}}'], { mode: 'jsonl' });
+                assert.deepStrictEqual(actual, [{ a: { b: 1 } }, { a: { b: 2 } }]);
+            });
+
+            it('', async () => {
+                const json = Array.from({ length: 3}, () => '[{} \r\n\t, {}, \r\n\t [] \r\n\t, {} \r\n\t]').join('\n');
+                const actual = await parse(split(json, 5), { mode: 'jsonl' });
+                assert.deepStrictEqual(actual, [
+                    [{}, {}, [], {}],
+                    [{}, {}, [], {}],
+                    [{}, {}, [], {}]
+                ]);
+            });
+
+            it('parses multiple JSONL values with breaks in chunks', async () =>
+                assert.rejects(
+                    () => parse(['{"a":{', '"b":', '1}}{"a":{', '"b":', '2}}'], { mode: 'jsonl' }),
+                    /Unexpected non-whitespace|Unable to parse JSON string|Unexpected token { in JSON at position 13/
+                )
+            );
+        });
+
+        describe('mode: "ndjson"', () => {
+            it('alias for "jsonl"', async () => {
+                const actual = await parse(['1\n{"a":2}\n[3]'], { mode: 'ndjson' });
+                assert.deepStrictEqual(actual, [1, { a: 2 }, [3]]);
+            });
+        });
+
+        describe('mode: "auto"', () => {
+            it('parses normal JSON when there is no additional newline value', async () => {
+                const expected = { a: [1, 2], b: true };
+                const json = JSON.stringify(expected, null, 2);
+                const actual = await parse(split(json, 3), { mode: 'auto' });
+                assert.deepStrictEqual(actual, expected);
+            });
+
+            it('switches to jsonl on additional value after newline', async () => {
+                const actual = await parse(['{"a":1}\n2\n[3]'], { mode: 'auto' });
+                assert.deepStrictEqual(actual, [{ a: 1 }, 2, [3]]);
+            });
+
+            it('switches to jsonl when newline and next value are in different chunks', async () => {
+                const actual = await parse(['1', '\n', '2\n3'], { mode: 'auto' });
+                assert.deepStrictEqual(actual, [1, 2, 3]);
+            });
+
+            it('keeps trailing newline/whitespace after single JSON value', async () => {
+                const actual = await parse(['{"a":1}', '\n', '  \t  '], { mode: 'auto' });
+                assert.deepStrictEqual(actual, { a: 1 });
+            });
+
+            it('fails for extra value without newline separator', () =>
+                assert.rejects(
+                    () => parse(['1 2'], { mode: 'auto' }),
+                    /Unexpected non-whitespace|Unable to parse JSON string|Unexpected number in JSON at position 2/
+                )
+            );
+
+            it('fails for extra value without newline separator #2', () =>
+                assert.rejects(
+                    () => parse(['{}{}'], { mode: 'auto' }),
+                    /Unexpected non-whitespace|Unable to parse JSON string|Unexpected token { in JSON at position 2/
+                )
+            );
+
+            it('parses multiple JSONL values with breaks in chunks', async () =>
+                assert.rejects(
+                    () => parse(['{"a":{', '"b":', '1}}{"a":{', '"b":', '2}}'], { mode: 'auto' }),
+                    /Unexpected non-whitespace|Unable to parse JSON string|Unexpected token { in JSON at position 13/
+                )
+            );
+        });
+
+        it('throws on invalid jsonl option value', () =>
+            assert.rejects(
+                () => parse(['1'], { mode: 'yes' }),
+                /Invalid options: `mode` should be "json", "jsonl", "ndjson", or "auto"/
+            )
+        );
     });
 
     describe('use with buffers', () => {

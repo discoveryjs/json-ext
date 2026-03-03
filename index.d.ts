@@ -10,6 +10,9 @@ declare module '@discoveryjs/json-ext' {
         space?: Space;
         highWaterMark?: number;
     };
+    type ParseChunkedOptions = {
+        mode?: 'json' | 'jsonl' | 'ndjson' | 'auto';
+    };
     type StringifyInfoOptions = {
         replacer?: Replacer;
         space?: Space;
@@ -21,8 +24,8 @@ declare module '@discoveryjs/json-ext' {
         circular: object[];
     };
 
-    export function parseChunked(input: Iterable<Chunk> | AsyncIterable<Chunk>): Promise<any>;
-    export function parseChunked(input: () => (Iterable<Chunk> | AsyncIterable<Chunk>)): Promise<any>;
+    export function parseChunked(input: Iterable<Chunk> | AsyncIterable<Chunk>, options?: ParseChunkedOptions): Promise<any>;
+    export function parseChunked(input: () => (Iterable<Chunk> | AsyncIterable<Chunk>), options?: ParseChunkedOptions): Promise<any>;
 
     export function stringifyChunked(value: any, replacer?: Replacer, space?: Space): Generator<string>;
     export function stringifyChunked(value: any, options: StringifyOptions): Generator<string>;
