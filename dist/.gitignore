@@ -1,5 +1,6 @@
 *.js
 *.js.map
+*.gz
 !.gitignore
 !.npmignore
 !test/json-ext.js

@@ -4,7 +4,15 @@ import esbuild from 'esbuild';
 const log = async (outfile, fn) => {
     const start = Date.now();
     try {
-        await fn(outfile);
+        const { outputFiles } = await fn(outfile);
+        for (const { path, text } of outputFiles) {
+            fs.writeFileSync(path, /\.map$/.test(path) || /\.esm\./.test(path)
+                ? text
+                : text
+                    .replace(/\bexport(\s*{)/, 'return$1')
+                    .replace(/([a-z]+)\s+as\s+([a-z]+)/ig, '$2:   $1')
+            );
+        }
     } finally {
         const stat = fs.statSync(outfile);
         if (stat.isDirectory()) {
@@ -21,24 +29,23 @@ const banner = { js: `(function (global, factory) {
   (global.jsonExt = factory());
 }(typeof globalThis != 'undefined' ? globalThis : typeof window != 'undefined' ? window : typeof global != 'undefined' ? global : typeof self != 'undefined' ? self : this, (function () {` };
 const footer = { js: `
-  return exports;
 })));` };
 
 async function build() {
     const commonOptions = {
         entryPoints: ['src/index.js'],
         target: ['es2020'],
-        format: 'iife',
-        globalName: 'exports',
-        // write: false,
-        banner,
-        footer,
+        format: 'esm',
+        // globalName: 'exports',
+        write: false,
         bundle: true
     };
 
     // bundle
     await log('dist/json-ext.js', (outfile) => esbuild.build({
         ...commonOptions,
+        banner,
+        footer,
         // write: false,
         outfile
     }));
@@ -46,9 +53,26 @@ async function build() {
     // minified bundle
     await log('dist/json-ext.min.js', (outfile) => esbuild.build({
         ...commonOptions,
+        banner,
+        footer,
         // write: false,
         outfile,
         sourcemap: 'linked',
+        minify: true
+    }));
+
+    // ESM
+    await log('dist/json-ext.esm.js', (outfile) => esbuild.build({
+        ...commonOptions,
+        format: 'esm',
+        outfile
+    }));
+
+    // minified ESM
+    await log('dist/json-ext.esm.min.js', (outfile) => esbuild.build({
+        ...commonOptions,
+        format: 'esm',
+        outfile,
         minify: true
     }));
 }
