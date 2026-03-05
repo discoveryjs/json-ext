@@ -465,6 +465,197 @@ describe('parseChunked()', () => {
         });
     });
 
+    describe('onRootValue support', () => {
+        it('should return number of entries when onRootValue is used', async () => {
+            const entries = [];
+            const states = [];
+            const actual = await parse(['{"a":', '1}\n'], {
+                onRootValue(value, { mode, rootValuesCount }) {
+                    entries.push(value);
+                    states.push({ mode, rootValuesCount });
+                }
+            });
+            assert.strictEqual(actual, 1);
+            assert.deepStrictEqual(entries, [{ a: 1 }]);
+            assert.deepStrictEqual(states, [
+                { mode: 'json', rootValuesCount: 1 }
+            ]);
+        });
+
+        it('jsonl', async () => {
+            const entries = [];
+            const states = [];
+            const actual = await parse(['{"a":1', '}\n', '2\n[', '3]'], {
+                mode: 'jsonl',
+                onRootValue(value, { mode, rootValuesCount }) {
+                    entries.push(value);
+                    states.push({ mode, rootValuesCount });
+                }
+            });
+            assert.strictEqual(actual, 3);
+            assert.deepStrictEqual(entries, [{ a: 1 }, 2, [3]]);
+            assert.deepStrictEqual(states, [
+                { mode: 'jsonl', rootValuesCount: 1 },
+                { mode: 'jsonl', rootValuesCount: 2 },
+                { mode: 'jsonl', rootValuesCount: 3 }
+            ]);
+        });
+
+        it('auto', async () => {
+            const entries = [];
+            const states = [];
+            const actual = await parse(['{"a":1', '}\n', '2\n[', '3]'], {
+                mode: 'auto',
+                onRootValue(value, { mode, rootValuesCount }) {
+                    entries.push(value);
+                    states.push({ mode, rootValuesCount });
+                }
+            });
+            assert.strictEqual(actual, 3);
+            assert.deepStrictEqual(entries, [{ a: 1 }, 2, [3]]);
+            assert.deepStrictEqual(states, [
+                { mode: 'json', rootValuesCount: 1 },
+                { mode: 'jsonl', rootValuesCount: 2 },
+                { mode: 'jsonl', rootValuesCount: 3 }
+            ]);
+        });
+    });
+
+    describe('onRootValue & reviver', () => {
+        const reviver = (key, value) => typeof value === 'number' ? value + 10 : value;
+
+        it('json', async () => {
+            const entries = [];
+            const states = [];
+            const actual = await parse(['{"a":', '1}\n'], {
+                reviver,
+                onRootValue(value, { mode, rootValuesCount }) {
+                    entries.push(value);
+                    states.push({ mode, rootValuesCount });
+                }
+            });
+            assert.strictEqual(actual, 1);
+            assert.deepStrictEqual(entries, [{ a: 11 }]);
+            assert.deepStrictEqual(states, [
+                { mode: 'json', rootValuesCount: 1 }
+            ]);
+        });
+
+        it('jsonl', async () => {
+            const entries = [];
+            const states = [];
+            const actual = await parse(['{"a":1', '}\n', '2\n[', '3]'], {
+                mode: 'jsonl',
+                reviver,
+                onRootValue(value, { mode, rootValuesCount }) {
+                    entries.push(value);
+                    states.push({ mode, rootValuesCount });
+                }
+            });
+            assert.strictEqual(actual, 3);
+            assert.deepStrictEqual(entries, [{ a: 11 }, 12, [13]]);
+            assert.deepStrictEqual(states, [
+                { mode: 'jsonl', rootValuesCount: 1 },
+                { mode: 'jsonl', rootValuesCount: 2 },
+                { mode: 'jsonl', rootValuesCount: 3 }
+            ]);
+        });
+
+        it('auto', async () => {
+            const entries = [];
+            const states = [];
+            const actual = await parse(['{"a":1', '}\n', '2\n[', '3]'], {
+                mode: 'auto',
+                reviver,
+                onRootValue(value, { mode, rootValuesCount }) {
+                    entries.push(value);
+                    states.push({ mode, rootValuesCount });
+                }
+            });
+            assert.strictEqual(actual, 3);
+            assert.deepStrictEqual(entries, [{ a: 11 }, 12, [13]]);
+            assert.deepStrictEqual(states, [
+                { mode: 'json', rootValuesCount: 1 },
+                { mode: 'jsonl', rootValuesCount: 2 },
+                { mode: 'jsonl', rootValuesCount: 3 }
+            ]);
+        });
+    });
+
+    describe('onChunk support', () => {
+        it('should report chunk progress when onChunk is used', async () => {
+            const chunks = [];
+            const actual = await parse(['{"a":', '1,', ' "b"', ':2,', '"c":3 }\n'], {
+                onChunk(chunkParsed, chunk, pending, { consumed, parsed }) {
+                    chunks.push({
+                        chunkParsed,
+                        chunk,
+                        pending,
+                        consumed,
+                        parsed
+                    });
+                }
+            });
+            assert.deepStrictEqual(actual, { a: 1, b: 2, c: 3 });
+            assert.deepStrictEqual(chunks, [
+                { chunkParsed: 1, chunk: '{"a":', pending: '"a":', consumed: 5, parsed: 1 },
+                { chunkParsed: 5, chunk: '1,', pending: ',', consumed: 7, parsed: 6 },
+                { chunkParsed: 0, chunk: ' "b"', pending: ', "b"', consumed: 11, parsed: 6 },
+                { chunkParsed: 7, chunk: ':2,', pending: ',', consumed: 14, parsed: 13 },
+                { chunkParsed: 9, chunk: '"c":3 }\n', pending: null, consumed: 22, parsed: 22 },
+                { chunkParsed: 0, chunk: null, pending: null, consumed: 22, parsed: 22 }
+            ]);
+        });
+
+        it('jsonl', async () => {
+            const chunks = [];
+            const actual = await parse(['{"a":1', '}\n', '2\n[', '3]'], {
+                mode: 'jsonl',
+                onChunk(chunkParsed, chunk, pending, { consumed, parsed }) {
+                    chunks.push({
+                        chunkParsed,
+                        chunk,
+                        pending,
+                        consumed,
+                        parsed
+                    });
+                }
+            });
+            assert.deepStrictEqual(actual, [{ a: 1 }, 2, [3]]);
+            assert.deepStrictEqual(chunks, [
+                { chunkParsed: 1, chunk: '{"a":1', pending: '"a":1', consumed: 6, parsed: 1 },
+                { chunkParsed: 7, chunk: '}\n', pending: null, consumed: 8, parsed: 8 },
+                { chunkParsed: 3, chunk: '2\n[', pending: null, consumed: 11, parsed: 11 },
+                { chunkParsed: 2, chunk: '3]', pending: null, consumed: 13, parsed: 13 },
+                { chunkParsed: 0, chunk: null, pending: null, consumed: 13, parsed: 13 }
+            ]);
+        });
+
+        it('auto', async () => {
+            const chunks = [];
+            const actual = await parse(['{"a":1', '}\n', '2\n[', '3]'], {
+                mode: 'auto',
+                onChunk(chunkParsed, chunk, pending, { consumed, parsed }) {
+                    chunks.push({
+                        chunkParsed,
+                        chunk,
+                        pending,
+                        consumed,
+                        parsed
+                    });
+                }
+            });
+            assert.deepStrictEqual(actual, [{ a: 1 }, 2, [3]]);
+            assert.deepStrictEqual(chunks, [
+                { chunkParsed: 1, chunk: '{"a":1', pending: '"a":1', consumed: 6, parsed: 1 },
+                { chunkParsed: 7, chunk: '}\n', pending: null, consumed: 8, parsed: 8 },
+                { chunkParsed: 3, chunk: '2\n[', pending: null, consumed: 11, parsed: 11 },
+                { chunkParsed: 2, chunk: '3]', pending: null, consumed: 13, parsed: 13 },
+                { chunkParsed: 0, chunk: null, pending: null, consumed: 13, parsed: 13 }
+            ]);
+        });
+    });
+
     describe('use with buffers', () => {
         const input = '[1234,{"🤓\\uD800\\uDC00":"🤓\\uD800\\uDC00\\u006f\\ufffd\\uffff\\ufffd"}]';
         const expected = [1234, { '🤓\uD800\uDC00': '🤓\uD800\uDC00\u006f\ufffd\uffff\ufffd' }];

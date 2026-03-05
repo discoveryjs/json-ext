@@ -53,6 +53,14 @@ type Reviver = (this: any, key: string, value: any) => any;
 type ParseChunkedOptions = {
     reviver?: Reviver;
     mode?: 'json' | 'jsonl' | 'ndjson' | 'auto';
+    onRootValue?: (value: any, state: ParseChunkState) => void;
+    onChunk?: (chunkParsed: number, chunk: string | null, pending: string | null, state: ParseChunkState) => void;
+};
+type ParseChunkState = {
+    mode: 'json' | 'jsonl';
+    rootValuesCount: number;
+    consumed: number;
+    parsed: number;
 };
 ```
 
@@ -75,6 +83,10 @@ You can pass `reviver` either as the second argument (`parseChunked(input, reviv
 - `'json'` (default): parse as regular JSON;
 - `'jsonl'` or `'ndjson'`: parse as JSONL (Newline Delimited JSON) and always return an array of parsed lines;
 - `'auto'`: parse as regular JSON, but switch to JSONL mode when an additional value appears after a newline.
+
+`options.onRootValue` is called when a root value is parsed and finalized. When `onRootValue` is specified, `parseChunked()` resolves to the number of processed root values (instead of returning parsed value(s)), which allows processing huge or infinite streams without accumulating all values in memory.
+
+`options.onChunk` is called after each input chunk is processed and once at the end with `chunk = null`. It provides parsing progress and parser state (`consumed`, `parsed`, current mode and root values count).
 
 Examples:
 

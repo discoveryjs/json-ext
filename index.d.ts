@@ -2,10 +2,20 @@ declare module '@discoveryjs/json-ext' {
     type Chunk = string | Uint8Array | Buffer;
 
     type Reviver = (this: any, key: string, value: any) => any;
+    type ParseChunkState = {
+        readonly mode: 'json' | 'jsonl';
+        readonly rootValuesCount: number;
+        readonly consumed: number;
+        readonly parsed: number;
+    };
+    type OnRootValue = (value: any, state: ParseChunkState) => void;
+    type OnChunk = (chunkParsed: number, chunk: string | null, pending: string | null, state: ParseChunkState) => void;
     type ParseOptions = {
         reviver?: Reviver;
         mode?: 'json' | 'jsonl' | 'ndjson' | 'auto';
-    }
+        onRootValue?: OnRootValue;
+        onChunk?: OnChunk;
+    };
 
     type Replacer =
         | ((this: any, key: string, value: any) => any)
@@ -26,11 +36,13 @@ declare module '@discoveryjs/json-ext' {
         bytes: number;
         spaceBytes: number;
         circular: object[];
-    }
+    };
 
     export function parseChunked(input: Iterable<Chunk> | AsyncIterable<Chunk>, reviver?: Reviver): Promise<any>;
+    export function parseChunked(input: Iterable<Chunk> | AsyncIterable<Chunk>, options: ParseOptions & { onRootValue: OnRootValue }): Promise<number>;
     export function parseChunked(input: Iterable<Chunk> | AsyncIterable<Chunk>, options?: ParseOptions): Promise<any>;
     export function parseChunked(input: () => (Iterable<Chunk> | AsyncIterable<Chunk>), reviver?: Reviver): Promise<any>;
+    export function parseChunked(input: () => (Iterable<Chunk> | AsyncIterable<Chunk>), options: ParseOptions & { onRootValue: OnRootValue }): Promise<number>;
     export function parseChunked(input: () => (Iterable<Chunk> | AsyncIterable<Chunk>), options?: ParseOptions): Promise<any>;
 
     export function stringifyChunked(value: any, replacer?: Replacer, space?: Space): Generator<string>;

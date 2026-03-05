@@ -1,6 +1,6 @@
 import { isIterable } from './utils.js';
 
-const EMPTY_VALUE = Symbol('empty');
+const NO_VALUE = Symbol('empty');
 const STACK_OBJECT = 1;
 const STACK_ARRAY = 2;
 const MODE_JSON = 0;
@@ -8,10 +8,10 @@ const MODE_JSONL = 1;
 const MODE_JSONL_AUTO = 2;
 const decoder = new TextDecoder();
 
-function adjustPosition(error, parser) {
-    if (error.name === 'SyntaxError' && parser.jsonParseOffset) {
+function adjustPosition(error, jsonParseOffset) {
+    if (error.name === 'SyntaxError' && jsonParseOffset) {
         error.message = error.message.replace(/at position (\d+)/, (_, pos) =>
-            'at position ' + (Number(pos) + parser.jsonParseOffset)
+            'at position ' + (Number(pos) + jsonParseOffset)
         );
     }
 
@@ -49,8 +49,10 @@ function parseChunkedOptions(value) {
         : value || {};
 
     return {
+        mode: resolveParseMode(options.mode ?? 'json'),
         reviver: options.reviver ?? null,
-        mode: resolveParseMode(options.mode ?? 'json')
+        onRootValue: options.onRootValue ?? null,
+        onChunk: options.onChunk ?? null
     };
 }
 
@@ -76,13 +78,13 @@ function applyReviver(value, reviver) {
 }
 
 export async function parseChunked(chunkEmitter, optionsOrReviver) {
-    const { reviver, mode } = parseChunkedOptions(optionsOrReviver);
+    const { mode, reviver, onRootValue, onChunk } = parseChunkedOptions(optionsOrReviver);
     const iterable = typeof chunkEmitter === 'function'
         ? chunkEmitter()
         : chunkEmitter;
 
     if (isIterable(iterable)) {
-        const parser = createChunkParser(mode);
+        const parser = createChunkParser(mode, reviver, onRootValue, onChunk);
 
         try {
             for await (const chunk of iterable) {
@@ -93,15 +95,9 @@ export async function parseChunked(chunkEmitter, optionsOrReviver) {
                 parser.push(chunk);
             }
 
-            const { value, mode } = parser.finish();
-
-            return typeof reviver !== 'function'
-                ? value
-                : mode === MODE_JSONL
-                    ? value.map(value => applyReviver(value, reviver))
-                    : applyReviver(value, reviver);
+            return parser.finish();
         } catch (e) {
-            throw adjustPosition(e, parser);
+            throw adjustPosition(e, parser.jsonParseOffset);
         }
     }
 
@@ -111,9 +107,13 @@ export async function parseChunked(chunkEmitter, optionsOrReviver) {
     );
 };
 
-function createChunkParser(parseMode) {
-    let retValue = parseMode === MODE_JSONL ? [] : EMPTY_VALUE;
-    let valueStack = null;
+function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
+    let rootValues = parseMode === MODE_JSONL ? [] : null;
+    let rootValuesCount = 0;
+    let currentRootValue = NO_VALUE;
+    let currentRootValueCursor = null;
+    let consumedChunkLength = 0;
+    let parsedChunkLength = 0;
 
     let prevArray = null;
     let prevArraySlices = [];
@@ -127,18 +127,33 @@ function createChunkParser(parseMode) {
     let allowNewRootValue = true;
     let pendingByteSeq = null;
     let pendingChunk = null;
-    let chunkOffset = 0;
     let jsonParseOffset = 0;
+
+    const state = Object.freeze({
+        get mode() {
+            return parseMode === MODE_JSONL ? 'jsonl' : 'json';
+        },
+        get rootValuesCount() {
+            return rootValuesCount;
+        },
+        get consumed() {
+            return consumedChunkLength;
+        },
+        get parsed() {
+            return parsedChunkLength;
+        }
+    });
 
     return {
         push,
         finish,
+        state,
         get jsonParseOffset() {
             return jsonParseOffset;
         }
     };
 
-    function parseNewRootValue(fragment) {
+    function startRootValue(fragment) {
         // Extra non-whitespace after complete root value should fail to parse
         if (!allowNewRootValue) {
             jsonParseOffset -= 2;
@@ -146,25 +161,30 @@ function createChunkParser(parseMode) {
         }
 
         // In "auto" mode, switch to JSONL when a second root value is starting after a newline
-        if (retValue !== EMPTY_VALUE && parseMode === MODE_JSONL_AUTO) {
+        if (currentRootValue !== NO_VALUE && parseMode === MODE_JSONL_AUTO) {
             parseMode = MODE_JSONL;
-            retValue = [retValue];
+            rootValues = [currentRootValue];
         }
-
-        // Parse fragment as a new root value
-        const rootValue = JSON.parse(fragment);
 
         // Block parsing of an additional root value until a newline is encountered
         allowNewRootValue = false;
 
-        // Update retValue
-        if (parseMode === MODE_JSONL) {
-            retValue.push(rootValue);
-        } else {
-            retValue = rootValue;
+        // Parse fragment as a new root value
+        currentRootValue = JSON.parse(fragment);
+    }
+
+    function finishRootValue() {
+        rootValuesCount++;
+
+        if (typeof reviver === 'function') {
+            currentRootValue = applyReviver(currentRootValue, reviver);
         }
 
-        return rootValue;
+        if (typeof onRootValue === 'function') {
+            onRootValue(currentRootValue, state);
+        } else if (parseMode === MODE_JSONL) {
+            rootValues.push(currentRootValue);
+        }
     }
 
     function mergeArraySlices() {
@@ -177,15 +197,13 @@ function createChunkParser(parseMode) {
                 ? prevArray.concat(prevArraySlices[0])
                 : prevArray.concat(...prevArraySlices);
 
-            if (valueStack.prev !== null) {
-                valueStack.prev.value[valueStack.key] = newArray;
-            } else if (parseMode === MODE_JSONL) {
-                retValue[retValue.length - 1] = newArray;
+            if (currentRootValueCursor.prev !== null) {
+                currentRootValueCursor.prev.value[currentRootValueCursor.key] = newArray;
             } else {
-                retValue = newArray;
+                currentRootValue = newArray;
             }
 
-            valueStack.value = newArray;
+            currentRootValueCursor.value = newArray;
             prevArraySlices = [];
         }
 
@@ -200,24 +218,24 @@ function createChunkParser(parseMode) {
                 fragment = '{' + fragment + '}';
             }
 
-            Object.assign(valueStack.value, JSON.parse(fragment));
+            Object.assign(currentRootValueCursor.value, JSON.parse(fragment));
         } else {
             if (wrap) {
                 jsonParseOffset--;
                 fragment = '[' + fragment + ']';
             }
 
-            if (prevArray === valueStack.value) {
+            if (prevArray === currentRootValueCursor.value) {
                 prevArraySlices.push(JSON.parse(fragment));
             } else {
-                append(valueStack.value, JSON.parse(fragment));
-                prevArray = valueStack.value;
+                append(currentRootValueCursor.value, JSON.parse(fragment));
+                prevArray = currentRootValueCursor.value;
             }
         }
     }
 
     function prepareAddition(fragment) {
-        const { value } = valueStack;
+        const { value } = currentRootValueCursor;
         const expectComma = Array.isArray(value)
             ? value.length !== 0
             : Object.keys(value).length !== 0;
@@ -248,19 +266,21 @@ function createChunkParser(parseMode) {
         let fragment = chunk.slice(start, end);
 
         // Save position correction for an error in JSON.parse() if any
-        jsonParseOffset = chunkOffset + start;
+        jsonParseOffset = consumedChunkLength + start;
+        parsedChunkLength += end - start;
 
         // Prepend pending chunk if any
         if (pendingChunk !== null) {
             fragment = pendingChunk + fragment;
             jsonParseOffset -= pendingChunk.length;
+            parsedChunkLength += pendingChunk.length;
             pendingChunk = null;
         }
 
         if (flushDepth === lastFlushDepth) {
             // Depth didn't change, so it's a continuation of the current value or entire value if it's a root one
             if (lastFlushDepth === 0) {
-                parseNewRootValue(fragment);
+                startRootValue(fragment);
             } else {
                 parseAndAppend(prepareAddition(fragment), true);
             }
@@ -271,8 +291,9 @@ function createChunkParser(parseMode) {
             }
 
             if (lastFlushDepth === 0) {
-                valueStack = {
-                    value: parseNewRootValue(fragment),
+                startRootValue(fragment);
+                currentRootValueCursor = {
+                    value: currentRootValue,
                     key: null,
                     prev: null
                 };
@@ -283,7 +304,7 @@ function createChunkParser(parseMode) {
 
             // Move down to the depths to the last object/array, which is current now
             for (let i = lastFlushDepth || 1; i < flushDepth; i++) {
-                let { value } = valueStack;
+                let { value } = currentRootValueCursor;
                 let key = null;
 
                 if (stack[i - 1] === STACK_OBJECT) {
@@ -297,10 +318,10 @@ function createChunkParser(parseMode) {
                     value = value[key];
                 }
 
-                valueStack = {
+                currentRootValueCursor = {
                     value,
                     key,
-                    prev: valueStack
+                    prev: currentRootValueCursor
                 };
             }
         } else /* flushDepth < lastFlushDepth */ {
@@ -316,8 +337,12 @@ function createChunkParser(parseMode) {
             mergeArraySlices();
 
             for (let i = lastFlushDepth - 1; i >= flushDepth; i--) {
-                valueStack = valueStack.prev;
+                currentRootValueCursor = currentRootValueCursor.prev;
             }
+        }
+
+        if (flushDepth === 0) {
+            finishRootValue();
         }
 
         lastFlushDepth = flushDepth;
@@ -377,6 +402,7 @@ function createChunkParser(parseMode) {
         chunk = ensureChunkString(chunk);
 
         const chunkLength = chunk.length;
+        const prevParsedChunkLength = parsedChunkLength;
         let lastFlushPoint = 0;
         let flushPoint = 0;
 
@@ -457,11 +483,15 @@ function createChunkParser(parseMode) {
                             lastFlushPoint = flushPoint;
                         }
 
-                        if (allowNewRootValue === false &&
-                            parseMode !== MODE_JSON &&
+                        if (parseMode !== MODE_JSON &&
+                            allowNewRootValue === false &&
                             (chunk.charCodeAt(i) === 0x0A || chunk.charCodeAt(i) === 0x0D)
                         ) {
                             allowNewRootValue = true;
+                        }
+
+                        if (flushPoint === i) {
+                            parsedChunkLength++;
                         }
                     }
 
@@ -498,20 +528,30 @@ function createChunkParser(parseMode) {
             }
         }
 
-        chunkOffset += chunkLength;
+        consumedChunkLength += chunkLength;
+
+        if (typeof onChunk === 'function') {
+            onChunk(parsedChunkLength - prevParsedChunkLength, chunk, pendingChunk, state);
+        }
     }
 
     function finish() {
-        if (pendingChunk !== null || retValue === EMPTY_VALUE) {
+        if (pendingChunk !== null || (currentRootValue === NO_VALUE && parseMode !== MODE_JSONL)) {
             // Force the `flushDepth < lastFlushDepth` branch in flush() to prepend missed
             // opening brackets/parentheses and produce a natural JSON.parse() EOF error
             flushDepth = 0;
             flush('', 0, 0);
         }
 
-        return {
-            value: retValue,
-            mode: parseMode
-        };
+        if (typeof onChunk === 'function') {
+            parsedChunkLength = consumedChunkLength;
+            onChunk(0, null, null, state);
+        }
+
+        if (typeof onRootValue === 'function') {
+            return rootValuesCount;
+        }
+
+        return rootValues !== null ? rootValues : currentRootValue;
     }
 }
