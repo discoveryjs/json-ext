@@ -6,6 +6,7 @@ import bfj from 'bfj';
 import { JsonStreamStringify } from 'json-stream-stringify';
 import * as jsonExt057 from 'json-ext-0.5.7';
 import * as jsonExt060 from 'json-ext-0.6.0';
+import * as jsonExt063 from 'json-ext-0.6.3';
 import * as jsonExt from '../src/index.js';
 import {
     runBenchmark,
@@ -62,6 +63,9 @@ export const tests = {
 
     [selfPackageJson.name + ' createStringifyWebStream()']: data =>
         jsonExt.createStringifyWebStream(data),
+
+    [selfPackageJson.name + ' v0.6.3 stringifyChunked()']: data =>
+        jsonExt063.stringifyChunked(data),
 
     [selfPackageJson.name + ' v0.6.0 stringifyChunked()']: data =>
         jsonExt060.stringifyChunked(data),

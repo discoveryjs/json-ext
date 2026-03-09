@@ -9,6 +9,7 @@
     "chalk": "^4.1.0",
     "json-stream-stringify": "^3.1.6",
     "json-ext-0.5.7": "npm:@discoveryjs/json-ext@0.5.7",
-    "json-ext-0.6.0": "npm:@discoveryjs/json-ext@0.6.0"
+    "json-ext-0.6.0": "npm:@discoveryjs/json-ext@0.6.0",
+    "json-ext-0.6.3": "npm:@discoveryjs/json-ext@0.6.3"
   }
 }
