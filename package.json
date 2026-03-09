@@ -4,10 +4,14 @@
     "description": "A set of utilities that extend the use of JSON",
     "keywords": [
         "json",
+        "jsonl",
+        "ndjson",
         "utils",
         "stream",
         "async",
         "promise",
+        "generator",
+        "parse",
         "stringify",
         "info"
     ],
