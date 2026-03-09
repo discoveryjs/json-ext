@@ -1,5 +1,13 @@
 import { normalizeStringifyOptions, replaceValue } from './utils.js';
 
+function resolveStringifyMode(mode = 'json') {
+    if (mode === 'json' || mode === 'jsonl') {
+        return mode;
+    }
+
+    throw new TypeError('Invalid options: `mode` should be "json" or "jsonl"');
+}
+
 function encodeString(value) {
     if (/[^\x20\x21\x23-\x5B\x5D-\uD799]/.test(value)) { // [^\x20-\uD799]|[\x22\x5c]
         return JSON.stringify(value);
@@ -11,30 +19,42 @@ function encodeString(value) {
 export function* stringifyChunked(value, ...args) {
     const { replacer, getKeys, space, ...options } = normalizeStringifyOptions(...args);
     const highWaterMark = Number(options.highWaterMark) || 0x4000; // 16kb by default
+    const roots = resolveStringifyMode(options.mode) === 'jsonl' && Array.isArray(value) ? value : [value];
 
+    const rootCount = roots.length;
     const keyStrings = new Map();
     const stack = [];
-    const rootValue = { '': value };
+    let rootValue = null;
     let prevState = null;
-    let state = () => printEntry('', value);
-    let stateValue = rootValue;
+    let state = null;
+    let stateValue = null;
     let stateEmpty = true;
-    let stateKeys = [''];
+    let stateKeys = [];
     let stateIndex = 0;
     let buffer = '';
 
-    while (true) {
-        state();
-
-        if (buffer.length >= highWaterMark || prevState === null) {
-            // flush buffer
-            yield buffer;
-            buffer = '';
-
-            if (prevState === null) {
-                break;
-            }
+    for (let i = 0; i < rootCount; i++) {
+        if (rootValue !== null) {
+            buffer += '\n';
         }
+
+        rootValue = { '': roots[i] };
+        prevState = null;
+        state = () => printEntry('', roots[i]);
+        stateValue = rootValue;
+        stateEmpty = true;
+        stateKeys = [''];
+        stateIndex = 0;
+
+        do {
+            state();
+
+            if (buffer.length >= highWaterMark || (prevState === null && i === rootCount - 1)) {
+                // flush buffer
+                yield buffer;
+                buffer = '';
+            }
+        } while (prevState !== null);
     }
 
     function printObject() {

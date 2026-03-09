@@ -145,6 +145,7 @@ type Space = string | number | null;
 type StringifyOptions = {
     replacer?: Replacer;
     space?: Space;
+    mode?: 'json' | 'jsonl';
     highWaterMark?: number;
 };
 ```
@@ -175,6 +176,13 @@ Usage:
 
     console.log([...stringifyChunked(data, { highWaterMark: 1 })]);
     // ['[1', ',"hello world"', ',42', ']']
+    ```
+- JSONL output mode:
+    ```js
+    const rows = [{ id: 1 }, { id: 2 }, { id: 3 }];
+    const jsonl = [...stringifyChunked(rows, { mode: 'jsonl' })].join('');
+
+    // {"id":1}\n{"id":2}\n{"id":3}
     ```
 - Streaming into a stream with a `Promise` (modern Node.js):
     ```js

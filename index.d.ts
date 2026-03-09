@@ -25,6 +25,7 @@ declare module '@discoveryjs/json-ext' {
     type StringifyOptions = {
         replacer?: Replacer;
         space?: Space;
+        mode?: 'json' | 'jsonl';
         highWaterMark?: number;
     }
     type StringifyInfoOptions = {

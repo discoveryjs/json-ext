@@ -178,6 +178,68 @@ describe('stringifyChunked()', () => {
         ]);
     });
 
+    describe('mode option', () => {
+        it('json by default', () => {
+            const actual = [...stringifyChunked([{ a: 1 }, { a: 2 }])].join('');
+            assert.strictEqual(actual, '[{"a":1},{"a":2}]');
+        });
+
+        it('jsonl mode serializes iterable as newline-delimited values', () => {
+            const actual = [...stringifyChunked([{ a: 1 }, { a: 2 }, 3], { mode: 'jsonl' })].join('');
+            assert.strictEqual(actual, '{"a":1}\n{"a":2}\n3');
+        });
+
+        it('jsonl mode serializes non-iterable as a single value', () => {
+            const actual = [...stringifyChunked({ a: 1 }, { mode: 'jsonl' })].join('');
+            assert.strictEqual(actual, '{"a":1}');
+        });
+
+        it('jsonl mode treats boxed string as a single value', () => {
+            const actual = [...stringifyChunked(new String('abc'), { mode: 'jsonl' })].join('');
+            assert.strictEqual(actual, '"abc"');
+        });
+
+        it('jsonl mode should not support custom iterable input', () => {
+            const iterable = {
+                *[Symbol.iterator]() {
+                    yield { id: 1 };
+                    yield { id: 2 };
+                }
+            };
+
+            const actual = [...stringifyChunked(iterable, { mode: 'jsonl' })].join('');
+            assert.strictEqual(actual, '{}');
+        });
+
+        it('jsonl mode keeps replacer behavior', () => {
+            const actual = [...stringifyChunked([{ a: 1, b: 2 }, { a: 3, b: 4 }], {
+                mode: 'jsonl',
+                replacer: ['a']
+            })].join('');
+            assert.strictEqual(actual, '{"a":1}\n{"a":3}');
+        });
+
+        it('jsonl should not emit on each root, but respect highWaterMark', () => {
+            assert.deepStrictEqual(
+                [...stringifyChunked([{ a: 1 }, { a: 2 }], { mode: 'jsonl' })],
+                ['{"a":1}\n{"a":2}'],
+                'should emit as a single chunk'
+            );
+            assert.deepStrictEqual(
+                [...stringifyChunked([{ a: 1 }, { a: 2 }], { mode: 'jsonl', highWaterMark: 1 })],
+                ['{"a":1', '}', '\n', '{"a":2', '}'],
+                'should emit as small as possible chunks'
+            );
+        });
+
+        it('throws on invalid mode', () => {
+            assert.throws(
+                () => [...stringifyChunked([1, 2], { mode: 'auto' })],
+                /Invalid options: `mode` should be "json" or "jsonl"/
+            );
+        });
+    });
+
     describe('circular structure', () => {
         it('{ a: $ } should emit error when object refers to ancestor object', () => {
             const circularRef = {};

@@ -9,6 +9,8 @@
     - When `onRootValue` is specified, `parseChunked()` returns number of processed root values instead of collecting and returning parsed values
     - Fixed OOM on very long arrays (corner case, millions of elements)
     - Fixed various issues with parsing of malformed JSON
+- `stringifyChunked()`:
+    - Added `mode` option with `"json"` (default) and `"jsonl"` values; `mode: "jsonl"` serializes iterable input into newline-delimited JSON values
 
 ## 0.6.3 (2024-10-24)
 
