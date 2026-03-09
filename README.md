@@ -261,6 +261,7 @@ export function stringifyInfo(value: any, options?: StringifyInfoOptions): Strin
 type StringifyInfoOptions = {
     replacer?: Replacer;
     space?: Space;
+    mode?: 'json' | 'jsonl';
     continueOnCircular?: boolean;
 }
 type StringifyInfoResult = {

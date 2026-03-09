@@ -98,3 +98,11 @@ export function normalizeStringifyOptions(optionsOrReplacer, space) {
         space: normalizeSpace(optionsOrReplacer.space)
     };
 }
+
+export function resolveStringifyMode(mode = 'json') {
+    if (mode === 'json' || mode === 'jsonl') {
+        return mode;
+    }
+
+    throw new TypeError('Invalid options: `mode` should be "json" or "jsonl"');
+}

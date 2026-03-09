@@ -1,12 +1,4 @@
-import { normalizeStringifyOptions, replaceValue } from './utils.js';
-
-function resolveStringifyMode(mode = 'json') {
-    if (mode === 'json' || mode === 'jsonl') {
-        return mode;
-    }
-
-    throw new TypeError('Invalid options: `mode` should be "json" or "jsonl"');
-}
+import { normalizeStringifyOptions, replaceValue, resolveStringifyMode } from './utils.js';
 
 function encodeString(value) {
     if (/[^\x20\x21\x23-\x5B\x5D-\uD799]/.test(value)) { // [^\x20-\uD799]|[\x22\x5c]

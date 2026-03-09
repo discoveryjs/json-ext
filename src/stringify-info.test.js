@@ -72,6 +72,74 @@ describe('stringifyInfo()', () => {
         });
     });
 
+    describe('mode option', () => {
+        it('json by default', () => {
+            assert.deepStrictEqual(stringifyInfo([{ a: 1 }, { a: 2 }]), {
+                bytes: '[{"a":1},{"a":2}]'.length,
+                spaceBytes: 0,
+                circular: []
+            });
+        });
+
+        it('jsonl mode computes newline-delimited sizes', () => {
+            // {"a":1}\n{"a":2}\n3 = 7+1+7+1+1 = 17
+            assert.deepStrictEqual(stringifyInfo([{ a: 1 }, { a: 2 }, 3], { mode: 'jsonl' }), {
+                bytes: 17,
+                spaceBytes: 0,
+                circular: []
+            });
+        });
+
+        it('jsonl mode with non-array value treats as single value', () => {
+            assert.deepStrictEqual(stringifyInfo({ a: 1 }, { mode: 'jsonl' }), {
+                bytes: '{"a":1}'.length,
+                spaceBytes: 0,
+                circular: []
+            });
+        });
+
+        it('jsonl mode with empty array', () => {
+            assert.deepStrictEqual(stringifyInfo([], { mode: 'jsonl' }), {
+                bytes: 0,
+                spaceBytes: 0,
+                circular: []
+            });
+        });
+
+        it('jsonl mode with single element array', () => {
+            assert.deepStrictEqual(stringifyInfo([42], { mode: 'jsonl' }), {
+                bytes: 2,
+                spaceBytes: 0,
+                circular: []
+            });
+        });
+
+        it('jsonl mode with space option', () => {
+            // Each root is formatted independently
+            const info = stringifyInfo([{ a: 1 }, { b: 2 }], { mode: 'jsonl', space: 2 });
+            const root1 = JSON.stringify({ a: 1 }, null, 2);
+            const root2 = JSON.stringify({ b: 2 }, null, 2);
+            const expected = root1 + '\n' + root2;
+
+            assert.strictEqual(info.bytes, Buffer.byteLength(expected, 'utf8'));
+        });
+
+        it('jsonl mode with replacer', () => {
+            assert.deepStrictEqual(stringifyInfo([{ a: 1, b: 2 }, { a: 3, b: 4 }], { mode: 'jsonl', replacer: ['a'] }), {
+                bytes: '{"a":1}\n{"a":3}'.length,
+                spaceBytes: 0,
+                circular: []
+            });
+        });
+
+        it('throws on invalid mode', () => {
+            assert.throws(
+                () => stringifyInfo([1, 2], { mode: 'auto' }),
+                /Invalid options: `mode` should be "json" or "jsonl"/
+            );
+        });
+    });
+
     describe('circular', () => {
         it('should stop on first circular reference by default', () => {
             const circularRef = {};

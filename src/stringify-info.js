@@ -1,4 +1,4 @@
-import { normalizeStringifyOptions, replaceValue } from './utils.js';
+import { normalizeStringifyOptions, replaceValue, resolveStringifyMode } from './utils.js';
 
 const hasOwn = typeof Object.hasOwn === 'function'
     ? Object.hasOwn
@@ -125,21 +125,27 @@ export function stringifyInfo(value, ...args) {
     const { replacer, getKeys, ...options } = normalizeStringifyOptions(...args);
     const continueOnCircular = Boolean(options.continueOnCircular);
     const space = options.space?.length || 0;
+    const roots = resolveStringifyMode(options.mode) === 'jsonl' && Array.isArray(value) ? value : [value];
 
     const keysLength = new Map();
     const visited = new Map();
     const circular = new Set();
     const stack = [];
-    const root = { '': value };
     let stop = false;
     let bytes = 0;
     let spaceBytes = 0;
     let objects = 0;
 
-    walk(root, '', value);
+    for (let i = 0; i < roots.length; i++) {
+        if (i > 0) {
+            bytes += 1; // newline separator
+        }
+
+        walk({ '': roots[i] }, '', roots[i]);
+    }
 
     // when value is undefined or replaced for undefined
-    if (bytes === 0) {
+    if (bytes === 0 && roots.length === 1) {
         bytes += 9; // FIXME: that's the length of undefined, should we normalize behaviour to convert it to null?
     }
 

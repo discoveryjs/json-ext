@@ -11,6 +11,8 @@
     - Fixed various issues with parsing of malformed JSON
 - `stringifyChunked()`:
     - Added `mode` option with `"json"` (default) and `"jsonl"` values; `mode: "jsonl"` serializes iterable input into newline-delimited JSON values
+- `stringifyInfo()`:
+    - Added `mode` option with `"json"` (default) and `"jsonl"` values; `mode: "jsonl"` computes byte size for newline-delimited JSON values
 
 ## 0.6.3 (2024-10-24)
 
