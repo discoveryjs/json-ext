@@ -12,7 +12,7 @@ declare module '@discoveryjs/json-ext' {
     type OnChunk = (chunkParsed: number, chunk: string | null, pending: string | null, state: ParseChunkState) => void;
     type ParseOptions = {
         reviver?: Reviver;
-        mode?: 'json' | 'jsonl' | 'ndjson' | 'auto';
+        mode?: 'json' | 'jsonl' | 'auto';
         onRootValue?: OnRootValue;
         onChunk?: OnChunk;
     };

@@ -353,13 +353,6 @@ describe('parseChunked()', () => {
             );
         });
 
-        describe('mode: "ndjson"', () => {
-            it('alias for "jsonl"', async () => {
-                const actual = await parse(['1\n{"a":2}\n[3]'], { mode: 'ndjson' });
-                assert.deepStrictEqual(actual, [1, { a: 2 }, [3]]);
-            });
-        });
-
         describe('mode: "auto"', () => {
             it('parses normal JSON when there is no additional newline value', async () => {
                 const expected = { a: [1, 2], b: true };
@@ -413,7 +406,7 @@ describe('parseChunked()', () => {
         it('throws on invalid jsonl option value', () =>
             assert.rejects(
                 () => parse(['1'], { mode: 'yes' }),
-                /Invalid options: `mode` should be "json", "jsonl", "ndjson", or "auto"/
+                /Invalid options: `mode` should be "json", "jsonl", or "auto"/
             )
         );
     });

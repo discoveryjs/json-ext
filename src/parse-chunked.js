@@ -34,12 +34,11 @@ function resolveParseMode(mode) {
         case 'json':
             return MODE_JSON;
         case 'jsonl':
-        case 'ndjson':
             return MODE_JSONL;
         case 'auto':
             return MODE_JSONL_AUTO;
         default:
-            throw new TypeError('Invalid options: `mode` should be "json", "jsonl", "ndjson", or "auto"');
+            throw new TypeError('Invalid options: `mode` should be "json", "jsonl", or "auto"');
     }
 }
 

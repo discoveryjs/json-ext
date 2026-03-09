@@ -3,7 +3,7 @@
 - `parseChunked()`:
     - Refactored from class-based to function-based implementation, as a result a bit smaller and faster
     - Added `reviver` support (similar to `JSON.parse()`), both as a second argument (`parseChunked(input, reviver)`) and in options (`parseChunked(input, { reviver })`)
-    - Added support for JSONL (NDJSON) mode, which allows parsing multiple JSON values from a stream of chunks, where each value is separated by a newline character, i.e. `parseChunked(input, { mode })`, where `mode` can be `json` (default), `jsonl` or `ndjson`, or `auto`
+    - Added support for JSONL (NDJSON) mode, which allows parsing multiple JSON values from a stream of chunks, where each value is separated by a newline character, i.e. `parseChunked(input, { mode })`, where `mode` can be `json` (default), `jsonl`, or `auto`
     - Added `onRootValue` option for incremental stream processing, useful in JSONL mode, which is called with each parsed root value
     - Added `onChunk` option for progress tracking
     - When `onRootValue` is specified, `parseChunked()` returns number of processed root values instead of collecting and returning parsed values
