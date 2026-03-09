@@ -5,23 +5,24 @@
 [![Coverage Status](https://coveralls.io/repos/github/discoveryjs/json-ext/badge.svg?branch=master)](https://coveralls.io/github/discoveryjs/json-ext)
 [![NPM Downloads](https://img.shields.io/npm/dm/@discoveryjs/json-ext.svg)](https://www.npmjs.com/package/@discoveryjs/json-ext)
 
-A set of utilities designed to extend JSON's capabilities, especially for handling large JSON data (over 100MB) efficiently:
+A set of utilities designed to extend JSON's capabilities, especially for handling large JSON datasets (over 100MB) efficiently and streaming JSONL/NDJSON processing:
 
-- [parseChunked()](#parsechunked) – Parses JSON incrementally; similar to [`JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse), but processing JSON data in chunks.
-- [stringifyChunked()](#stringifychunked) – Converts JavaScript objects to JSON incrementally; similar to [`JSON.stringify()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify), but returns a generator that yields JSON strings in parts.
-- [stringifyInfo()](#stringifyinfo) – Estimates the size of the `JSON.stringify()` result and identifies circular references without generating the JSON.
+- [parseChunked()](#parsechunked) – Parses JSON and JSONL/NDJSON incrementally; similar to [`JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse), but processing data in chunks.
+- [stringifyChunked()](#stringifychunked) – Converts JavaScript objects to JSON or JSONL incrementally; similar to [`JSON.stringify()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify), but returns a generator that yields strings in parts.
+- [stringifyInfo()](#stringifyinfo) – Estimates the size of the JSON or JSONL stringify result and identifies circular references without generating the output.
 - [parseFromWebStream()](#parsefromwebstream) – A helper function to parse JSON chunks directly from a Web Stream.
 - [createStringifyWebStream()](#createstringifywebstream) – A helper function to generate JSON data as a Web Stream.
 
 ### Key Features
 
 - Optimized to handle large JSON data with minimal resource usage (see [benchmarks](./benchmarks/README.md))
+- Built-in JSONL/NDJSON support for parsing and serializing newline-delimited JSON
 - Works seamlessly with browsers, Node.js, Deno, and Bun
 - Supports both Node.js and Web streams
 - Available in both ESM and CommonJS
 - TypeScript typings included
 - No external dependencies
-- Compact size: 9.4Kb (minified), 3.8Kb (min+gzip)
+- Compact size: 9.0Kb (minified), 4.0Kb (min+gzip)
 
 ### Why json-ext?
 
@@ -29,6 +30,7 @@ A set of utilities designed to extend JSON's capabilities, especially for handli
 - **Prevents main thread blocking**: Distributes parsing and stringifying over time, ensuring the main thread remains responsive during heavy JSON operations.
 - **Reduces memory usage**: Traditional `JSON.parse()` and `JSON.stringify()` require loading entire data into memory, leading to high memory consumption and increased garbage collection pressure. `parseChunked()` and `stringifyChunked()` process data incrementally, optimizing memory usage.
 - **Size estimation**: `stringifyInfo()` allows estimating the size of resulting JSON before generating it, enabling better decision-making for JSON generation strategies.
+- **JSONL/NDJSON streaming**: Native support for parsing and serializing newline-delimited JSON, enabling efficient processing of log streams, data pipelines, and large datasets without loading everything into memory.
 
 ## Install
 
