@@ -2,6 +2,7 @@
 
 - `parseChunked()`:
     - Added `returnValue` and `currentRootValue` properties to the state object passed to `onChunk` and `onRootValue` callbacks
+- Exposed internal TypeScript types such as options and return types of public functions as part of the public API
 
 ## 1.0.0 (2026-03-09)
 

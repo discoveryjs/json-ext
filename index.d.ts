@@ -1,8 +1,8 @@
 declare module '@discoveryjs/json-ext' {
-    type Chunk = string | Uint8Array | Buffer;
+    export type Chunk = string | Uint8Array | Buffer;
 
-    type Reviver = (this: any, key: string, value: any) => any;
-    type ParseChunkedState = {
+    export type Reviver = (this: any, key: string, value: any) => any;
+    export type ParseChunkedState = {
         readonly mode: 'json' | 'jsonl';
         readonly returnValue: any;
         readonly currentRootValue: any;
@@ -10,33 +10,33 @@ declare module '@discoveryjs/json-ext' {
         readonly consumed: number;
         readonly parsed: number;
     };
-    type OnRootValue = (value: any, state: ParseChunkedState) => void;
-    type OnChunk = (chunkParsed: number, chunk: string | null, pending: string | null, state: ParseChunkedState) => void;
-    type ParseOptions = {
+    export type OnRootValue = (value: any, state: ParseChunkedState) => void;
+    export type OnChunk = (chunkParsed: number, chunk: string | null, pending: string | null, state: ParseChunkedState) => void;
+    export type ParseOptions = {
         reviver?: Reviver;
         mode?: 'json' | 'jsonl' | 'auto';
         onRootValue?: OnRootValue;
         onChunk?: OnChunk;
     };
 
-    type Replacer =
+    export type Replacer =
         | ((this: any, key: string, value: any) => any)
         | (string | number)[]
         | null;
-    type Space = string | number | null;
-    type StringifyOptions = {
+    export type Space = string | number | null;
+    export type StringifyOptions = {
         replacer?: Replacer;
         space?: Space;
         mode?: 'json' | 'jsonl';
         highWaterMark?: number;
-    }
-    type StringifyInfoOptions = {
+    };
+    export type StringifyInfoOptions = {
         replacer?: Replacer;
         space?: Space;
         mode?: 'json' | 'jsonl';
         continueOnCircular?: boolean;
-    }
-    type StringifyInfoResult = {
+    };
+    export type StringifyInfoResult = {
         bytes: number;
         spaceBytes: number;
         circular: object[];
