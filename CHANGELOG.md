@@ -1,4 +1,4 @@
-## next
+## 1.1.0 (2026-05-03)
 
 - `parseChunked()`:
     - Added `returnValue` and `currentRootValue` properties to the state object passed to `onChunk` and `onRootValue` callbacks
