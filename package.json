@@ -1,13 +1,15 @@
 {
     "name": "@discoveryjs/json-ext",
     "version": "1.0.0",
-    "description": "A set of utilities that extend the use of JSON",
+    "description": "A set of efficient utilities that extend the use of JSON (streaming, estimate size, NDJSON/JSONL, etc.)",
     "keywords": [
         "json",
         "jsonl",
         "ndjson",
         "utils",
         "stream",
+        "streaming",
+        "webstreams",
         "async",
         "promise",
         "generator",
