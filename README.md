@@ -46,20 +46,22 @@ Functions like [`JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/Jav
 
 ```ts
 function parseChunked(input: Iterable<Chunk> | AsyncIterable<Chunk>, reviver?: Reviver): Promise<any>;
-function parseChunked(input: Iterable<Chunk> | AsyncIterable<Chunk>, options?: ParseChunkedOptions): Promise<any>;
+function parseChunked(input: Iterable<Chunk> | AsyncIterable<Chunk>, options?: ParseOptions): Promise<any>;
 function parseChunked(input: () => (Iterable<Chunk> | AsyncIterable<Chunk>), reviver?: Reviver): Promise<any>;
-function parseChunked(input: () => (Iterable<Chunk> | AsyncIterable<Chunk>), options?: ParseChunkedOptions): Promise<any>;
+function parseChunked(input: () => (Iterable<Chunk> | AsyncIterable<Chunk>), options?: ParseOptions): Promise<any>;
 
 type Chunk = string | Buffer | Uint8Array;
 type Reviver = (this: any, key: string, value: any) => any;
-type ParseChunkedOptions = {
+type ParseOptions = {
     reviver?: Reviver;
     mode?: 'json' | 'jsonl' | 'auto';
-    onRootValue?: (value: any, state: ParseChunkState) => void;
-    onChunk?: (chunkParsed: number, chunk: string | null, pending: string | null, state: ParseChunkState) => void;
+    onRootValue?: (value: any, state: ParseChunkedState) => void;
+    onChunk?: (chunkParsed: number, chunk: string | null, pending: string | null, state: ParseChunkedState) => void;
 };
-type ParseChunkState = {
+type ParseChunkedState = {
     mode: 'json' | 'jsonl';
+    returnValue: any;
+    currentRootValue: any;
     rootValuesCount: number;
     consumed: number;
     parsed: number;
@@ -88,7 +90,15 @@ You can pass `reviver` either as the second argument (`parseChunked(input, reviv
 
 `options.onRootValue` is called when a root value is parsed and finalized. When `onRootValue` is specified, `parseChunked()` resolves to the number of processed root values (instead of returning parsed value(s)), which allows processing huge or infinite streams without accumulating all values in memory.
 
-`options.onChunk` is called after each input chunk is processed and once at the end with `chunk = null`. It provides parsing progress and parser state (`consumed`, `parsed`, current mode and root values count).
+`options.onChunk` is called after each input chunk is processed and once at the end with `chunk = null`. It provides parsing progress and parser state as chunks are processed.
+
+The `state` object passed to `onRootValue` and `onChunk` callbacks has the following properties:
+    - `consumed` – number of characters consumed so far
+    - `parsed` – number of characters parsed so far (not necessarily the same when a chunk ends in the middle of a token)
+    - `mode` – current parsing mode (`json` or `jsonl`)
+    - `rootValuesCount` – number of root values parsed so far
+    - `currentRootValue` – current root value being parsed
+    - `returnValue` – current return value state, i.e. what `parseChunked()` will return when finished (either the parsed value or the number of root values, depending on whether `onRootValue` is specified)
 
 Examples:
 

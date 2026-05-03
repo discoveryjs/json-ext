@@ -2,14 +2,16 @@ declare module '@discoveryjs/json-ext' {
     type Chunk = string | Uint8Array | Buffer;
 
     type Reviver = (this: any, key: string, value: any) => any;
-    type ParseChunkState = {
+    type ParseChunkedState = {
         readonly mode: 'json' | 'jsonl';
+        readonly returnValue: any;
+        readonly currentRootValue: any;
         readonly rootValuesCount: number;
         readonly consumed: number;
         readonly parsed: number;
     };
-    type OnRootValue = (value: any, state: ParseChunkState) => void;
-    type OnChunk = (chunkParsed: number, chunk: string | null, pending: string | null, state: ParseChunkState) => void;
+    type OnRootValue = (value: any, state: ParseChunkedState) => void;
+    type OnChunk = (chunkParsed: number, chunk: string | null, pending: string | null, state: ParseChunkedState) => void;
     type ParseOptions = {
         reviver?: Reviver;
         mode?: 'json' | 'jsonl' | 'auto';

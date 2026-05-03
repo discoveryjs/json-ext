@@ -8,6 +8,10 @@ function parse(chunks, options) {
     return parseChunked(() => chunks, options);
 }
 
+function clone(value) {
+    return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+}
+
 function split(str, chunkLen = 1) {
     const chunks = [];
 
@@ -579,24 +583,27 @@ describe('parseChunked()', () => {
         it('should report chunk progress when onChunk is used', async () => {
             const chunks = [];
             const actual = await parse(['{"a":', '1,', ' "b"', ':2,', '"c":3 }\n'], {
-                onChunk(chunkParsed, chunk, pending, { consumed, parsed }) {
+                onChunk(chunkParsed, chunk, pending, { mode, consumed, parsed, returnValue, currentRootValue }) {
                     chunks.push({
+                        mode,
                         chunkParsed,
                         chunk,
                         pending,
                         consumed,
-                        parsed
+                        parsed,
+                        returnValue: clone(returnValue), // clone to avoid mutation in later chunks
+                        currentRootValue: clone(currentRootValue) // clone to avoid mutation in later chunks
                     });
                 }
             });
             assert.deepStrictEqual(actual, { a: 1, b: 2, c: 3 });
             assert.deepStrictEqual(chunks, [
-                { chunkParsed: 1, chunk: '{"a":', pending: '"a":', consumed: 5, parsed: 1 },
-                { chunkParsed: 5, chunk: '1,', pending: ',', consumed: 7, parsed: 6 },
-                { chunkParsed: 0, chunk: ' "b"', pending: ', "b"', consumed: 11, parsed: 6 },
-                { chunkParsed: 7, chunk: ':2,', pending: ',', consumed: 14, parsed: 13 },
-                { chunkParsed: 9, chunk: '"c":3 }\n', pending: null, consumed: 22, parsed: 22 },
-                { chunkParsed: 0, chunk: null, pending: null, consumed: 22, parsed: 22 }
+                { mode: 'json', chunkParsed: 1, chunk: '{"a":', pending: '"a":', consumed: 5, parsed: 1, returnValue: {}, currentRootValue: {} },
+                { mode: 'json', chunkParsed: 5, chunk: '1,', pending: ',', consumed: 7, parsed: 6, returnValue: { a: 1 }, currentRootValue: { a: 1 } },
+                { mode: 'json', chunkParsed: 0, chunk: ' "b"', pending: ', "b"', consumed: 11, parsed: 6, returnValue: { a: 1 }, currentRootValue: { a: 1 } },
+                { mode: 'json', chunkParsed: 7, chunk: ':2,', pending: ',', consumed: 14, parsed: 13, returnValue: { a: 1, b: 2 }, currentRootValue: { a: 1, b: 2 } },
+                { mode: 'json', chunkParsed: 9, chunk: '"c":3 }\n', pending: null, consumed: 22, parsed: 22, returnValue: { a: 1, b: 2, c: 3 }, currentRootValue: { a: 1, b: 2, c: 3 } },
+                { mode: 'json', chunkParsed: 0, chunk: null, pending: null, consumed: 22, parsed: 22, returnValue: { a: 1, b: 2, c: 3 }, currentRootValue: { a: 1, b: 2, c: 3 } }
             ]);
         });
 
@@ -604,23 +611,26 @@ describe('parseChunked()', () => {
             const chunks = [];
             const actual = await parse(['{"a":1', '}\n', '2\n[', '3]'], {
                 mode: 'jsonl',
-                onChunk(chunkParsed, chunk, pending, { consumed, parsed }) {
+                onChunk(chunkParsed, chunk, pending, { mode, consumed, parsed, returnValue, currentRootValue }) {
                     chunks.push({
+                        mode,
                         chunkParsed,
                         chunk,
                         pending,
                         consumed,
-                        parsed
+                        parsed,
+                        returnValue: clone(returnValue), // clone to avoid mutation in later chunks
+                        currentRootValue: clone(currentRootValue) // clone to avoid mutation in later chunks
                     });
                 }
             });
             assert.deepStrictEqual(actual, [{ a: 1 }, 2, [3]]);
             assert.deepStrictEqual(chunks, [
-                { chunkParsed: 1, chunk: '{"a":1', pending: '"a":1', consumed: 6, parsed: 1 },
-                { chunkParsed: 7, chunk: '}\n', pending: null, consumed: 8, parsed: 8 },
-                { chunkParsed: 3, chunk: '2\n[', pending: null, consumed: 11, parsed: 11 },
-                { chunkParsed: 2, chunk: '3]', pending: null, consumed: 13, parsed: 13 },
-                { chunkParsed: 0, chunk: null, pending: null, consumed: 13, parsed: 13 }
+                { mode: 'jsonl', chunkParsed: 1, chunk: '{"a":1', pending: '"a":1', consumed: 6, parsed: 1, returnValue: [], currentRootValue: {} },
+                { mode: 'jsonl', chunkParsed: 7, chunk: '}\n', pending: null, consumed: 8, parsed: 8, returnValue: [{ a: 1 }], currentRootValue: { a: 1 } },
+                { mode: 'jsonl', chunkParsed: 3, chunk: '2\n[', pending: null, consumed: 11, parsed: 11, returnValue: [{ a: 1 }, 2], currentRootValue: [] },
+                { mode: 'jsonl', chunkParsed: 2, chunk: '3]', pending: null, consumed: 13, parsed: 13, returnValue: [{ a: 1 }, 2, [3]], currentRootValue: [3] },
+                { mode: 'jsonl', chunkParsed: 0, chunk: null, pending: null, consumed: 13, parsed: 13, returnValue: [{ a: 1 }, 2, [3]], currentRootValue: [3] }
             ]);
         });
 
@@ -628,23 +638,26 @@ describe('parseChunked()', () => {
             const chunks = [];
             const actual = await parse(['{"a":1', '}\n', '2\n[', '3]'], {
                 mode: 'auto',
-                onChunk(chunkParsed, chunk, pending, { consumed, parsed }) {
+                onChunk(chunkParsed, chunk, pending, { mode, consumed, parsed, returnValue, currentRootValue }) {
                     chunks.push({
+                        mode,
                         chunkParsed,
                         chunk,
                         pending,
                         consumed,
-                        parsed
+                        parsed,
+                        returnValue: clone(returnValue), // clone to avoid mutation in later chunks
+                        currentRootValue: clone(currentRootValue) // clone to avoid mutation in later chunks
                     });
                 }
             });
             assert.deepStrictEqual(actual, [{ a: 1 }, 2, [3]]);
             assert.deepStrictEqual(chunks, [
-                { chunkParsed: 1, chunk: '{"a":1', pending: '"a":1', consumed: 6, parsed: 1 },
-                { chunkParsed: 7, chunk: '}\n', pending: null, consumed: 8, parsed: 8 },
-                { chunkParsed: 3, chunk: '2\n[', pending: null, consumed: 11, parsed: 11 },
-                { chunkParsed: 2, chunk: '3]', pending: null, consumed: 13, parsed: 13 },
-                { chunkParsed: 0, chunk: null, pending: null, consumed: 13, parsed: 13 }
+                { mode: 'json', chunkParsed: 1, chunk: '{"a":1', pending: '"a":1', consumed: 6, parsed: 1, returnValue: {}, currentRootValue: {} },
+                { mode: 'json', chunkParsed: 7, chunk: '}\n', pending: null, consumed: 8, parsed: 8, returnValue: { a: 1 }, currentRootValue: { a: 1 } },
+                { mode: 'jsonl', chunkParsed: 3, chunk: '2\n[', pending: null, consumed: 11, parsed: 11, returnValue: [{ a: 1 }, 2], currentRootValue: [] },
+                { mode: 'jsonl', chunkParsed: 2, chunk: '3]', pending: null, consumed: 13, parsed: 13, returnValue: [{ a: 1 }, 2, [3]], currentRootValue: [3] },
+                { mode: 'jsonl', chunkParsed: 0, chunk: null, pending: null, consumed: 13, parsed: 13, returnValue: [{ a: 1 }, 2, [3]], currentRootValue: [3] }
             ]);
         });
     });

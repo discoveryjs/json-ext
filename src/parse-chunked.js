@@ -132,6 +132,18 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
         get mode() {
             return parseMode === MODE_JSONL ? 'jsonl' : 'json';
         },
+        get returnValue() {
+            return typeof onRootValue === 'function'
+                ? rootValuesCount
+                : rootValues !== null
+                    ? rootValues
+                    : currentRootValue !== NO_VALUE
+                        ? currentRootValue
+                        : undefined;
+        },
+        get currentRootValue() {
+            return currentRootValue !== NO_VALUE ? currentRootValue : undefined;
+        },
         get rootValuesCount() {
             return rootValuesCount;
         },
@@ -547,10 +559,11 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
             onChunk(0, null, null, state);
         }
 
-        if (typeof onRootValue === 'function') {
-            return rootValuesCount;
-        }
+        const result = state.returnValue;
 
-        return rootValues !== null ? rootValues : currentRootValue;
+        rootValues = null;
+        currentRootValue = NO_VALUE;
+
+        return result;
     }
 }
