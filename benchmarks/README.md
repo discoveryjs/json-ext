@@ -8,6 +8,20 @@
 
 <!-- /TOC -->
 
+## Summary
+
+For small and medium JSON payloads, native `JSON.parse()` and `JSON.stringify()` are usually the fastest option.
+
+`json-ext` is designed for large payloads where native JSON APIs become impractical due to peak memory usage, long blocking operations, or V8 string size limits.
+
+In these benchmarks:
+
+- `JSON.parse()` fails on a 1GB fixture due to V8 string size limits, while `parseChunked()` completes in ~3.9s.
+- `JSON.stringify()` fails on a 1GB fixture, while `stringifyChunked()` completes in ~4.1s.
+- On a 500MB fixture, `parseChunked()` reduces peak RSS from ~2.4GB to ~0.9GB.
+- On a 500MB fixture, `stringifyChunked()` reduces peak RSS from ~2.0GB to ~0.24GB.
+- `stringifyInfo()` estimates a 1GB JSON result in ~3s without generating the output string.
+
 ## Parse chunked
 
 Benchmark: `parse-chunked.js`
