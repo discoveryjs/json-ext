@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import bfj from 'bfj';
 import { default as jsonExt057 } from 'json-ext-0.5.7';
 import * as jsonExt060 from 'json-ext-0.6.0';
+import * as jsonExt110 from 'json-ext-1.1.0';
 import { parseChunked, parseFromWebStream } from '../src/index.js';
 import { runBenchmark, prettySize, outputToReadme, updateReadmeTable, getSelfPackageJson, isMain } from './benchmark-utils.js';
 
@@ -48,7 +49,10 @@ export const tests = {
     [selfPackageJson.name + ' parseChunked(fs.createReadStream()) 0.6.0']: () =>
         jsonExt060.parseChunked(fs.createReadStream(filename, { highWaterMark: chunkSize })),
 
-    [selfPackageJson.name + ' parseChunked(fs.readFileSync())']: () =>
+    [selfPackageJson.name + ' parseChunked(fs.createReadStream()) 1.1.0']: () =>
+        jsonExt110.parseChunked(fs.createReadStream(filename, { highWaterMark: chunkSize })),
+
+    ['(current) parseChunked(fs.readFileSync())']: () =>
         parseChunked(function*() {
             let json = fs.readFileSync(filename);
             for (let i = 0; i < json.length; i += chunkSize) {
@@ -56,7 +60,7 @@ export const tests = {
             }
         }),
 
-    [selfPackageJson.name + ' parseFromWebStream()']: () =>
+    ['(current) parseFromWebStream()']: () =>
         parseFromWebStream(ReadableStream.from(fs.createReadStream(filename, { highWaterMark: chunkSize }))),
 
     'bfj': () => sizeLessThan(500 * 1024 * 1024) &&
