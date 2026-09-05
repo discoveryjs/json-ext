@@ -5,3 +5,5 @@
 /.vscode/
 /cjs/
 /deno-tests/
+/tmp/
+.DS_Store
