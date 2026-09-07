@@ -18,6 +18,22 @@ function adjustPosition(error, jsonParseOffset) {
     return error;
 }
 
+function decodeKeyAt(source, offset) {
+    for (let i = offset + 1, escaped = false; i < source.length; i++) {
+        switch (source.charCodeAt(i)) {
+            case 0x5C: /* \ */
+                escaped = true;
+                i++;
+                break;
+
+            case 0x22: /* " */
+                return escaped
+                    ? JSON.parse(source.slice(offset, i + 1))
+                    : source.slice(offset + 1, i);
+        }
+    }
+}
+
 function append(array, elements) {
     // Note: Avoid using array.push(...elements) since it may lead to
     // "RangeError: Maximum call stack size exceeded" for long arrays
@@ -118,6 +134,7 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
     let prevArraySlices = [];
 
     let stack = new Array(100);
+    let descentKeyStart = new Array(100).fill(-1);
     let lastFlushDepth = 0;
     let flushDepth = 0;
     let stateString = false;
@@ -126,6 +143,7 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
     let allowNewRootValue = true;
     let pendingByteSeq = null;
     let pendingChunk = null;
+    let pendingStringStart = -1;
     let jsonParseOffset = 0;
 
     const state = Object.freeze({
@@ -316,18 +334,12 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
             // Move down to the depths to the last object/array, which is current now
             for (let i = lastFlushDepth || 1; i < flushDepth; i++) {
                 let { value } = currentRootValueCursor;
-                let key = null;
+                // Note: `fragment` is only appended to above, so captured key positions still hold
+                let key = stack[i - 1] === STACK_OBJECT
+                    ? decodeKeyAt(fragment, descentKeyStart[i])
+                    : value.length - 1;
 
-                if (stack[i - 1] === STACK_OBJECT) {
-                    // Find last entry
-                    // eslint-disable-next-line curly
-                    for (key in value);
-                    value = value[key];
-                } else {
-                    // Last element
-                    key = value.length - 1;
-                    value = value[key];
-                }
+                value = value[key];
 
                 currentRootValueCursor = {
                     value,
@@ -358,6 +370,18 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
 
         lastFlushDepth = flushDepth;
         seenNonWhiteSpace = false;
+    }
+
+    function bindDescentKeyStart(stringStart, lastFlushPoint) {
+        if (flushDepth !== 0 && stack[flushDepth - 1] === STACK_OBJECT) {
+            // A container opened at an object's depth is introduced by the last string
+            // opened at that depth, i.e. its member key. Store its opening quote in
+            // coordinates of the fragment an upcoming positive flush will assemble,
+            // that is `pendingChunk + chunk.slice(lastFlushPoint, flushPoint)`
+            descentKeyStart[flushDepth] = stringStart !== -1
+                ? (pendingChunk !== null ? pendingChunk.length : 0) + stringStart - lastFlushPoint
+                : pendingStringStart;
+        }
     }
 
     function ensureChunkString(chunk) {
@@ -416,6 +440,7 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
         const prevParsedChunkLength = parsedChunkLength;
         let lastFlushPoint = 0;
         let flushPoint = 0;
+        let stringStart = -1;
 
         // Main scan loop
         scan: for (let i = 0; i < chunkLength; i++) {
@@ -443,6 +468,7 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
                     stateString = true;
                     stateStringEscape = false;
                     seenNonWhiteSpace = true;
+                    stringStart = i;
                     break;
 
                 case 0x2C: /* , */
@@ -452,6 +478,7 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
                 case 0x7B: /* { */
                     // Open an object
                     flushPoint = i + 1;
+                    bindDescentKeyStart(stringStart, lastFlushPoint);
                     stack[flushDepth++] = STACK_OBJECT;
                     seenNonWhiteSpace = true;
                     break;
@@ -459,6 +486,7 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
                 case 0x5B: /* [ */
                     // Open an array
                     flushPoint = i + 1;
+                    bindDescentKeyStart(stringStart, lastFlushPoint);
                     stack[flushDepth++] = STACK_ARRAY;
                     seenNonWhiteSpace = true;
                     break;
@@ -531,12 +559,20 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
             if (pendingChunk !== null) {
                 // When there is already a pending chunk then no flush happened,
                 // appending entire chunk to pending one
+                if (stringStart !== -1) {
+                    pendingStringStart = pendingChunk.length + stringStart;
+                }
+
                 pendingChunk += chunk;
             } else {
                 // Create a pending chunk, it will start with non-whitespace since
                 // flushPoint was moved forward away from whitespaces on scan
+                pendingStringStart = stringStart !== -1 ? stringStart - flushPoint : -1;
                 pendingChunk = chunk.slice(flushPoint, chunkLength);
             }
+        } else if (stringStart !== -1) {
+            // Nothing is retained, so a string start in this chunk can't be referenced anymore
+            pendingStringStart = -1;
         }
 
         consumedChunkLength += chunkLength;

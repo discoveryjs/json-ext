@@ -849,6 +849,213 @@ describe('parseChunked()', () => {
         );
     });
 
+    describe('continuation into a container opened by a previous chunk', () => {
+        const openAtEnd = json => {
+            const at = json.lastIndexOf('{', json.lastIndexOf('"x":1'));
+            return [json.slice(0, at + 1), json.slice(at + 1)];
+        };
+
+        describe('source identity of the continued child', () => {
+            const cases = [
+                '{"1":{},"0":{"x":1}}',                // out of order integer-like keys
+                '{"10":{},"2":{},"1":{"x":1}}',        // multiple integer-like keys
+                '{"a":{},"b":{},"a":{"x":1}}',         // duplicate key, last occurrence isn't last in property order
+                '{"":{"x":1},"a":{}}',                 // empty key
+                '{"a":{},"b":{"x":1}}',                // ordinary keys, control
+                '{"0":{},"a":{},"1":{"x":1}}'          // integer-like and ordinary keys mixed
+            ];
+
+            for (const json of cases) {
+                it(json, async () =>
+                    assert.deepStrictEqual(await parse(openAtEnd(json)), JSON.parse(json))
+                );
+            }
+
+            // The continuation descends into the right child, but Object.assign() doesn't
+            // transfer a `__proto__` own property (PARSE-02), so a sibling added by a later
+            // chunk is lost. That's out of scope for the continuation key carrier.
+            it('__proto__ as the continued key', async () => {
+                const actual = await parse(['{"__proto__":{', '"x":1}}']);
+
+                assert.deepStrictEqual(Object.keys(actual), ['__proto__']);
+                assert.deepStrictEqual(Object.getOwnPropertyDescriptor(actual, '__proto__').value, { x: 1 });
+            });
+
+            it('__proto__ as a sibling key is dropped by Object.assign() (PARSE-02, pre-existing)', async () => {
+                assert.deepStrictEqual(await parse(['{', '"__proto__":{"x":1},"a":{}}']), { a: {} });
+            });
+        });
+
+        describe('key decoding', () => {
+            const cases = [
+                '{"é":{"x":1},"a":{}}',                // raw non-ASCII
+                '{"ключ":{"x":1},"1":{}}',             // raw multi code unit word
+                '{"東京":{"x":1}}',                     // raw CJK
+                '{"😀":{"x":1},"0":{}}',                // raw astral character
+                '{"\\u0030":{"x":1}}',                 // escaped numeric key
+                '{"a\\"b":{"x":1},"0":{}}',            // escaped quote
+                '{"a\\\\b":{"x":1}}',                  // escaped backslash
+                '{"":{"x":1}}',                        // empty string
+                '{"ab":{},"a\\u0062":{"x":1}}',        // raw and escaped spelling of the same key
+                '{"a\\u0062":{},"ab":{"x":1}}'         // same, other way around
+            ];
+
+            for (const json of cases) {
+                it(json, async () =>
+                    assert.deepStrictEqual(await parse(openAtEnd(json)), JSON.parse(json))
+                );
+            }
+        });
+
+        describe('path topology', () => {
+            const cases = [
+                ['object → object', ['{"1":{},"0":{', '"x":1}}']],
+                ['object → array', ['{"1":{},"0":[', '1,2]}']],
+                ['array → object', ['[{"a":1},{', '"x":1}]']],
+                ['array → array', ['[[1],[', '2]]']],
+                ['deep mixed path with several object edges', ['{"1":{},"0":{"9":[],"8":[{"b":{', '"x":1}}]}}']],
+                ['closed sibling before the surviving open sibling', ['{"a":{"z":1},"0":{},"b":{', '"x":1}}']],
+                ['array parent with a preceding string element', ['[["a",[', '1]]]']],
+                ['array-only descent', ['[[[', '1]]]']]
+            ];
+
+            for (const [title, chunks] of cases) {
+                it(title, async () =>
+                    assert.deepStrictEqual(await parse(chunks), JSON.parse(chunks.join('')))
+                );
+            }
+
+            it('deferred array continuation stays positional', async () => {
+                const chunks = ['{"1":[],"0":[1,2', ',3,{"b":[', '4]}]}'];
+                assert.deepStrictEqual(await parse(chunks), JSON.parse(chunks.join('')));
+            });
+        });
+
+        describe('chunk and coordinate histories', () => {
+            const cases = [
+                ['key and opener in the same chunk', ['{"1":{},"0":{', '"x":1}}']],
+                ['key in pending text, opener at offset zero', ['{"1":{},"0":', '{', '"x":1}}']],
+                ['split inside the key', ['{"1":{},"0', '":{', '"x":1}}']],
+                ['split right after the closing quote', ['{"1":{},"0"', ':{', '"x":1}}']],
+                ['split around the colon and whitespace', ['{"1":{},"0" ', ' : ', ' {', '"x":1}}']],
+                ['whitespace-only chunks between key and opener', ['{"1":{},"0"', '   ', '   ', ':{', '"x":1}}']],
+                ['whitespace-only chunk before the key', ['{"1":{},', '   ', '"0":{', '"x":1}}']],
+                ['comma at offset zero of a chunk', ['{"1":{}', ',"0":{', '"x":1}}']],
+                ['escaped key split across chunks', ['{"ab":{},"a\\', 'u0062":{', '"x":1}}']]
+            ];
+
+            for (const [title, chunks] of cases) {
+                it(title, async () =>
+                    assert.deepStrictEqual(await parse(chunks), JSON.parse(chunks.join('')))
+                );
+            }
+
+            for (const json of ['{"1":{},"0":{"x":1}}', '{"a":[{"b":{"c":1}}],"0":{}}']) {
+                it('every two-way split of ' + json, async () => {
+                    const expected = JSON.parse(json);
+
+                    for (let i = 0; i <= json.length; i++) {
+                        assert.deepStrictEqual(
+                            await parse([json.slice(0, i), json.slice(i)]),
+                            expected,
+                            `split at ${i}`
+                        );
+                    }
+                });
+            }
+
+            it('Buffer chunks', async () => {
+                const json = '{"1":{},"0":{"x":1}}';
+                const buffer = Buffer.from(json);
+
+                for (let i = 0; i <= buffer.length; i++) {
+                    assert.deepStrictEqual(
+                        await parse([buffer.slice(0, i), buffer.slice(i)]),
+                        JSON.parse(json),
+                        `split at ${i}`
+                    );
+                }
+            });
+
+            it('Uint8Array chunks split inside a multi-byte key', async () => {
+                for (const json of ['{"ключ":{"x":1},"1":{}}', '{"😀":{"x":1},"0":{}}']) {
+                    const bytes = new TextEncoder().encode(json);
+
+                    for (let i = 0; i <= bytes.length; i++) {
+                        assert.deepStrictEqual(
+                            await parse([bytes.slice(0, i), bytes.slice(i)]),
+                            JSON.parse(json),
+                            `${json} split at byte ${i}`
+                        );
+                    }
+                }
+            });
+        });
+
+        describe('preserved exterior behavior', () => {
+            it('malformed fragment fails through JSON.parse()', () =>
+                assert.rejects(
+                    () => parse(['{"1":{}', ',"0" {', '"x":1}}']),
+                    /Unexpected token \{ in JSON at position \d+|Expected ':' after property name in JSON|Unexpected token '\{'|Expected ':'/
+                )
+            );
+
+            it('no mutation of an exposed partial object on a malformed fragment', async () => {
+                let exposed = null;
+
+                await assert.rejects(() => parse(['{"1":{}', ',"0" {', '"x":1}}'], {
+                    onChunk(chunkParsed, chunk, pending, { currentRootValue }) {
+                        exposed ??= currentRootValue;
+                    }
+                }));
+
+                assert.deepStrictEqual(exposed, { 1: {} });
+            });
+
+            it('a property added to an exposed partial object doesn\'t replace the source key', async () => {
+                const actual = await parse(['{"1":{},"0":', '{', '"x":1}}'], {
+                    onChunk(chunkParsed, chunk, pending, { currentRootValue }) {
+                        if (currentRootValue !== undefined) {
+                            currentRootValue.zzz = 'added by callback';
+                        }
+                    }
+                });
+
+                assert.deepStrictEqual(actual, { 0: { x: 1 }, 1: {}, zzz: 'added by callback' });
+            });
+
+            it('an inherited enumerable property doesn\'t replace the source key', async () => {
+                const actual = await parse(['{"1":{},"0":', '{', '"x":1}}'], {
+                    onChunk(chunkParsed, chunk, pending, { currentRootValue }) {
+                        if (currentRootValue !== undefined) {
+                            Object.setPrototypeOf(currentRootValue, { zzz: 'inherited' });
+                        }
+                    }
+                });
+
+                assert.deepStrictEqual({ ...actual }, { 0: { x: 1 }, 1: {} });
+            });
+
+            it('callback timing and progress accounting on a nested input', async () => {
+                const chunks = [];
+                const actual = await parse(['{"a":{"b":', '[1,2', ']},', '"c":3}'], {
+                    onChunk(chunkParsed, chunk, pending, { consumed, parsed }) {
+                        chunks.push({ chunkParsed, pending, consumed, parsed });
+                    }
+                });
+
+                assert.deepStrictEqual(actual, { a: { b: [1, 2] }, c: 3 });
+                assert.deepStrictEqual(chunks, [
+                    { chunkParsed: 6, pending: '"b":', consumed: 10, parsed: 6 },
+                    { chunkParsed: 6, pending: ',2', consumed: 14, parsed: 12 },
+                    { chunkParsed: 4, pending: ',', consumed: 17, parsed: 16 },
+                    { chunkParsed: 7, pending: null, consumed: 23, parsed: 23 },
+                    { chunkParsed: 0, pending: null, consumed: 23, parsed: 23 }
+                ]);
+            });
+        });
+    });
+
     describe('should not fail on very long arrays (stack overflow)', () => {
         it('the same depth', async () => {
             const size = 150000;
