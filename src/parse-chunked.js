@@ -134,6 +134,13 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
     let prevArraySlices = [];
 
     let stack = new Array(100);
+    // Opening quote of the string that introduced the container at each depth, i.e. its member
+    // key when the parent is an object. Captured on scan in coordinates of the chunk the
+    // container was opened in, or -1 when the key started in an earlier chunk and is therefore
+    // located by `pendingStringStart` instead. A flush translates the value into an offset in
+    // the fragment it assembles; that is sound because no flush and no `lastFlushPoint` advance
+    // can happen between a key and the `{`/`[` it introduces, so the chunk frame at capture and
+    // at consumption are the same one
     let descentKeyStart = new Array(100).fill(-1);
     let lastFlushDepth = 0;
     let flushDepth = 0;
@@ -294,6 +301,10 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
     function flush(chunk, start, end) {
         let fragment = chunk.slice(start, end);
 
+        // Fragment coordinate of `chunk[0]`, used to translate the key positions captured
+        // on scan (see `descentKeyStart`) into offsets in the fragment assembled below
+        let keyOffset = -start;
+
         // Save position correction for an error in JSON.parse() if any
         jsonParseOffset = consumedChunkLength + start;
         parsedChunkLength += end - start;
@@ -303,6 +314,7 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
             fragment = pendingChunk + fragment;
             jsonParseOffset -= pendingChunk.length;
             parsedChunkLength += pendingChunk.length;
+            keyOffset += pendingChunk.length;
             pendingChunk = null;
         }
 
@@ -336,7 +348,9 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
                 let { value } = currentRootValueCursor;
                 // Note: `fragment` is only appended to above, so captured key positions still hold
                 let key = stack[i - 1] === STACK_OBJECT
-                    ? decodeKeyAt(fragment, descentKeyStart[i])
+                    ? decodeKeyAt(fragment, descentKeyStart[i] !== -1
+                        ? keyOffset + descentKeyStart[i]
+                        : pendingStringStart)
                     : value.length - 1;
 
                 value = value[key];
@@ -370,18 +384,6 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
 
         lastFlushDepth = flushDepth;
         seenNonWhiteSpace = false;
-    }
-
-    function bindDescentKeyStart(stringStart, lastFlushPoint) {
-        if (flushDepth !== 0 && stack[flushDepth - 1] === STACK_OBJECT) {
-            // A container opened at an object's depth is introduced by the last string
-            // opened at that depth, i.e. its member key. Store its opening quote in
-            // coordinates of the fragment an upcoming positive flush will assemble,
-            // that is `pendingChunk + chunk.slice(lastFlushPoint, flushPoint)`
-            descentKeyStart[flushDepth] = stringStart !== -1
-                ? (pendingChunk !== null ? pendingChunk.length : 0) + stringStart - lastFlushPoint
-                : pendingStringStart;
-        }
     }
 
     function ensureChunkString(chunk) {
@@ -478,7 +480,7 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
                 case 0x7B: /* { */
                     // Open an object
                     flushPoint = i + 1;
-                    bindDescentKeyStart(stringStart, lastFlushPoint);
+                    descentKeyStart[flushDepth] = stringStart;
                     stack[flushDepth++] = STACK_OBJECT;
                     seenNonWhiteSpace = true;
                     break;
@@ -486,7 +488,7 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
                 case 0x5B: /* [ */
                     // Open an array
                     flushPoint = i + 1;
-                    bindDescentKeyStart(stringStart, lastFlushPoint);
+                    descentKeyStart[flushDepth] = stringStart;
                     stack[flushDepth++] = STACK_ARRAY;
                     seenNonWhiteSpace = true;
                     break;
