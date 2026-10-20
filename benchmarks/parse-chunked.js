@@ -10,6 +10,7 @@ import { parseChunked, parseFromWebStream } from '../src/index.js';
 import { runBenchmark, prettySize, outputToReadme, updateReadmeTable, getSelfPackageJson, isMain } from './benchmark-utils.js';
 
 const benchmarkName = 'parse-chunked';
+const bfjEnabled = false; // Set to true to enable bfj benchmark (very slow on large files)
 const fixtures = [
     './fixture/small.json',
     './fixture/medium.json',
@@ -19,8 +20,12 @@ const fixtures = [
 ];
 const selfPackageJson = getSelfPackageJson();
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
-const fixtureIndex = process.argv[2] || 0;
-const filename = fixtureIndex in fixtures ? path.join(__dirname, fixtures[fixtureIndex]) : false;
+const fixtureRef = process.argv[2] || 0;
+const filename = fixtureRef in fixtures
+    ? path.join(__dirname, fixtures[fixtureRef])
+    : fs.existsSync(path.join(__dirname, fixtureRef))
+        ? path.join(__dirname, fixtureRef)
+        : false;
 let filesize = fs.existsSync(filename) ? fs.statSync(filename).size : 0;
 
 if (!filename) {
@@ -63,8 +68,10 @@ export const tests = {
     ['(current) parseFromWebStream()']: () =>
         parseFromWebStream(ReadableStream.from(fs.createReadStream(filename, { highWaterMark: chunkSize }))),
 
-    'bfj': () => sizeLessThan(500 * 1024 * 1024) &&
-        bfj.parse(fs.createReadStream(filename))
+    ...bfjEnabled && {
+        'bfj': () => sizeLessThan(500 * 1024 * 1024) &&
+            bfj.parse(fs.createReadStream(filename))
+    }
 };
 
 if (isMain(import.meta)) {
@@ -95,7 +102,7 @@ async function run() {
     }
 
     if (process.env.README) {
-        outputToReadme(benchmarkName, fixtureIndex);
+        outputToReadme(benchmarkName, fixtureRef);
     }
 
     console.log('Benchmark:', chalk.green('parseChunked()'), '(parse chunked JSON)');
@@ -114,6 +121,6 @@ async function run() {
     }
 
     if (process.env.README) {
-        updateReadmeTable(benchmarkName, fixtureIndex, fixtures, results);
+        updateReadmeTable(benchmarkName, fixtureRef, fixtures, results);
     }
 }
