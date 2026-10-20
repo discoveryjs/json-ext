@@ -452,6 +452,47 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
         return chunk;
     }
 
+    // Return the closing quote's position, or chunk.length for an incomplete string
+    function scanString(chunk, offset) {
+        const chunkLength = chunk.length;
+
+        // The loop guard preserves a carried escape on empty chunks.
+        // Once consumed, its character is excluded from the lookbehind.
+        for (let i = offset; i < chunkLength; i++) {
+            if (stateStringEscape) {
+                stateStringEscape = false;
+                i++;
+            }
+
+            const stringEnd = chunk.indexOf('"', i);
+            const end = stringEnd === -1 ? chunkLength : stringEnd;
+            let escaped = false;
+
+            // Only adjacent backslashes escape a quote. At chunk end their parity
+            // carries into the next chunk.
+            for (let j = end - 1; j >= i && chunk.charCodeAt(j) === 0x5C; j--) {
+                escaped = !escaped;
+            }
+
+            // Reached the end of the chunk without finding a closing quote,
+            // so we need to carry the escape state into the next chunk.
+            if (stringEnd === -1) {
+                stateStringEscape = escaped;
+                return chunkLength;
+            }
+
+            // Found a closing quote that is not escaped
+            if (!escaped) {
+                stateString = false;
+                return stringEnd;
+            }
+
+            i = stringEnd;
+        }
+
+        return chunkLength;
+    }
+
     function push(chunk) {
         chunk = ensureChunkString(chunk);
 
@@ -462,32 +503,14 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
         let stringStart = -1;
 
         // Main scan loop
-        scan: for (let i = 0; i < chunkLength; i++) {
-            if (stateString) {
-                for (; i < chunkLength; i++) {
-                    if (stateStringEscape) {
-                        stateStringEscape = false;
-                    } else {
-                        switch (chunk.charCodeAt(i)) {
-                            case 0x22: /* " */
-                                stateString = false;
-                                continue scan;
-
-                            case 0x5C: /* \ */
-                                stateStringEscape = true;
-                        }
-                    }
-                }
-
-                break;
-            }
-
+        for (let i = stateString ? scanString(chunk, 0) + 1 : 0; i < chunkLength; i++) {
             switch (chunk.charCodeAt(i)) {
                 case 0x22: /* " */
                     stateString = true;
                     stateStringEscape = false;
                     seenNonWhiteSpace = true;
                     stringStart = i;
+                    i = scanString(chunk, i + 1);
                     break;
 
                 case 0x2C: /* , */
@@ -517,7 +540,9 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
 
                     if (flushDepth === 0) {
                         // Unmatched closing bracket/brace at top level, should fail to parse
-                        break scan;
+                        // Move to the end of the chunk to exit the loop, to fail on flush -> JSON.parse()
+                        i = chunkLength;
+                        break;
                     }
 
                     flushDepth--;

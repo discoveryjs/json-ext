@@ -299,6 +299,89 @@ describe('parseChunked()', () => {
             const actual = await parseChunked([part1, part2]);
             assert.deepStrictEqual(actual, 'start 🤓 end');
         });
+
+        for (const binary of [false, true]) {
+            it('handles escapes at every boundary with empty ' + (binary ? 'byte' : 'string') + ' chunks', async () => {
+                const expected = [
+                    'plain',
+                    ...Array.from({ length: 6 }, (_, length) => '\\'.repeat(length) + '"[,]{}'),
+                    '🤓漢字',
+                    'tail'
+                ];
+                const json = JSON.stringify(expected);
+                const input = binary ? new TextEncoder().encode(json) : json;
+
+                for (let i = 0; i <= input.length; i++) {
+                    const actual = await parse([
+                        input.slice(0, i),
+                        input.slice(i, i),
+                        input.slice(i, i),
+                        input.slice(i)
+                    ]);
+
+                    assert.deepStrictEqual(actual, expected);
+                }
+            });
+        }
+
+        it('handles many escape-free strings before a later escape', async () => {
+            const expected = {
+                items: Array.from({ length: 256 }, (_, i) => 'plain-' + i),
+                tail: { text: '\\"},[', end: 'tail' }
+            };
+            const json = JSON.stringify(expected);
+
+            assert.deepStrictEqual(await parse([json]), expected);
+            assert.deepStrictEqual(await parse(split(json, 128)), expected);
+        });
+
+        it('carries escape parity through consecutive backslash-only chunks', async () => {
+            for (const first of [0, 1, 2, 3]) {
+                for (const second of [0, 1, 2, 3]) {
+                    for (const third of [0, 1, 2, 3]) {
+                        const escaped = (first + second + third) % 2 !== 0;
+                        const chunks = [
+                            '["' + '\\'.repeat(first),
+                            '',
+                            '\\'.repeat(second),
+                            '',
+                            '\\'.repeat(third),
+                            '',
+                            escaped ? '"tail"]' : '"]'
+                        ];
+
+                        assert.deepStrictEqual(await parse(chunks), JSON.parse(chunks.join('')));
+                    }
+                }
+            }
+        });
+
+        it('resets carried escape parity after a non-backslash character', async () => {
+            assert.deepStrictEqual(await parse(['"\\', 'n\\', '"', 'tail"']), '\n"tail');
+        });
+
+        it('resumes through escaped quotes and empty chunks before a delimiter', async () => {
+            const actual = await parse(['{"key":"\\', '', '"a\\"', '', 'b",', '"next":1}']);
+
+            assert.deepStrictEqual(actual, { key: '"a"b', next: 1 });
+        });
+
+        it('resumes an object key and scans an empty string opened at chunk end', async () => {
+            const actual = await parse(['{"ke', 'y":{"text":"', '"},"n":1}']);
+
+            assert.deepStrictEqual(actual, { key: { text: '' }, n: 1 });
+        });
+
+        it('rejects malformed strings across chunk boundaries', async () => {
+            for (const json of ['["plain","\\q"]', '["plain","text\\', '["plain","line\nbreak"]']) {
+                for (let i = 0; i <= json.length; i++) {
+                    await assert.rejects(
+                        () => parse([json.slice(0, i), '', json.slice(i)]),
+                        SyntaxError
+                    );
+                }
+            }
+        });
     });
 
     describe('mode option', () => {
@@ -553,6 +636,24 @@ describe('parseChunked()', () => {
         });
 
         for (const mode of ['jsonl', 'auto']) {
+            it(mode + ' should finalize empty and escaped string roots', async () => {
+                const expected = ['', '"', '\\', '', 'tail'];
+                const json = expected.map(value => JSON.stringify(value)).join('\n');
+
+                for (const length of [1, 2, json.length]) {
+                    const entries = [];
+                    const actual = await parse(split(json, length), {
+                        mode,
+                        onRootValue(value) {
+                            entries.push(value);
+                        }
+                    });
+
+                    assert.strictEqual(actual, expected.length);
+                    assert.deepStrictEqual(entries, expected);
+                }
+            });
+
             it(mode + ' should release delivered values before the stream ends', async function() {
                 if (typeof globalThis.gc !== 'function') {
                     this.skip();
