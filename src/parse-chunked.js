@@ -75,15 +75,28 @@ function applyReviver(value, reviver) {
     return walk({ '': value }, '', value);
 
     function walk(holder, key, value) {
-        if (value && typeof value === 'object') {
-            for (const childKey of Object.keys(value)) {
-                const childValue = value[childKey];
-                const newValue = walk(value, childKey, childValue);
+        if (typeof value === 'object' && value !== null) {
+            if (Array.isArray(value)) {
+                for (let i = 0; i < value.length; i++) {
+                    const childValue = value[i];
+                    const newValue = walk(value, i, childValue);
 
-                if (newValue === undefined) {
-                    delete value[childKey];
-                } else if (newValue !== childValue) {
-                    value[childKey] = newValue;
+                    if (newValue === undefined) {
+                        delete value[i];
+                    } else if (newValue !== childValue) {
+                        value[i] = newValue;
+                    }
+                }
+            } else {
+                for (const childKey of Object.keys(value)) {
+                    const childValue = value[childKey];
+                    const newValue = walk(value, childKey, childValue);
+
+                    if (newValue === undefined) {
+                        delete value[childKey];
+                    } else if (newValue !== childValue) {
+                        value[childKey] = newValue;
+                    }
                 }
             }
         }

@@ -451,6 +451,40 @@ describe('parseChunked()', () => {
             assert.deepStrictEqual(actual, [{ a: 3 }, { a: 6 }]);
         });
 
+        it('reviver should follow JSON.parse behaviour', async () => {
+            const json = '{"a":1,"b":2,"c":[1,2,3],"d":[1,2],"e":[2,2]}';
+            const reviver = (key, value) =>
+                value === 2 ? undefined : value;
+            const actual = await parseChunked([json], reviver);
+            const expected = { a: 1, c: [1, , 3], d: [1,,], e: [,,] };
+
+            assert.deepStrictEqual(JSON.parse(json, reviver), expected);
+            assert.deepStrictEqual(actual, expected);
+        });
+
+        it('reviver should follow JSON.parse order', async () => {
+            const json = '{"a":0,"b":0,"c":[0,{"a":0,"b":0}],"d":{"a":{"x":0},"b":0}}';
+            const reviver = () => {
+                let step = 0;
+                return (key, value) => typeof value === 'number' ? step++ : value;
+            };
+            const actual = await parseChunked([json], reviver());
+            const expected = { a: 0, b: 1, c: [2, { a: 3, b: 4 }], d: { a: { x: 5 }, b: 6 } };
+
+            assert.deepStrictEqual(JSON.parse(json, reviver()), expected);
+            assert.deepStrictEqual(actual, expected);
+        });
+
+        it('reviver should follow JSON.parse behaviour for root value', async () => {
+            const json = '{"a":1,"b":2,"c":[1,2]}';
+            const reviver = () => undefined;
+            const actual = await parseChunked([json], reviver);
+            const expected = undefined;
+
+            assert.deepStrictEqual(JSON.parse(json, reviver), expected);
+            assert.deepStrictEqual(actual, expected);
+        });
+
         it('should ignore invalid reviver in options', async () => {
             const actual = await parse(['{"a":1}'], { reviver: 'not a function' });
             assert.deepStrictEqual(actual, { a: 1 });
