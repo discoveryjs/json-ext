@@ -1232,6 +1232,89 @@ describe('parseChunked()', () => {
         });
     });
 
+    describe('preparing continuation fragments', () => {
+        const cases = [
+            ['comma retained on its own', ['{"a":1,', '"child":{"leaf":[', '2]}}']],
+            ['comma and split key retained together', ['{"a":1,', '"chi', 'ld":{"leaf":[', '2]}}']],
+            ['comma and key in the current chunk', ['{"a":{}', ',"child":{"leaf":[', '2]}}']],
+            ['nonzero start after closing a child', ['{"a":{"b":1', '},"child":{"leaf":[', '2]}}']],
+            ['escaped key retained across empty chunks', ['{"a":1,', '"child\\', '', 'u0020key":{', '"x":2}}']],
+            ['closing nested containers without a comma', ['{"a":[{"b":', '1', '}]}']],
+            ['array continuation before descending', ['[1,', '2,{"child":[', '3]}]']]
+        ];
+
+        for (const [title, chunks] of cases) {
+            for (const binary of [false, true]) {
+                it(title + (binary ? ' (Buffer)' : ''), async () => {
+                    const input = binary ? chunks.map(chunk => Buffer.from(chunk)) : chunks;
+
+                    assert.deepStrictEqual(await parse(input), JSON.parse(chunks.join('')));
+                });
+            }
+        }
+
+        it('preserves progress and pending text when removing a retained comma', async () => {
+            const events = [];
+            const actual = await parse(['{"a":1,', '"child":{"leaf":[', '2]}}'], {
+                onChunk(chunkParsed, chunk, pending, { consumed, parsed, currentRootValue }) {
+                    events.push({ chunkParsed, pending, consumed, parsed, value: clone(currentRootValue) });
+                }
+            });
+
+            assert.deepStrictEqual(actual, { a: 1, child: { leaf: [2] } });
+            assert.deepStrictEqual(events, [
+                { chunkParsed: 6, pending: ',', consumed: 7, parsed: 6, value: { a: 1 } },
+                { chunkParsed: 18, pending: null, consumed: 24, parsed: 24, value: { a: 1, child: { leaf: [] } } },
+                { chunkParsed: 4, pending: null, consumed: 28, parsed: 28, value: actual },
+                { chunkParsed: 0, pending: null, consumed: 28, parsed: 28, value: actual }
+            ]);
+        });
+
+        for (const removeProperty of [false, true]) {
+            it('checks the exposed container after ' + (removeProperty ? 'removing' : 'adding') + ' a property', async () => {
+                let callbacks = 0;
+                const chunks = removeProperty ? ['{"a":1,', '"b":2}'] : ['{', '"b":2}'];
+
+                await assert.rejects(() => parse(chunks, {
+                    onChunk(chunkParsed, chunk, pending, { currentRootValue }) {
+                        callbacks++;
+
+                        if (removeProperty) {
+                            delete currentRootValue.a;
+                        } else {
+                            currentRootValue.a = 1;
+                        }
+                    }
+                }), SyntaxError);
+
+                assert.strictEqual(callbacks, 1);
+            });
+        }
+
+        for (const chunks of [
+            ['{"a":{}', '"b":2}'],
+            ['{"a":{}', '"b":{', '"x":2}}'],
+            ['[{}', ' {}', ']']
+        ]) {
+            it('rejects a missing comma without changing the exposed value: ' + JSON.stringify(chunks), async () => {
+                let exposed;
+                let snapshot;
+                let callbacks = 0;
+
+                await assert.rejects(() => parse(chunks, {
+                    onChunk(chunkParsed, chunk, pending, { currentRootValue }) {
+                        callbacks++;
+                        exposed = currentRootValue;
+                        snapshot = clone(currentRootValue);
+                    }
+                }), SyntaxError);
+
+                assert.strictEqual(callbacks, 1);
+                assert.deepStrictEqual(exposed, snapshot);
+            });
+        }
+    });
+
     describe('should not fail on very long arrays (stack overflow)', () => {
         it('the same depth', async () => {
             const size = 150000;

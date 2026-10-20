@@ -151,10 +151,8 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
     // Opening quote of the string that introduced the container at each depth, i.e. its member
     // key when the parent is an object. Captured on scan in coordinates of the chunk the
     // container was opened in, or -1 when the key started in an earlier chunk and is therefore
-    // located by `pendingStringStart` instead. A flush translates the value into an offset in
-    // the fragment it assembles; that is sound because no flush and no `lastFlushPoint` advance
-    // can happen between a key and the `{`/`[` it introduces, so the chunk frame at capture and
-    // at consumption are the same one
+    // located by `pendingStringStart` instead. No flush can happen between a key and the
+    // `{`/`[` it introduces, so current-chunk keys can be decoded directly from that chunk.
     let descentKeyStart = new Array(100).fill(-1);
     let lastFlushDepth = 0;
     let flushDepth = 0;
@@ -287,60 +285,66 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
         }
     }
 
-    function prepareAddition(fragment) {
-        const { value } = currentRootValueCursor;
-        const expectComma = Array.isArray(value)
-            ? value.length !== 0
-            : Object.keys(value).length !== 0;
-
-        if (expectComma) {
-            // Skip a comma at the beginning of fragment, otherwise it would
-            // fail to parse
-            if (fragment[0] === ',') {
-                jsonParseOffset++;
-                return fragment.slice(1);
-            }
-
-            // When value (an object or array) is not empty and a fragment
-            // doesn't start with a comma, a single valid fragment starting
-            // is a closing bracket. If it's not, a prefix is adding to fail
-            // parsing. Otherwise, the sequence of chunks can be successfully
-            // parsed, although it should not, e.g. ["[{}", "{}]"]
-            if (fragment[0] !== '}' && fragment[0] !== ']') {
-                jsonParseOffset -= 3;
-                return '[[]' + fragment;
-            }
-        }
-
-        return fragment;
-    }
-
     function flush(chunk, start, end) {
-        let fragment = chunk.slice(start, end);
-
-        // Fragment coordinate of `chunk[0]`, used to translate the key positions captured
-        // on scan (see `descentKeyStart`) into offsets in the fragment assembled below
-        let keyOffset = -start;
+        let fragment = '';
+        let pendingKeyStart = pendingStringStart;
 
         // Save position correction for an error in JSON.parse() if any
         jsonParseOffset = consumedChunkLength + start;
         parsedChunkLength += end - start;
 
-        // Prepend pending chunk if any
         if (pendingChunk !== null) {
-            fragment = pendingChunk + fragment;
             jsonParseOffset -= pendingChunk.length;
             parsedChunkLength += pendingChunk.length;
-            keyOffset += pendingChunk.length;
+        }
+
+        // Handle the separator while the sources are separate. Reading or slicing the
+        // joined fragment here could flatten it before its JSON.parse() wrappers are added.
+        if (lastFlushDepth !== 0) {
+            const { value } = currentRootValueCursor;
+            const expectComma = Array.isArray(value)
+                ? value.length !== 0
+                : Object.keys(value).length !== 0;
+
+            if (expectComma) {
+                const firstChar = pendingChunk !== null
+                    ? pendingChunk[0]
+                    : chunk[start];
+
+                if (firstChar === ',') {
+                    jsonParseOffset++;
+
+                    if (pendingChunk !== null) {
+                        pendingChunk = pendingChunk.slice(1);
+                        pendingKeyStart--;
+                    } else {
+                        start++;
+                    }
+                } else if (firstChar !== '}' && firstChar !== ']') {
+                    // A nonempty container must continue with a comma or a closing bracket.
+                    // Add an invalid prefix so JSON.parse() rejects inputs such as ["[{}", "{}]"].
+                    jsonParseOffset -= 3;
+                    fragment = '[[]';
+                }
+            }
+        }
+
+        if (pendingChunk !== null) {
+            // Only pending keys need fragment coordinates; current-chunk keys keep
+            // their source offsets. Progress above still includes any removed comma.
+            pendingKeyStart += fragment.length;
+            fragment += pendingChunk;
             pendingChunk = null;
         }
+
+        fragment += chunk.slice(start, end);
 
         if (flushDepth === lastFlushDepth) {
             // Depth didn't change, so it's a continuation of the current value or entire value if it's a root one
             if (lastFlushDepth === 0) {
                 startRootValue(fragment);
             } else {
-                parseAndAppend(prepareAddition(fragment), true);
+                parseAndAppend(fragment, true);
             }
         } else if (flushDepth > lastFlushDepth) {
             // Add missed closing brackets/parentheses
@@ -356,22 +360,28 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
                     prev: null
                 };
             } else {
-                parseAndAppend(prepareAddition(fragment), true);
+                parseAndAppend(fragment, true);
                 mergeArraySlices();
             }
 
             // Move down to the depths to the last object/array, which is current now
             for (let i = lastFlushDepth || 1; i < flushDepth; i++) {
                 let { value } = currentRootValueCursor;
-                // Note: `fragment` is only appended to above, so captured key positions still hold
-                let key = stack[i - 1] === STACK_OBJECT
-                    ? decodeKeyAt(fragment, descentKeyStart[i] !== -1
-                        ? keyOffset + descentKeyStart[i]
-                        : pendingStringStart)
-                    : value.length - 1;
+                let key;
+
+                if (stack[i - 1] === STACK_OBJECT) {
+                    const keyStart = descentKeyStart[i];
+
+                    // Avoid flattening the prepared fragment just to read a key.
+                    // Only keys spanning chunks need the assembled text.
+                    key = keyStart !== -1
+                        ? decodeKeyAt(chunk, keyStart)
+                        : decodeKeyAt(fragment, pendingKeyStart);
+                } else {
+                    key = value.length - 1;
+                }
 
                 value = value[key];
-
                 currentRootValueCursor = {
                     value,
                     key,
@@ -379,8 +389,6 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
                 };
             }
         } else /* flushDepth < lastFlushDepth */ {
-            fragment = prepareAddition(fragment);
-
             // Add missed opening brackets/parentheses
             for (let i = lastFlushDepth - 1; i >= flushDepth; i--) {
                 jsonParseOffset--;
