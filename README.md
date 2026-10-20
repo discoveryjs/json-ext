@@ -88,7 +88,7 @@ You can pass `reviver` either as the second argument (`parseChunked(input, reviv
 - `'jsonl'`: parse as JSONL (Newline Delimited JSON) and always return an array of parsed lines;
 - `'auto'`: parse as regular JSON, but switch to JSONL mode when an additional value appears after a newline.
 
-`options.onRootValue` is called when a root value is parsed and finalized. When `onRootValue` is specified, `parseChunked()` resolves to the number of processed root values (instead of returning parsed value(s)), which allows processing huge or infinite streams without accumulating all values in memory.
+`options.onRootValue` is called when a root value is parsed and finalized. When `onRootValue` is specified, `parseChunked()` resolves to the number of processed root values (instead of returning parsed value(s)), which allows processing huge or infinite streams without accumulating all values in memory. This also applies when `mode: 'auto'` switches from JSON to JSONL: the first delivered value is not retained in a results array.
 
 `options.onChunk` is called after each input chunk is processed and once at the end with `chunk = null`. It provides parsing progress and parser state as chunks are processed.
 

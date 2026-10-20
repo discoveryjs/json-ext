@@ -1,3 +1,4 @@
+/* global globalThis */
 import assert from 'assert';
 import { Buffer } from 'buffer'; // needed for Deno
 import { Readable } from 'stream';
@@ -550,6 +551,46 @@ describe('parseChunked()', () => {
                 { mode: 'jsonl', rootValuesCount: 3 }
             ]);
         });
+
+        for (const mode of ['jsonl', 'auto']) {
+            it(mode + ' should release delivered values before the stream ends', async function() {
+                if (typeof globalThis.gc !== 'function') {
+                    this.skip();
+                }
+
+                let firstValue;
+                let state;
+                const actual = await parseChunked(async function*() {
+                    yield '{"a":';
+                    yield '1}\n';
+                    yield '2\n';
+
+                    // WeakRef targets stay alive until the end of their current job.
+                    for (let i = 0; i < 3; i++) {
+                        await new Promise(resolve => setTimeout(resolve, 0));
+                        globalThis.gc();
+                    }
+
+                    assert.strictEqual(firstValue.deref(), undefined);
+                    assert.strictEqual(state.mode, 'jsonl');
+                    assert.strictEqual(state.currentRootValue, 2);
+                    assert.strictEqual(state.returnValue, 2);
+
+                    yield '3\n';
+                }, {
+                    mode,
+                    onRootValue(value, currentState) {
+                        state = currentState;
+
+                        if (state.rootValuesCount === 1) {
+                            firstValue = new globalThis.WeakRef(value);
+                        }
+                    }
+                });
+
+                assert.strictEqual(actual, 3);
+            });
+        }
     });
 
     describe('onRootValue & reviver', () => {

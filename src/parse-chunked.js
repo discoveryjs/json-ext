@@ -213,7 +213,10 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
         // In "auto" mode, switch to JSONL when a second root value is starting after a newline
         if (currentRootValue !== NO_VALUE && parseMode === MODE_JSONL_AUTO) {
             parseMode = MODE_JSONL;
-            rootValues = [currentRootValue];
+
+            if (typeof onRootValue !== 'function') {
+                rootValues = [currentRootValue];
+            }
         }
 
         // Block parsing of an additional root value until a newline is encountered

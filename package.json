@@ -46,7 +46,7 @@
         "bundle": "node scripts/bundle.js",
         "transpile": "node scripts/transpile.cjs",
         "test:all": "npm run test:src && npm run test:cjs && npm run test:dist && npm run test:e2e",
-        "test:src": "mocha --reporter progress src/*.test.js",
+        "test:src": "mocha --expose-gc --reporter progress src/*.test.js",
         "test:cjs": "mocha --reporter progress cjs/*.test.cjs",
         "test:e2e": "mocha --reporter progress test-e2e",
         "test:dist": "mocha --reporter progress dist/test",
