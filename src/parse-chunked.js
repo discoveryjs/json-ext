@@ -7,6 +7,7 @@ const MODE_JSON = 0;
 const MODE_JSONL = 1;
 const MODE_JSONL_AUTO = 2;
 const decoder = new TextDecoder();
+const parseJSON = JSON.parse;
 
 function adjustPosition(error, jsonParseOffset) {
     if (error.name === 'SyntaxError' && jsonParseOffset) {
@@ -206,7 +207,7 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
         // Extra non-whitespace after complete root value should fail to parse
         if (!allowNewRootValue) {
             jsonParseOffset -= 2;
-            JSON.parse('[]' + fragment);
+            parseJSON('[]' + fragment);
         }
 
         // In "auto" mode, switch to JSONL when a second root value is starting after a newline
@@ -219,7 +220,7 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
         allowNewRootValue = false;
 
         // Parse fragment as a new root value
-        currentRootValue = JSON.parse(fragment);
+        currentRootValue = parseJSON(fragment);
     }
 
     function finishRootValue() {
@@ -267,7 +268,7 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
                 fragment = '{' + fragment + '}';
             }
 
-            Object.assign(currentRootValueCursor.value, JSON.parse(fragment));
+            Object.assign(currentRootValueCursor.value, parseJSON(fragment));
         } else {
             if (wrap) {
                 jsonParseOffset--;
@@ -275,9 +276,9 @@ function createChunkParser(parseMode, reviver, onRootValue, onChunk) {
             }
 
             if (prevArray === currentRootValueCursor.value) {
-                prevArraySlices.push(JSON.parse(fragment));
+                prevArraySlices.push(parseJSON(fragment));
             } else {
-                append(currentRootValueCursor.value, JSON.parse(fragment));
+                append(currentRootValueCursor.value, parseJSON(fragment));
                 prevArray = currentRootValueCursor.value;
             }
         }
