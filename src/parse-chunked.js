@@ -78,9 +78,11 @@ function applyReviver(value, reviver) {
     function walk(holder, key, value) {
         if (typeof value === 'object' && value !== null) {
             if (Array.isArray(value)) {
-                for (let i = 0; i < value.length; i++) {
+                const arrayLength = value.length;
+
+                for (let i = 0; i < arrayLength; i++) {
                     const childValue = value[i];
-                    const newValue = walk(value, i, childValue);
+                    const newValue = walk(value, String(i), childValue);
 
                     if (newValue === undefined) {
                         delete value[i];

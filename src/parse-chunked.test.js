@@ -559,6 +559,54 @@ describe('parseChunked()', () => {
             assert.deepStrictEqual(actual, expected);
         });
 
+        it('reviver should receive string keys and the same holders as JSON.parse', async () => {
+            const json = '[1,[2]]';
+            const actualCalls = [];
+            const expectedCalls = [];
+            const reviver = calls => function(key, value) {
+                calls.push([key, Array.isArray(this)]);
+                return value;
+            };
+
+            await parseChunked([json], reviver(actualCalls));
+            JSON.parse(json, reviver(expectedCalls));
+
+            assert.deepStrictEqual(actualCalls, expectedCalls);
+        });
+
+        for (const [action, mutate] of [
+            ['appends elements', array => array.push(3)],
+            ['shrinks the array', array => {
+                array.length = 1;
+            }],
+            ['deletes an element', array => {
+                delete array[1];
+            }],
+            ['replaces an element', array => {
+                array[1] = 4;
+            }]
+        ]) {
+            it('reviver should follow JSON.parse when it ' + action, async () => {
+                const json = '[1,2]';
+                const actualCalls = [];
+                const expectedCalls = [];
+                const reviver = calls => function(key, value) {
+                    calls.push([key, value]);
+
+                    if (String(key) === '0') {
+                        mutate(this);
+                    }
+
+                    return value;
+                };
+                const actual = await parseChunked([json], reviver(actualCalls));
+                const expected = JSON.parse(json, reviver(expectedCalls));
+
+                assert.deepStrictEqual(actualCalls, expectedCalls);
+                assert.deepStrictEqual(actual, expected);
+            });
+        }
+
         it('reviver should follow JSON.parse behaviour for root value', async () => {
             const json = '{"a":1,"b":2,"c":[1,2]}';
             const reviver = () => undefined;
